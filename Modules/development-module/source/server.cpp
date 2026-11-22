@@ -328,8 +328,17 @@ int32_t listenerMain(void* context) {
         fd_set readFds;
         FD_ZERO(&readFds);
         FD_SET(data->listenFd, &readFds);
+#ifdef ESP_PLATFORM
         timeval timeout { .tv_sec = 0, .tv_usec = ACCEPT_POLL_TIMEOUT_MS * 1000 };
+#else
+        // A select() that waits blocks outside the scheduler on POSIX, so the task counts as running and the idle task never
+        // gets to free the tasks that have finished. Polling and delaying lets the scheduler see the task as waiting.
+        timeval timeout { .tv_sec = 0, .tv_usec = 0 };
+#endif
         if (select(data->listenFd + 1, &readFds, nullptr, nullptr, &timeout) <= 0) {
+#ifndef ESP_PLATFORM
+            vTaskDelay(pdMS_TO_TICKS(ACCEPT_POLL_TIMEOUT_MS));
+#endif
             continue;
         }
         sockaddr_in address {};

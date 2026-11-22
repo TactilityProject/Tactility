@@ -12,29 +12,68 @@ msgstr "(sans nom)"
 msgid "About"
 msgstr "À propos"
 
-msgid "Failed to allocate memory for task list"
-msgstr "Échec de l'allocation de mémoire pour la liste des tâches"
+msgid "All"
+msgstr "Toutes"
 
-msgid "Hardware model: {}"
-msgstr "Modèle du matériel : {}"
+msgid "Chip"
+msgstr "Puce"
 
-msgid "Hardware vendor: {}"
-msgstr "Fabricant du matériel : {}"
+msgid "Device"
+msgstr "Appareil"
+
+msgid "Display"
+msgstr "Écran"
+
+msgid "Flash"
+msgstr "Flash"
 
 msgid "Internal RAM"
 msgstr "RAM interne"
 
-msgid "Internal storage"
-msgstr "Stockage interne"
+msgid "Low stack first"
+msgstr "Pile faible d'abord"
 
 msgid "Memory"
 msgstr "Mémoire"
 
+msgid "Model"
+msgstr "Modèle"
+
 msgid "PSRAM"
 msgstr "PSRAM"
 
+msgid "Paused"
+msgstr "En pause"
+
+msgid "Paused tasks"
+msgstr "Tâches en pause"
+
+msgid "Priority"
+msgstr "Priorité"
+
+msgid "Ready"
+msgstr "Prêtes"
+
+msgid "Ready to run"
+msgstr "Prêtes à s'exécuter"
+
+msgid "Running"
+msgstr "En cours"
+
+msgid "Running now"
+msgstr "En cours maintenant"
+
 msgid "SD card"
 msgstr "Carte SD"
+
+msgid "Software"
+msgstr "Logiciel"
+
+msgid "Stack minimum"
+msgstr "Pile minimale"
+
+msgid "State"
+msgstr "État"
 
 msgid "Storage"
 msgstr "Stockage"
@@ -42,23 +81,32 @@ msgstr "Stockage"
 msgid "Tasks"
 msgstr "Tâches"
 
-msgid "blocked"
-msgstr "bloquée"
+msgid "Uptime"
+msgstr "Temps de fonctionnement"
 
-msgid "deleted"
-msgstr "supprimée"
+msgid "Vendor"
+msgstr "Fabricant"
 
-msgid "invalid"
-msgstr "invalide"
+msgid "Version {}"
+msgstr "Version {}"
 
-msgid "ready"
-msgstr "prête"
+msgid "Waiting"
+msgstr "En attente"
 
-msgid "running"
-msgstr "en cours"
+msgid "Waiting for something"
+msgstr "En attente de quelque chose"
 
-msgid "suspended"
-msgstr "suspendue"
+msgid "{} d {} h"
+msgstr "{} j {} h"
 
 msgid "{} free of {}"
 msgstr "{} libres sur {}"
+
+msgid "{} h {} min"
+msgstr "{} h {} min"
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "{} · {} cores"
+msgstr "{} · {} cœurs"

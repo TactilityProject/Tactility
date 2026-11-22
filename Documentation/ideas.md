@@ -8,7 +8,6 @@
 
 ## Medium Priority
 
-- App Hub: the "Updates" tab is shown and then hidden: reverse that. hidden until needed.
 - "data" and "/data": Rename to "internal"? Find and get rid of hard-coding these names?
 - Rewrite System Info storage tab: use file system API instead of hard-coded SD and /data logic.
 - System overlay menu is in its own layer in lvgl. I want a new layer inbetween the apps and the system overlay.

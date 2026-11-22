@@ -422,6 +422,9 @@ void createFilterTabs(lv_obj_t* parent, Context* ctx) {
     for (const auto* label : FILTER_LABELS) {
         lvgl_tabs_add_tab(ctx->tabs, tr(label));
     }
+    // The updates tab stays hidden until there are updates, so it doesn't show up while the apps are loading
+    const bool hasUpdates = ::std::ranges::any_of(ctx->apps, [](const AppHubApp& app) { return app.update_available; });
+    lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::Updates), !hasUpdates);
     lvgl_tabs_set_selected(ctx->tabs, static_cast<uint32_t>(ctx->filter));
     lv_obj_add_event_cb(ctx->tabs, onFilterChanged, LV_EVENT_VALUE_CHANGED, ctx);
 }

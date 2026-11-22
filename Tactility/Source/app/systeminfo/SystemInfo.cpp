@@ -3,9 +3,13 @@
 
 #include "tactility/time.h"
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/display.h>
+#include <tactility/drivers/sdcard.h>
+#include <tactility/filesystem/file_system.h>
 #include <tactility/memory.h>
+#include <tactility/paths.h>
 
-#include <Tactility/DeprecatedPaths.h>
 #include <Tactility/Timer.h>
 
 #include <app/event.h>
@@ -17,6 +21,7 @@
 #include <format>
 #include <utility>
 #include <vector>
+#include <cctype>
 #include <string>
 
 #include <lvgl/fonts.h>
@@ -25,6 +30,8 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/tabs.h>
 
@@ -33,6 +40,9 @@
 #ifdef ESP_PLATFORM
 #include <esp_vfs_fat.h>
 #include <esp_heap_caps.h>
+#include <soc/soc_caps.h>
+#else
+#include <sys/statvfs.h>
 #endif
 
 namespace tt::app::systeminfo {
@@ -253,85 +263,145 @@ void updateUsageCard(UsageCardWidgets& widgets, uint64_t free, uint64_t total, u
 
 #if configUSE_TRACE_FACILITY
 
-const char* getTaskState(const TaskStatus_t& task) {
-    switch (task.eCurrentState) {
+/** The states of FreeRTOS as a user sees them */
+enum class TaskGroup { Running, Ready, Waiting, Paused };
+
+/** The first chip shows all tasks, and the others one group each */
+constexpr size_t TASK_CHIP_COUNT = 1 + 4;
+/** Tasks with less stack than this left at their worst are listed first */
+constexpr uint32_t LOW_STACK_BYTES = 512;
+
+struct TaskInfo {
+    std::string name;
+    TaskGroup group;
+    UBaseType_t priority;
+    /** The least stack that the task has had left */
+    uint32_t stackFree;
+};
+
+TaskGroup getTaskGroup(eTaskState state) {
+    switch (state) {
         case eRunning:
-            return tr("running");
+            return TaskGroup::Running;
         case eReady:
-            return tr("ready");
-        case eBlocked:
-            return tr("blocked");
+            return TaskGroup::Ready;
         case eSuspended:
-            return tr("suspended");
+            return TaskGroup::Paused;
+        case eBlocked:
         case eDeleted:
-            return tr("deleted");
         case eInvalid:
         default:
-            return tr("invalid");
+            return TaskGroup::Waiting;
     }
+}
+
+/** Each state has its own shape, so it can be told apart without colour */
+const char* getGroupIcon(TaskGroup group) {
+    switch (group) {
+        case TaskGroup::Running:
+            return LVGL_ICON_SHARED_PLAY_ARROW;
+        case TaskGroup::Ready:
+            return LVGL_ICON_SHARED_RADIO_BUTTON_UNCHECKED;
+        case TaskGroup::Paused:
+            return LVGL_ICON_SHARED_PAUSE;
+        case TaskGroup::Waiting:
+        default:
+            return LVGL_ICON_SHARED_HOURGLASS;
+    }
+}
+
+const char* getGroupWord(TaskGroup group) {
+    switch (group) {
+        case TaskGroup::Running:
+            return tr("Running");
+        case TaskGroup::Ready:
+            return tr("Ready");
+        case TaskGroup::Paused:
+            return tr("Paused");
+        case TaskGroup::Waiting:
+        default:
+            return tr("Waiting");
+    }
+}
+
+const char* getGroupDescription(size_t filter) {
+    switch (filter) {
+        case 1:
+            return tr("Running now");
+        case 2:
+            return tr("Ready to run");
+        case 3:
+            return tr("Waiting for something");
+        case 4:
+            return tr("Paused tasks");
+        default:
+            return tr("Low stack first");
+    }
+}
+
+/** The colour supports the shape, and the monochrome theme has none */
+void setGroupColor(lv_obj_t* obj, TaskGroup group) {
+    if (lvgl_theme_is_mono()) {
+        return;
+    }
+    lv_palette_t palette = LV_PALETTE_GREY;
+    switch (group) {
+        case TaskGroup::Running:
+            palette = LV_PALETTE_GREEN;
+            break;
+        case TaskGroup::Ready:
+            palette = LV_PALETTE_BLUE;
+            break;
+        case TaskGroup::Paused:
+            palette = LV_PALETTE_ORANGE;
+            break;
+        case TaskGroup::Waiting:
+            break;
+    }
+    lv_obj_set_style_text_color(obj, lv_palette_main(palette), LV_STATE_DEFAULT);
 }
 
 const char* getTaskName(const TaskStatus_t& task) {
     return (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? tr("(unnamed)") : task.pcTaskName;
 }
 
-/**
- * Updates the rows in place, so the list keeps its height and scroll position, and the selected task stays selected.
- * @param[in] parent the list
- * @param[in,out] taskNames the task name of each row
- */
-void updateRtosTasks(lv_obj_t* parent, std::vector<std::string>& taskNames) {
-    lv_obj_t* selected = lvgl_grid_navigation_get_focused(parent);
-    const int32_t selected_index = selected != nullptr ? lv_obj_get_index(selected) : -1;
-    const std::string selected_name = selected_index >= 0 && selected_index < static_cast<int32_t>(taskNames.size()) ? taskNames[selected_index] : "";
-    const bool show_selection = selected != nullptr && lv_obj_has_state(selected, LV_STATE_FOCUS_KEY);
-
-    UBaseType_t count = uxTaskGetNumberOfTasks();
-    auto* tasks = (TaskStatus_t*)malloc(sizeof(TaskStatus_t) * count);
-    if (!tasks) {
-        lv_obj_clean(parent);
-        taskNames.clear();
-        auto* error_label = lv_label_create(parent);
-        lv_label_set_text(error_label, tr("Failed to allocate memory for task list"));
-        return;
+/** The tasks with a low stack first, then the paused ones, then the rest by name */
+std::vector<TaskInfo> collectTasks() {
+    std::vector<TaskInfo> result;
+    const UBaseType_t count = uxTaskGetNumberOfTasks();
+    auto* tasks = static_cast<TaskStatus_t*>(malloc(sizeof(TaskStatus_t) * count));
+    if (tasks == nullptr) {
+        return result;
     }
     uint32_t totalRuntime = 0;
-    UBaseType_t actual = uxTaskGetSystemState(tasks, count, &totalRuntime);
-    std::sort(tasks, tasks + actual, [](const TaskStatus_t& a, const TaskStatus_t& b) {
-        return strcasecmp(getTaskName(a), getTaskName(b)) < 0;
-    });
-
-    taskNames.clear();
-    for (UBaseType_t i = 0; i < actual; ++i) {
-        auto* row = i < lv_obj_get_child_count(parent) ? lv_obj_get_child(parent, static_cast<int32_t>(i)) : lv_label_create(parent);
-        lv_label_set_text_fmt(row, "%s (%s)", getTaskName(tasks[i]), getTaskState(tasks[i]));
-        // Keys and encoders move through the tasks, which scrolls the list
-        lv_obj_set_clickable(row, true);
-        taskNames.emplace_back(getTaskName(tasks[i]));
+    const UBaseType_t actual = uxTaskGetSystemState(tasks, count, &totalRuntime);
+    for (UBaseType_t i = 0; i < actual; i++) {
+        // A finished task is listed until the idle task has freed it
+        if (tasks[i].eCurrentState == eDeleted) {
+            continue;
+        }
+        result.push_back({
+            getTaskName(tasks[i]),
+            getTaskGroup(tasks[i].eCurrentState),
+            tasks[i].uxCurrentPriority,
+            static_cast<uint32_t>(tasks[i].usStackHighWaterMark * sizeof(StackType_t))
+        });
     }
     free(tasks);
-    while (lv_obj_get_child_count(parent) > actual) {
-        lv_obj_delete(lv_obj_get_child(parent, -1));
-    }
-
-    if (selected_index < 0 || taskNames.empty()) {
-        return;
-    }
-    // Follows the task, or keeps the position when the task is gone
-    auto it = std::ranges::find(taskNames, selected_name);
-    const auto index = it != taskNames.end() ? static_cast<int32_t>(it - taskNames.begin()) : std::min(selected_index, static_cast<int32_t>(taskNames.size()) - 1);
-    // Also re-applied when the row didn't change: deleting rows resets grid navigation's selection
-    auto* row = lv_obj_get_child(parent, index);
-    lv_gridnav_set_focused(parent, row, LV_ANIM_OFF);
-    const bool list_focused = lv_obj_get_group(parent) != nullptr && lv_group_get_focused(lv_obj_get_group(parent)) == parent;
-    if (!show_selection) {
-        lv_obj_remove_state(row, LV_STATE_FOCUS_KEY);
-    }
-    if (list_focused) {
-        lv_obj_scroll_to_view_recursive(row, LV_ANIM_OFF);
-    } else {
-        lv_obj_remove_state(row, LV_STATE_FOCUSED);
-    }
+    std::sort(result.begin(), result.end(), [](const TaskInfo& a, const TaskInfo& b) {
+        const bool lowA = a.stackFree < LOW_STACK_BYTES;
+        const bool lowB = b.stackFree < LOW_STACK_BYTES;
+        if (lowA != lowB) {
+            return lowA;
+        }
+        const bool pausedA = a.group == TaskGroup::Paused;
+        const bool pausedB = b.group == TaskGroup::Paused;
+        if (pausedA != pausedB) {
+            return pausedA;
+        }
+        return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
+    });
+    return result;
 }
 
 #endif
@@ -348,6 +418,106 @@ lv_obj_t* createPane(lv_obj_t* parent) {
 }
 
 /** In the order of the tabs */
+/** A mounted file system, which gets a card in the storage tab */
+struct StorageVolume {
+    std::string name;
+    std::string path;
+    UsageCardWidgets card;
+};
+
+bool getStorageUsage(const char* path, uint64_t& total, uint64_t& free) {
+#ifdef ESP_PLATFORM
+    return esp_vfs_fat_info(path, &total, &free) == ESP_OK;
+#else
+    struct statvfs stats {};
+    if (statvfs(path, &stats) != 0) {
+        return false;
+    }
+    total = static_cast<uint64_t>(stats.f_blocks) * stats.f_frsize;
+    free = static_cast<uint64_t>(stats.f_bavail) * stats.f_frsize;
+    return true;
+#endif
+}
+
+/** Collects the mounted file systems of which the capacity is known */
+bool collectStorageVolume(FileSystem* fs, void* context) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    uint64_t total = 0;
+    uint64_t free = 0;
+    if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE || !getStorageUsage(path, total, free)) {
+        return true;
+    }
+    auto* owner = file_system_get_owner(fs);
+    const bool sdcard = owner != nullptr && device_get_type(owner) == &SDCARD_TYPE;
+    static_cast<std::vector<StorageVolume>*>(context)->push_back({ sdcard ? tr("SD card") : file_system_get_name(fs), path, {} });
+    return true;
+}
+
+#ifdef ESP_PLATFORM
+/** "ESP32S3" as "ESP32-S3" */
+std::string getChipName() {
+    std::string name = CONFIG_IDF_TARGET;
+    std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    if (name.size() > 5 && name.starts_with("ESP32")) {
+        name.insert(5, "-");
+    }
+    return name;
+}
+#endif
+
+std::string formatUptime(uint64_t seconds) {
+    const uint64_t minutes = seconds / 60;
+    const uint64_t hours = minutes / 60;
+    const uint64_t days = hours / 24;
+    if (days > 0) {
+        return i18n::format(tr("{} d {} h"), { std::to_string(days), std::to_string(hours % 24) });
+    }
+    if (hours > 0) {
+        return i18n::format(tr("{} h {} min"), { std::to_string(hours), std::to_string(minutes % 60) });
+    }
+    return i18n::format(tr("{} min"), { std::to_string(minutes) });
+}
+
+/** A card of rows with a name on the left and the value on the right. It can be selected, so the keys can scroll to it on small displays. */
+lv_obj_t* createInfoCard(lv_obj_t* parent, const char* title) {
+    auto* titleLabel = lv_label_create(parent);
+    lv_label_set_text(titleLabel, title);
+    lv_obj_set_style_text_font(titleLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(titleLabel, LV_OPA_70, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(titleLabel, LV_DPX(8), LV_STATE_DEFAULT);
+
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(card, LV_DPX(6), LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(card, false);
+    lv_obj_set_clickable(card, true);
+    lv_obj_set_click_focusable(card, true);
+    return card;
+}
+
+/** @return the label with the value */
+lv_obj_t* addInfoRow(lv_obj_t* card, const char* name, const char* value) {
+    auto* row = lv_obj_create(card);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_column(row, LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_clickable(row, false);
+    lv_obj_set_scrollable(row, false);
+
+    auto* nameLabel = lv_label_create(row);
+    lv_label_set_text(nameLabel, name);
+    lv_obj_set_style_text_opa(nameLabel, LV_OPA_70, LV_STATE_DEFAULT);
+
+    auto* valueLabel = lv_label_create(row);
+    lv_obj_set_flex_grow(valueLabel, 1);
+    lv_obj_set_style_text_align(valueLabel, LV_TEXT_ALIGN_RIGHT, LV_STATE_DEFAULT);
+    lv_label_set_text(valueLabel, value);
+    return valueLabel;
+}
+
 enum class Tab { Memory, Storage, Tasks, About };
 constexpr size_t TAB_COUNT = 4;
 
@@ -359,20 +529,35 @@ struct Context {
 
     UsageCardWidgets internalMemCard;
     UsageCardWidgets externalMemCard;
-    UsageCardWidgets dataStorageCard;
-    UsageCardWidgets sdcardStorageCard;
+    /** The mounted file systems with a capacity, which have a card each while the widgets exist */
+    std::vector<StorageVolume> volumes;
 
+    /** The list of tasks */
     lv_obj_t* tasksContainer = nullptr;
     /** The task name of each row in tasksContainer */
     std::vector<std::string> taskNames;
+#if configUSE_TRACE_FACILITY
+    lv_obj_t* taskChipRow = nullptr;
+    lv_obj_t* taskChips[TASK_CHIP_COUNT] = {};
+    lv_obj_t* taskChipWords[TASK_CHIP_COUNT] = {};
+    lv_obj_t* taskChipCounts[TASK_CHIP_COUNT] = {};
+    lv_obj_t* taskSubtitle = nullptr;
+    lv_obj_t* taskLegend = nullptr;
+    /** 0 shows all tasks, and otherwise a TaskGroup + 1 */
+    size_t taskFilter = 0;
+    /** The task of which the details are shown */
+    std::string expandedTask;
+#endif
     lv_obj_t* psramContainer = nullptr;
     lv_obj_t* tabs = nullptr;
     lv_obj_t* panes[TAB_COUNT] = {};
     /** Survives a rebuild of the widgets */
     uint32_t selectedTab = 0;
 
+    /** The uptime, which changes while the tab is shown */
+    lv_obj_t* uptimeLabel = nullptr;
+
     bool hasExternalMem = false;
-    bool hasDataStorage = false;
 };
 
 
@@ -384,30 +569,255 @@ void updateMemory(Context* ctx) {
     }
 }
 
-void updateStorage(Context* ctx) {
-#ifdef ESP_PLATFORM
-    uint64_t storage_total = 0;
-    uint64_t storage_free = 0;
+void updateAbout(Context* ctx) {
+    if (ctx->uptimeLabel != nullptr) {
+        lv_label_set_text(ctx->uptimeLabel, formatUptime(get_micros_since_boot() / 1000000).c_str());
+    }
+}
 
-    if (ctx->hasDataStorage) {
-        if (esp_vfs_fat_info("/data", &storage_total, &storage_free) == ESP_OK) {
-            updateUsageCard(ctx->dataStorageCard, storage_free, storage_total, 0);
+void updateStorage(Context* ctx) {
+    for (auto& volume : ctx->volumes) {
+        uint64_t total = 0;
+        uint64_t free = 0;
+        if (getStorageUsage(volume.path.c_str(), total, free)) {
+            updateUsageCard(volume.card, free, total, 0);
         }
     }
+}
 
-    std::string sdcard_path;
-    if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
-        updateUsageCard(ctx->sdcardStorageCard, storage_free, storage_total, 0);
+#if configUSE_TRACE_FACILITY
+
+void updateTasks(Context* ctx);
+
+void onTaskChipPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* chip = lv_event_get_current_target_obj(event);
+    for (size_t i = 0; i < TASK_CHIP_COUNT; i++) {
+        if (ctx->taskChips[i] == chip) {
+            ctx->taskFilter = i;
+        }
+    }
+    updateTasks(ctx);
+}
+
+void onTaskPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    const auto index = static_cast<size_t>(lv_obj_get_index(lv_event_get_current_target_obj(event)));
+    if (index >= ctx->taskNames.size()) {
+        return;
+    }
+    // The details of one task show at a time
+    ctx->expandedTask = ctx->expandedTask == ctx->taskNames[index] ? "" : ctx->taskNames[index];
+    updateTasks(ctx);
+}
+
+/** "[shape] [word] [count]": the word is only shown for the selected chip, or for all when there is room */
+void createTaskChips(lv_obj_t* parent, Context* ctx) {
+    auto* row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_row(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(row, false);
+    ctx->taskChipRow = row;
+
+    for (size_t i = 0; i < TASK_CHIP_COUNT; i++) {
+        auto* chip = lvgl_chip_create(row);
+        // Lays out the shape, the word and the count next to each other
+        lv_obj_set_size(chip, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(chip, LV_DPX(4), LV_STATE_DEFAULT);
+        lv_obj_add_event_cb(chip, onTaskChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
+        ctx->taskChips[i] = chip;
+        if (i > 0) {
+            const auto group = static_cast<TaskGroup>(i - 1);
+            auto* icon = lv_label_create(chip);
+            lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+            lv_label_set_text(icon, getGroupIcon(group));
+        }
+        auto* word = lv_label_create(chip);
+        lv_label_set_text(word, i == 0 ? tr("All") : getGroupWord(static_cast<TaskGroup>(i - 1)));
+        ctx->taskChipWords[i] = word;
+        ctx->taskChipCounts[i] = lv_label_create(chip);
+    }
+    lvgl_grid_navigation_add(row);
+
+    ctx->taskSubtitle = lv_label_create(parent);
+    lv_obj_set_style_text_font(ctx->taskSubtitle, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(ctx->taskSubtitle, LV_DPX(8), LV_STATE_DEFAULT);
+
+    // Shows the shapes with their words, when the chips don't have room to
+    auto* legend = lv_obj_create(parent);
+    lv_obj_remove_style_all(legend);
+    lv_obj_set_size(legend, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(legend, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_all(legend, LV_DPX(8), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(legend, LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(legend, false);
+    for (size_t i = 0; i < TASK_CHIP_COUNT - 1; i++) {
+        const auto group = static_cast<TaskGroup>(i);
+        auto* item = lv_label_create(legend);
+        lv_obj_set_style_text_font(item, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+        lv_label_set_text_fmt(item, "%s %s", getGroupIcon(group), getGroupWord(group));
+    }
+    ctx->taskLegend = legend;
+}
+
+/** The first child is the shape, then the name, the stack left and the details, which only show for the selected task */
+lv_obj_t* createTaskRow(lv_obj_t* list, Context* ctx) {
+    auto* row = lvgl_list_add_button(list, nullptr, nullptr);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_add_event_cb(row, onTaskPressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    auto* icon = lv_label_create(row);
+    lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+
+    auto* name = lv_label_create(row);
+    lv_obj_set_flex_grow(name, 1);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_MODE_DOTS);
+
+    auto* stack = lv_label_create(row);
+    lv_obj_set_style_text_font(stack, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+
+    auto* details = lv_obj_create(row);
+    // Without the theme's styles, the text colour of the row applies, which follows its focused and pressed states
+    lv_obj_remove_style_all(details);
+    lv_obj_set_size(details, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(details, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_left(details, LV_DPX(24), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(details, LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_clickable(details, false);
+    lv_obj_set_scrollable(details, false);
+    lv_obj_set_hidden(details, true);
+    auto* labels = lv_label_create(details);
+    lv_obj_set_style_text_font(labels, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+    lv_label_set_text_fmt(labels, "%s\n%s\n%s", tr("State"), tr("Priority"), tr("Stack minimum"));
+    auto* values = lv_label_create(details);
+    lv_obj_set_flex_grow(values, 1);
+    lv_obj_set_style_text_font(values, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(values, LV_TEXT_ALIGN_RIGHT, LV_STATE_DEFAULT);
+    return row;
+}
+
+void updateTaskRow(lv_obj_t* row, const TaskInfo& task, bool expanded) {
+    auto* icon = lv_obj_get_child(row, 0);
+    lv_label_set_text(icon, getGroupIcon(task.group));
+    setGroupColor(icon, task.group);
+    lv_label_set_text(lv_obj_get_child(row, 1), task.name.c_str());
+
+    auto* stack = lv_obj_get_child(row, 2);
+    lv_label_set_text(stack, formatSize(task.stackFree).c_str());
+    if (!lvgl_theme_is_mono() && task.stackFree < LOW_STACK_BYTES) {
+        lv_obj_set_style_text_color(stack, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
+    } else {
+        lv_obj_remove_local_style_prop(stack, LV_STYLE_TEXT_COLOR, LV_PART_MAIN);
     }
 
-#endif
+    auto* details = lv_obj_get_child(row, 3);
+    lv_obj_set_hidden(details, !expanded);
+    if (expanded) {
+        lv_label_set_text_fmt(lv_obj_get_child(details, 1), "%s\n%u\n%s", getGroupWord(task.group), static_cast<unsigned>(task.priority), formatSize(task.stackFree).c_str());
+    }
 }
+
+/** The words are shown for all chips when they fit in a row. Otherwise the selected one has its word, and the legend explains the shapes. */
+void updateTaskChipWords(Context* ctx) {
+    for (size_t i = 1; i < TASK_CHIP_COUNT; i++) {
+        lv_obj_set_hidden(ctx->taskChipWords[i], false);
+    }
+    lv_obj_update_layout(ctx->taskChipRow);
+    const bool wrapped = lv_obj_get_y(ctx->taskChips[TASK_CHIP_COUNT - 1]) > lv_obj_get_y(ctx->taskChips[0]);
+    if (wrapped) {
+        for (size_t i = 1; i < TASK_CHIP_COUNT; i++) {
+            lv_obj_set_hidden(ctx->taskChipWords[i], i != ctx->taskFilter);
+        }
+    }
+    // The legend needs room for itself as well
+    lv_obj_set_hidden(ctx->taskLegend, !wrapped || lv_obj_get_height(lv_obj_get_parent(ctx->taskChipRow)) < LV_DPX(240));
+}
+
+/** Updates the rows in place, so the list keeps its scroll position, and the selected task stays selected */
+void updateTaskRows(Context* ctx, const std::vector<const TaskInfo*>& shown) {
+    auto* list = ctx->tasksContainer;
+    lv_obj_t* selected = lvgl_grid_navigation_get_focused(list);
+    const int32_t selected_index = selected != nullptr ? lv_obj_get_index(selected) : -1;
+    const std::string selected_name = selected_index >= 0 && selected_index < static_cast<int32_t>(ctx->taskNames.size()) ? ctx->taskNames[selected_index] : "";
+    const bool show_selection = selected != nullptr && lv_obj_has_state(selected, LV_STATE_FOCUS_KEY);
+
+    ctx->taskNames.clear();
+    for (size_t i = 0; i < shown.size(); i++) {
+        auto* row = i < lv_obj_get_child_count(list) ? lv_obj_get_child(list, static_cast<int32_t>(i)) : createTaskRow(list, ctx);
+        updateTaskRow(row, *shown[i], shown[i]->name == ctx->expandedTask);
+        ctx->taskNames.emplace_back(shown[i]->name);
+    }
+    while (lv_obj_get_child_count(list) > shown.size()) {
+        lv_obj_delete(lv_obj_get_child(list, -1));
+    }
+    // A row that was the last one has no divider, and gets it back when rows follow it
+    const uint32_t row_count = lv_obj_get_child_count(list);
+    for (uint32_t i = 0; i < row_count; i++) {
+        lv_obj_remove_local_style_prop(lv_obj_get_child(list, static_cast<int32_t>(i)), LV_STYLE_BORDER_WIDTH, LV_PART_MAIN);
+    }
+    lvgl_list_hide_last_divider(list);
+
+    if (selected_index < 0 || ctx->taskNames.empty()) {
+        return;
+    }
+    // Follows the task, or keeps the position when the task is gone
+    auto it = std::ranges::find(ctx->taskNames, selected_name);
+    const auto index = it != ctx->taskNames.end() ? static_cast<int32_t>(it - ctx->taskNames.begin()) : std::min(selected_index, static_cast<int32_t>(ctx->taskNames.size()) - 1);
+    // Also re-applied when the row didn't change: deleting rows resets grid navigation's selection
+    auto* row = lv_obj_get_child(list, index);
+    lv_gridnav_set_focused(list, row, LV_ANIM_OFF);
+    const bool list_focused = lv_obj_get_group(list) != nullptr && lv_group_get_focused(lv_obj_get_group(list)) == list;
+    if (!show_selection) {
+        lv_obj_remove_state(row, LV_STATE_FOCUS_KEY);
+    }
+    if (list_focused) {
+        lv_obj_scroll_to_view_recursive(row, LV_ANIM_OFF);
+    } else {
+        lv_obj_remove_state(row, LV_STATE_FOCUSED);
+    }
+}
+
+#endif
 
 void updateTasks(Context* ctx) {
 #if configUSE_TRACE_FACILITY
-    if (ctx->tasksContainer) {
-        updateRtosTasks(ctx->tasksContainer, ctx->taskNames);  // Tasks tab: show state
+    if (ctx->tasksContainer == nullptr) {
+        return;
     }
+    const auto tasks = collectTasks();
+    size_t counts[TASK_CHIP_COUNT] = { tasks.size(), 0, 0, 0, 0 };
+    for (const auto& task : tasks) {
+        counts[static_cast<size_t>(task.group) + 1]++;
+    }
+    std::vector<const TaskInfo*> shown;
+    for (const auto& task : tasks) {
+        if (ctx->taskFilter == 0 || static_cast<size_t>(task.group) + 1 == ctx->taskFilter) {
+            shown.push_back(&task);
+        }
+    }
+
+    for (size_t i = 0; i < TASK_CHIP_COUNT; i++) {
+        lv_label_set_text_fmt(ctx->taskChipCounts[i], "%u", static_cast<unsigned>(counts[i]));
+        lv_obj_set_state(ctx->taskChips[i], LV_STATE_CHECKED, i == ctx->taskFilter);
+        if (i > 0) {
+            // The selected chip has its own colours, which the icon follows to keep its contrast
+            auto* icon = lv_obj_get_child(ctx->taskChips[i], 0);
+            if (i == ctx->taskFilter) {
+                lv_obj_remove_local_style_prop(icon, LV_STYLE_TEXT_COLOR, LV_PART_MAIN);
+            } else {
+                setGroupColor(icon, static_cast<TaskGroup>(i - 1));
+            }
+        }
+    }
+    lv_label_set_text(ctx->taskSubtitle, getGroupDescription(ctx->taskFilter));
+    updateTaskChipWords(ctx);
+    updateTaskRows(ctx, shown);
 #endif
 }
 
@@ -437,10 +847,11 @@ void showSelectedTab(Context* ctx) {
     if (group == nullptr) {
         return;
     }
-    for (const Tab tab : { Tab::Memory, Tab::Storage }) {
+    for (const Tab tab : { Tab::Memory, Tab::Storage, Tab::About }) {
         setFocusable(group, ctx->panes[static_cast<size_t>(tab)], ctx->selectedTab == static_cast<uint32_t>(tab));
     }
 #if configUSE_TRACE_FACILITY
+    setFocusable(group, ctx->taskChipRow, ctx->selectedTab == static_cast<uint32_t>(Tab::Tasks));
     setFocusable(group, ctx->tasksContainer, ctx->selectedTab == static_cast<uint32_t>(Tab::Tasks));
 #endif
 }
@@ -506,7 +917,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* tasks_tab = ctx->panes[static_cast<size_t>(Tab::Tasks)];
     auto* about_tab = ctx->panes[static_cast<size_t>(Tab::About)];
     // Space between the cards
-    for (auto* pane : { memory_tab, storage_tab }) {
+    for (auto* pane : { memory_tab, storage_tab, about_tab }) {
         lv_obj_set_style_pad_row(pane, lvgl_theme_lerp(LV_DPX(4), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
         lvgl_grid_navigation_add(pane);
     }
@@ -519,50 +930,77 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         createUsageCard(memory_tab, tr("PSRAM"), ctx->externalMemCard);
     }
 
-#ifdef ESP_PLATFORM
     // Storage tab content
-    uint64_t storage_total = 0;
-    uint64_t storage_free = 0;
-
-    ctx->hasDataStorage = (esp_vfs_fat_info("/data", &storage_total, &storage_free) == ESP_OK);
-    if (ctx->hasDataStorage) {
-        createUsageCard(storage_tab, tr("Internal storage"), ctx->dataStorageCard);
+    ctx->volumes.clear();
+    ctx->uptimeLabel = nullptr;
+    file_system_for_each_mounted(&ctx->volumes, collectStorageVolume);
+    for (auto& volume : ctx->volumes) {
+        createUsageCard(storage_tab, volume.name.c_str(), volume.card);
     }
-
-    std::string sdcard_path;
-    if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
-        createUsageCard(storage_tab, tr("SD card"), ctx->sdcardStorageCard);
-    }
-#endif
 
 #if configUSE_TRACE_FACILITY
-    // Tasks tab - container for dynamic updates
-    ctx->tasksContainer = lv_obj_create(tasks_tab);
-    lv_obj_set_size(ctx->tasksContainer, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ctx->tasksContainer, 8, LV_STATE_DEFAULT);
+    // Tasks tab: the filter, then the list that takes the rest of the tab and scrolls by itself
+    lv_obj_set_scrollable(tasks_tab, false);
+    createTaskChips(tasks_tab, ctx);
+    auto* tasks_card = lvgl_card_create(tasks_tab);
+    lv_obj_set_size(tasks_card, LV_PCT(100), 0);
+    lv_obj_set_flex_grow(tasks_card, 1);
+    lv_obj_set_style_pad_all(tasks_card, 0, LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(tasks_card, false);
+    // The rows' pressed and focused backgrounds follow the card's rounded corners
+    lv_obj_set_style_clip_corner(tasks_card, true, LV_STATE_DEFAULT);
+    // The card provides the background
+    ctx->tasksContainer = lvgl_list_create(tasks_card);
+    lv_obj_set_size(ctx->tasksContainer, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_pad_all(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ctx->tasksContainer, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(ctx->tasksContainer, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_bg_opa(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
     lvgl_grid_navigation_add(ctx->tasksContainer);
 #endif
     showSelectedTab(ctx);
 
-    // Build info
-    auto* tactility_version = lv_label_create(about_tab);
-    lv_label_set_text_fmt(tactility_version, "Tactility v%s", TT_VERSION);
-#ifdef ESP_PLATFORM
-    auto* esp_idf_version = lv_label_create(about_tab);
-    lv_label_set_text_fmt(esp_idf_version, "ESP-IDF v%d.%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR, ESP_IDF_VERSION_PATCH);
-#endif
+    // About tab content: the name and version in the middle, then what the device and the software are
+    auto* about_header = lv_obj_create(about_tab);
+    lv_obj_remove_style_all(about_header);
+    lv_obj_set_size(about_header, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(about_header, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(about_header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_ver(about_header, LV_DPX(8), LV_STATE_DEFAULT);
+    lv_obj_set_clickable(about_header, false);
+    lv_obj_set_scrollable(about_header, false);
+    auto* about_name = lv_label_create(about_header);
+    lv_label_set_text(about_name, "Tactility");
+    lv_obj_set_style_text_font(about_name, lvgl_get_text_font(FONT_SIZE_LARGE), LV_STATE_DEFAULT);
+    auto* about_version = lv_label_create(about_header);
+    lv_label_set_text(about_version, i18n::format(tr("Version {}"), { TT_VERSION }).c_str());
+    lv_obj_set_style_text_opa(about_version, LV_OPA_70, LV_STATE_DEFAULT);
 
-    auto* device_vendor = lv_label_create(about_tab);
-    lv_label_set_text(device_vendor, i18n::format(tr("Hardware vendor: {}"), { CONFIG_TT_DEVICE_VENDOR }).c_str());
-    auto* device_device_name = lv_label_create(about_tab);
-    lv_label_set_text(device_device_name, i18n::format(tr("Hardware model: {}"), { CONFIG_TT_DEVICE_NAME_SIMPLE }).c_str());
+    auto* device_card = createInfoCard(about_tab, tr("Device"));
+    addInfoRow(device_card, tr("Vendor"), CONFIG_TT_DEVICE_VENDOR);
+    addInfoRow(device_card, tr("Model"), CONFIG_TT_DEVICE_NAME_SIMPLE);
+#ifdef ESP_PLATFORM
+    addInfoRow(device_card, tr("Chip"), i18n::format(tr("{} · {} cores"), { getChipName(), std::to_string(SOC_CPU_CORES_NUM) }).c_str());
+    addInfoRow(device_card, tr("Flash"), CONFIG_ESPTOOLPY_FLASHSIZE);
+#endif
+    if (ctx->hasExternalMem) {
+        addInfoRow(device_card, tr("PSRAM"), formatSize(getSpiTotal()).c_str());
+    }
+    Device* display = nullptr;
+    if (device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {
+        addInfoRow(device_card, tr("Display"), (std::to_string(display_get_resolution_x(display)) + " × " + std::to_string(display_get_resolution_y(display))).c_str());
+        device_put(display);
+    }
+
+    auto* software_card = createInfoCard(about_tab, tr("Software"));
+#ifdef ESP_PLATFORM
+    addInfoRow(software_card, "ESP-IDF", (std::to_string(ESP_IDF_VERSION_MAJOR) + "." + std::to_string(ESP_IDF_VERSION_MINOR) + "." + std::to_string(ESP_IDF_VERSION_PATCH)).c_str());
+#endif
+    ctx->uptimeLabel = addInfoRow(software_card, tr("Uptime"), "");
 
     // Initial updates
     updateMemory(ctx);
     updateStorage(ctx);  // Storage: one-time update on show (doesn't change frequently)
+    updateAbout(ctx);
     updateTasks(ctx);
 }
 
@@ -571,10 +1009,19 @@ void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->internalMemCard = UsageCardWidgets {};
     ctx->externalMemCard = UsageCardWidgets {};
-    ctx->dataStorageCard = UsageCardWidgets {};
-    ctx->sdcardStorageCard = UsageCardWidgets {};
+    ctx->volumes.clear();
     ctx->tasksContainer = nullptr;
     ctx->taskNames.clear();
+#if configUSE_TRACE_FACILITY
+    ctx->taskChipRow = nullptr;
+    for (size_t i = 0; i < TASK_CHIP_COUNT; i++) {
+        ctx->taskChips[i] = nullptr;
+        ctx->taskChipWords[i] = nullptr;
+        ctx->taskChipCounts[i] = nullptr;
+    }
+    ctx->taskSubtitle = nullptr;
+    ctx->taskLegend = nullptr;
+#endif
     ctx->tabs = nullptr;
     for (auto*& pane : ctx->panes) {
         pane = nullptr;
@@ -591,6 +1038,7 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.memoryTimer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(10000), [&ctx] {
         lvgl_lock();
         updateMemory(&ctx);
+        updateAbout(&ctx);
         lvgl_unlock();
     });
 
