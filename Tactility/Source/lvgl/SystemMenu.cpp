@@ -435,7 +435,7 @@ static void onMemoryTimer(lv_timer_t* /*timer*/) {
 
 /**
  * Shows the memory indicators only when the top row has room for them next to its buttons.
- * Their row stays, so the power button remains on the right.
+ * When there is only room for one, internal RAM is shown. Their row stays, so the power button remains on the right.
  */
 static void updateMemoryVisibility() {
     if (menu->memoryRow == nullptr) {
@@ -453,9 +453,12 @@ static void updateMemoryVisibility() {
     if (count > 1) {
         needed += static_cast<int32_t>(count - 1) * lv_obj_get_style_pad_column(menu->memoryRow, LV_PART_MAIN);
     }
-    const bool fits = needed <= lv_obj_get_content_width(menu->memoryRow);
+    const int32_t available = lv_obj_get_content_width(menu->memoryRow);
+    // When they don't all fit, the first one (internal RAM) stays if it fits alone
+    const bool fitsAll = needed <= available;
+    const bool fitsFirst = lv_obj_get_width(lv_obj_get_child(menu->memoryRow, 0)) <= available;
     for (uint32_t i = 0; i < count; i++) {
-        lv_obj_set_hidden(lv_obj_get_child(menu->memoryRow, static_cast<int32_t>(i)), !fits);
+        lv_obj_set_hidden(lv_obj_get_child(menu->memoryRow, static_cast<int32_t>(i)), !(fitsAll || (i == 0 && fitsFirst)));
     }
 }
 
