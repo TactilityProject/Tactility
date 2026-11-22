@@ -310,7 +310,8 @@ TEST_CASE("mesh service sends and receives through the active backend") {
             CHECK_EQ(std::string(messages[i].backend), "loopback");
         }
         MeshContact contacts[4];
-        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
+        // The contacts load after the backend is on
+        REQUIRE(waitFor([&] { return mesh_get_contacts(contacts, 4, &count) == ERROR_NONE; }));
         REQUIRE_EQ(count, 1);
         CHECK_EQ(std::string(contacts[0].name), "loopback");
 
@@ -322,7 +323,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         REQUIRE_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
         CHECK_EQ(count, 1);
         CHECK_EQ(std::string(messages[0].text), "spare");
-        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
+        REQUIRE(waitFor([&] { return mesh_get_contacts(contacts, 4, &count) == ERROR_NONE; }));
         REQUIRE_EQ(count, 1);
         CHECK_EQ(std::string(contacts[0].name), "spare");
 

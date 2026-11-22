@@ -20,7 +20,10 @@ jobs:
       - name: "Build Tests"
         run: cmake --build build --target build-tests
       - name: "Run Tests"
-        run: ctest --test-dir build/Tests
+        shell: bash
+        run: |
+          # Prints the output of failing tests only, without the log lines of the kernel and the modules
+          ctest --test-dir build/Tests --output-on-failure | grep -v -P '^\x1b\[[0-9;]*m [VDIWE] \('
   DevicetreeTests:
     runs-on: ubuntu-latest
     steps:
