@@ -1,6 +1,6 @@
 #include "Tactility/app/fileselection/FileSelection.h"
 
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/i18n/Localisation.h>
 
 #define L10N_APP "fileselection"
@@ -69,13 +69,13 @@ void onPicked(Context* ctx) {
         const bool isFolder = directory_exists(path.c_str());
         const bool isFile = !isFolder && file_exists(path.c_str());
         if (!isFolder && !isFile && !options.allowNewFile) {
-            alertdialog::start(ctx->appInstanceId, tr("File not found"), i18n::format(tr("\"{}\" doesn't exist."), { path }));
+            dialog::alert(ctx->appInstanceId, tr("File not found"), i18n::format(tr("\"{}\" doesn't exist."), { path }));
             return;
         }
         // A path that doesn't exist yet is a new file
         const bool allowed = isFolder ? options.allowFolder : ctx->state->isSelectableFile(path);
         if (!allowed) {
-            alertdialog::start(ctx->appInstanceId, tr("Can't select"), i18n::format(tr("\"{}\" can't be selected."), { path }));
+            dialog::alert(ctx->appInstanceId, tr("Can't select"), i18n::format(tr("\"{}\" can't be selected."), { path }));
             return;
         }
     }
@@ -89,7 +89,7 @@ void onPicked(Context* ctx) {
     }
     if (ctx->result.size() > ctx->maxResultBytes) {
         ctx->result.clear();
-        alertdialog::start(ctx->appInstanceId, tr("Selection too long"), tr("The paths are too long to return. Select fewer items."));
+        dialog::alert(ctx->appInstanceId, tr("Selection too long"), tr("The paths are too long to return. Select fewer items."));
         return;
     }
     ctx->resultCode = 0;
@@ -157,9 +157,6 @@ int32_t appMain(int argc, char* argv[]) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            } else if (event.type == APP_EVENT_RESULT) {
-                // The dialog that says a picked file doesn't exist
-                app_manager_stop(event.result.launch_id);
             }
         }
         if (shouldClose) break;

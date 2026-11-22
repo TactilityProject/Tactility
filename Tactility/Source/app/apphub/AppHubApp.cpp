@@ -1,7 +1,7 @@
 #define L10N_APP "apphub"
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Mutex.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/TileGrid.h>
 #include <Tactility/app/apphub/AppHubIcon.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
@@ -856,7 +856,7 @@ void onUpdateAllEvent(Context* ctx, const AppHubEvent& event) {
                 names += (app_hub_get_app(id.c_str(), &app) == ERROR_NONE) ? app.name : id.c_str();
             }
             const auto count = ctx->failedUpdates.size();
-            alertdialog::start(ctx->appInstanceId, tr("Update failed"), i18n::format(count == 1 ? tr("{} app failed to update: {}") : tr("{} apps failed to update: {}"), { ::std::to_string(count), names }));
+            dialog::alert(ctx->appInstanceId, tr("Update failed"), i18n::format(count == 1 ? tr("{} app failed to update: {}") : tr("{} apps failed to update: {}"), { ::std::to_string(count), names }));
             ctx->failedUpdates.clear();
         }
     }

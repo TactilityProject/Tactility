@@ -1,7 +1,6 @@
 #define L10N_APP "addgps"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/lvgl/Style.h>
 
 #include <app/event.h>
@@ -43,9 +42,10 @@ struct Context {
     uint32_t selectUartBit = 0;
     uint32_t selectModelBit = 0;
     uint32_t selectBaudBit = 0;
-    uint32_t uartSelectLaunchId = 0;
-    uint32_t modelSelectLaunchId = 0;
-    uint32_t baudSelectLaunchId = 0;
+    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    uint32_t selectResultBit = 0;
+    enum class SelectKind { Uart, Model, Baud } selectKind = SelectKind::Uart;
+    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
 
     // Committed state, which survives widget rebuilds
     std::string uartName;
@@ -123,16 +123,16 @@ void onAddGpsPressed(lv_event_t* event) {
 
     strncpy(new_configuration.uart_name, ctx->uartName.c_str(), sizeof(new_configuration.uart_name) - 1);
     if (new_configuration.uart_name[0] == 0x00) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("You must select a bus/uart."));
+        dialog::alert(ctx->appInstanceId, tr("Error"), tr("You must select a bus/uart."));
         return;
     }
 
     LOG_I(TAG, "Saving: uart=%s, model=%d, baud=%u", new_configuration.uart_name, (int)new_configuration.model, (unsigned)new_configuration.baud_rate);
     error_t error = gps_settings_add_configuration(&new_configuration);
     if (error == ERROR_ALREADY_EXISTS) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("A GPS is already configured for this bus."));
+        dialog::alert(ctx->appInstanceId, tr("Error"), tr("A GPS is already configured for this bus."));
     } else if (error != ERROR_NONE) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to add configuration"));
+        dialog::alert(ctx->appInstanceId, tr("Error"), tr("Failed to add configuration"));
     } else {
         onBackPressed(event);
     }
@@ -234,16 +234,17 @@ void destroyWidgets(void* userData) {
     ctx->baudValueLabel = nullptr;
 }
 
-void startSelection(Context* ctx, uint32_t& launchId, const char* title, const std::vector<std::string>& items) {
-    if (launchId != 0) {
-        return;
-    }
-    launchId = selectiondialog::start(ctx->appInstanceId, title, items);
+void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const std::vector<std::string>& items) {
+    ctx->selectKind = kind;
+    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->selectResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+    }, ctx);
 }
 
 /** @return the selected index, or -1 when the dialog was dismissed */
-int32_t getSelectionResult(const AppEvent& event, size_t itemCount) {
-    const int32_t selected = event.result.result;
+int32_t getSelectionResult(int32_t selected, size_t itemCount) {
     return (selected >= 0 && selected < static_cast<int32_t>(itemCount)) ? selected : -1;
 }
 
@@ -258,6 +259,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&event_group, &ctx.selectUartBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectModelBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectBaudBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.selectResultBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -269,48 +271,47 @@ int32_t appMain(int argc, char* argv[]) {
         uint32_t flags = 0;
         task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
 
-        if (flags & ctx.selectUartBit && ctx.uartSelectLaunchId == 0) {
+        if (flags & ctx.selectUartBit) {
             ctx.uartNames = getUartNames();
             if (ctx.uartNames.empty()) {
-                alertdialog::start(ctx.appInstanceId, tr("Error"), tr("No bus/uart found."));
+                dialog::alert(ctx.appInstanceId, tr("Error"), tr("No bus/uart found."));
             } else {
-                startSelection(&ctx, ctx.uartSelectLaunchId, tr("Bus"), ctx.uartNames);
+                startSelection(&ctx, Context::SelectKind::Uart, tr("Bus"), ctx.uartNames);
             }
         }
         if (flags & ctx.selectModelBit) {
-            startSelection(&ctx, ctx.modelSelectLaunchId, tr("Model"), getModelNames());
+            startSelection(&ctx, Context::SelectKind::Model, tr("Model"), getModelNames());
         }
         if (flags & ctx.selectBaudBit) {
-            startSelection(&ctx, ctx.baudSelectLaunchId, tr("Baud"), getBaudNames(&ctx));
+            startSelection(&ctx, Context::SelectKind::Baud, tr("Baud"), getBaudNames(&ctx));
+        }
+        if (flags & ctx.selectResultBit) {
+            switch (ctx.selectKind) {
+                case Context::SelectKind::Uart: {
+                    auto selected = getSelectionResult(ctx.selectResult, ctx.uartNames.size());
+                    if (selected >= 0) ctx.uartName = ctx.uartNames[selected];
+                    break;
+                }
+                case Context::SelectKind::Model: {
+                    auto selected = getSelectionResult(ctx.selectResult, getModelNames().size());
+                    if (selected >= 0) ctx.modelIndex = selected;
+                    break;
+                }
+                case Context::SelectKind::Baud: {
+                    auto selected = getSelectionResult(ctx.selectResult, ctx.baudRates.size());
+                    if (selected >= 0) ctx.baudIndex = selected;
+                    break;
+                }
+            }
+            lvgl_lock();
+            updateViews(&ctx);
+            lvgl_unlock();
         }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    if (event.result.launch_id == ctx.uartSelectLaunchId) {
-                        ctx.uartSelectLaunchId = 0;
-                        auto selected = getSelectionResult(event, ctx.uartNames.size());
-                        if (selected >= 0) ctx.uartName = ctx.uartNames[selected];
-                    } else if (event.result.launch_id == ctx.modelSelectLaunchId) {
-                        ctx.modelSelectLaunchId = 0;
-                        auto selected = getSelectionResult(event, getModelNames().size());
-                        if (selected >= 0) ctx.modelIndex = selected;
-                    } else if (event.result.launch_id == ctx.baudSelectLaunchId) {
-                        ctx.baudSelectLaunchId = 0;
-                        auto selected = getSelectionResult(event, ctx.baudRates.size());
-                        if (selected >= 0) ctx.baudIndex = selected;
-                    }
-                    lvgl_lock();
-                    updateViews(&ctx);
-                    lvgl_unlock();
-                    app_manager_stop(event.result.launch_id);
-                    break;
-                default:
-                    break;
+            if (event.type == APP_EVENT_CLOSE) {
+                shouldClose = true;
             }
             if (shouldClose) break;
         }

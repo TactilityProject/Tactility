@@ -2,6 +2,7 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include "system_bars_internal.h"
+#include "window_manager_internal.h"
 
 #include <app/instance.h>
 
@@ -98,6 +99,8 @@ WindowManagerState& state() {
 struct OverlayState {
     lv_obj_t* widget = nullptr;
     lv_group_t* group = nullptr;
+    /** The group that was active before the overlay, which is active again after it */
+    lv_group_t* previous_group = nullptr;
     WindowDestroyWidgetsFn destroy_widgets = nullptr;
     void* user_data = nullptr;
 };
@@ -121,7 +124,8 @@ void hide_overlay_locked() {
     if (overlay.destroy_widgets != nullptr) {
         overlay.destroy_widgets(overlay.user_data);
     }
-    lvgl_keyboard_set_active_group(nullptr);
+    // The keyboard goes back to a dialog that was shown before the overlay, and otherwise to the app
+    lvgl_keyboard_set_active_group(overlay.previous_group != nullptr && overlay.previous_group == dialog_get_group_locked() ? overlay.previous_group : nullptr);
     lv_group_delete(overlay.group);
     // Deleted asynchronously, as this may run inside an event of one of the overlay's widgets
     lv_obj_set_hidden(overlay.widget, true);
@@ -228,6 +232,22 @@ void give_and_release(WindowWaitSignal* signal) {
 }
 
 } // namespace
+
+lv_obj_t* window_manager_get_app_widget_locked(AppInstanceId app_instance_id) {
+    auto& s = state();
+    mutex_lock(&s.mutex);
+    lv_obj_t* widget = (!s.windows.empty() && s.windows.back().app_instance_id == app_instance_id) ? s.top_widget : nullptr;
+    mutex_unlock(&s.mutex);
+    return widget;
+}
+
+lv_obj_t* window_manager_get_content_widget_locked() {
+    auto& s = state();
+    mutex_lock(&s.mutex);
+    lv_obj_t* widget = s.started ? s.content_root_widget : nullptr;
+    mutex_unlock(&s.mutex);
+    return widget;
+}
 
 extern "C" {
 
@@ -399,6 +419,7 @@ error_t window_manager_stop(void) {
 
     // Deleting the real widget cascades to everything under it - chrome and top_widget alike.
     delete_widget(widget, top_destroy_widgets, top_user_data);
+    dialog_reap_tasks();
 
     mutex_unlock(&s.lifecycle_mutex);
     return ERROR_NONE;
@@ -505,6 +526,7 @@ void window_manager_remove(WindowId id) {
     WindowWaitSignal* waiter = claim_waiter_locked(*iterator);
     WindowDestroyWidgetsFn removed_destroy_widgets = iterator->destroy_widgets;
     void* removed_user_data = iterator->user_data;
+    const AppInstanceId removed_app_instance_id = iterator->app_instance_id;
     s.windows.erase(iterator);
 
     lv_obj_t* content = s.content_root_widget;
@@ -536,7 +558,10 @@ void window_manager_remove(WindowId id) {
         return;
     }
 
+    // The app is going away, so its dialog must not call back into it
+    dialog_cancel_for_app(removed_app_instance_id);
     delete_widget(old_widget, removed_destroy_widgets, removed_user_data);
+    dialog_wait_for_app(removed_app_instance_id);
     lv_obj_t* new_widget = has_next ? build_window_widget(content, next_create_widgets, next_user_data) : nullptr;
 
     if (has_next && new_widget == nullptr) {
@@ -642,6 +667,7 @@ error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, Window
         lvgl_unlock();
         return ERROR_OUT_OF_MEMORY;
     }
+    const lv_group_t* previous_group = lv_group_get_default();
     // Widgets created from here on join the overlay's group
     lvgl_keyboard_set_active_group(group);
 
@@ -659,7 +685,7 @@ error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, Window
     lv_obj_add_event_cb(widget, on_overlay_backdrop_clicked, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_event_cb(widget, on_overlay_widget_deleted, LV_EVENT_DELETE, nullptr);
 
-    overlay = OverlayState { widget, group, destroy_widgets, user_data };
+    overlay = OverlayState { widget, group, const_cast<lv_group_t*>(previous_group), destroy_widgets, user_data };
 
     if (create_widgets != nullptr) {
         create_widgets(widget, user_data);

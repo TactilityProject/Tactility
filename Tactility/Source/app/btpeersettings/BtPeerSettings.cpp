@@ -6,7 +6,7 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/lvgl/Style.h>
 
 #include <bluetooth/bluetooth_paired_device.h>
@@ -44,6 +44,11 @@ struct Context {
 
     lv_obj_t* connectButton = nullptr;
     lv_obj_t* disconnectButton = nullptr;
+
+    TaskEventGroup* eventGroup = nullptr;
+    /** Signaled by the forget dialog, which stores the pressed button in forgetResult first. The signal makes it visible to the event loop. */
+    uint32_t forgetBit = 0;
+    int32_t forgetResult = WINDOW_DIALOG_DISMISSED;
 };
 
 
@@ -95,9 +100,11 @@ void onPressDisconnect(lv_event_t* event) {
 
 void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    // Result isn't tracked by launch id (matches the original's behavior) - this app only
-    // ever has one dialog in flight at a time.
-    alertdialog::start(ctx->appInstanceId, tr("Confirmation"), tr("Forget this device?"), std::vector<std::string> { tr("Yes"), tr("No") });
+    dialog::alert(ctx->appInstanceId, tr("Confirmation"), tr("Forget this device?"), { tr("Yes"), tr("No") }, [](int32_t button, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->forgetResult = button;
+        task_event_group_signal(ctx->eventGroup, ctx->forgetBit);
+    }, ctx);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -204,6 +211,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.forgetBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -221,29 +230,24 @@ int32_t appMain(int argc, char* argv[]) {
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if ((flags & ctx.forgetBit) != 0 && ctx.forgetResult == 0) { // 0 = Yes
+            if (isCurrentlyConnected(&ctx)) {
+                bluetooth_service_disconnect(ctx.addr, ctx.profile);
+            }
+            bluetooth_service_unpair(ctx.addr);
+            shouldClose = true;
+        }
 
         AppEvent event {};
-        while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    if (event.result.result == 0) { // 0 = Yes
-                        if (isCurrentlyConnected(&ctx)) {
-                            bluetooth_service_disconnect(ctx.addr, ctx.profile);
-                        }
-                        bluetooth_service_unpair(ctx.addr);
-                        shouldClose = true;
-                    }
-                    app_manager_stop(event.result.launch_id);
-                    break;
-                default:
-                    break;
+        while (!shouldClose && app_event_poll(&sub, &event) == ERROR_NONE) {
+            if (event.type == APP_EVENT_CLOSE) {
+                shouldClose = true;
             }
-            if (shouldClose) break;
         }
+        if (shouldClose) break;
 
         if (btDevice != nullptr) {
             BtEvent bt_event {};

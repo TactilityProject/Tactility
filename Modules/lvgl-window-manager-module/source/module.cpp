@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <lvgl_window_manager/dialog.h>
 #include <lvgl_window_manager/module.h>
 #include <lvgl_window_manager/system_bars.h>
 #include <lvgl_window_manager/window_manager.h>
@@ -16,6 +17,10 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(window_manager_overlay_show),
     DEFINE_MODULE_SYMBOL(window_manager_overlay_hide),
     DEFINE_MODULE_SYMBOL(window_manager_get_active_layer),
+    DEFINE_MODULE_SYMBOL(window_manager_alert_dialog),
+    DEFINE_MODULE_SYMBOL(window_manager_input_dialog),
+    DEFINE_MODULE_SYMBOL(window_manager_selection_dialog),
+    DEFINE_MODULE_SYMBOL(window_manager_dialog_dismiss),
     DEFINE_MODULE_SYMBOL(system_bars_refresh),
     DEFINE_MODULE_SYMBOL(system_bars_add_pointer),
     DEFINE_MODULE_SYMBOL(system_bars_set_statusbar_visible),

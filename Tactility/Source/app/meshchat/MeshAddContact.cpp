@@ -1,7 +1,7 @@
 
 #define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
 #include <app/event.h>
@@ -44,7 +44,6 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t addBit = 0;
     uint32_t detailsBit = 0;
-    uint32_t dialogId = 0;
     /** Written by the LVGL thread before it signals addBit or detailsBit */
     ::std::atomic<int32_t> selectedIndex = 0;
     /** The nodes that aren't contacts yet */
@@ -182,7 +181,7 @@ bool addSelected(Context* ctx) {
     const error_t error = mesh_add_contact(&node.address, node.name);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to add contact: %s", error_to_string(error));
-        ctx->dialogId = alertdialog::start(
+        dialog::alert(
             ctx->appInstanceId,
             tr("Couldn't add contact"),
             error == ERROR_RESOURCE ? tr("There are too many contacts.") : error_to_string(error)
@@ -194,9 +193,10 @@ bool addSelected(Context* ctx) {
 
 void showDetails(Context* ctx) {
     const auto index = (size_t)ctx->selectedIndex.load();
-    if (ctx->dialogId == 0 && index < ctx->candidates.size()) {
+    if (index < ctx->candidates.size()) {
         const auto& node = ctx->candidates[index];
-        ctx->dialogId = alertdialog::start(ctx->appInstanceId, getNodeName(node), addressToHex(node.address));
+        // Refused while a dialog is already shown
+        dialog::alert(ctx->appInstanceId, getNodeName(node), addressToHex(node.address));
     }
 }
 
@@ -242,12 +242,6 @@ int32_t appMain(int argc, char* argv[]) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.dialogId) {
-                    ctx.dialogId = 0;
-                }
-                app_manager_stop(event.result.launch_id);
             }
         }
 

@@ -1,11 +1,9 @@
 #define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/app/inputdialog/InputDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 #include <Tactility/app/meshsettings/MeshChannels.h>
 #include <Tactility/app/qrcode/QrCode.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -72,24 +70,19 @@ struct Context {
     ViewMode lastTab = ViewMode::Channels;
     /** Written by the LVGL thread before it signals openBit */
     ::std::atomic<int32_t> openIndex = 0;
-    uint32_t menuDialogId = 0;
-    uint32_t addTypeDialogId = 0;
-    uint32_t addContactDialogId = 0;
+    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    uint32_t selectResultBit = 0;
+    enum class SelectKind { Menu, AddContact, AddType, PathContact } selectKind = SelectKind::Menu;
+    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
     /** The kind of channel for each option of the open selection dialog */
     ::std::vector<int> addTypes;
     /** Whether the mesh network supports any way to add a channel. Read by the app's task. */
     bool canAddChannel = false;
-    uint32_t joinChannelDialogId = 0;
-    uint32_t createChannelDialogId = 0;
-    uint32_t privateNameDialogId = 0;
-    uint32_t privateKeyDialogId = 0;
-    uint32_t contactNameDialogId = 0;
-    uint32_t contactKeyDialogId = 0;
-    uint32_t messageDialogId = 0;
-    uint32_t pathContactDialogId = 0;
-    uint32_t pathInputDialogId = 0;
-    AppStream pathStream {};
-    char pathBuffer[192] = {};
+    /** Signaled by a text dialog, which stores what it was for in textKind, and its result in textConfirmed and text, first */
+    uint32_t textResultBit = 0;
+    enum class TextKind { JoinChannel, CreateChannel, PrivateName, PrivateKey, ContactName, ContactKey, Path } textKind = TextKind::JoinChannel;
+    bool textConfirmed = false;
+    ::std::string text;
     /** Whether the open path flow resets the path instead of setting it */
     bool pathReset = false;
     /** The contact that the path flow is about */
@@ -98,20 +91,8 @@ struct Context {
     tt::std::vector<MeshAddress> pathContactChoices;
     /** The action of each option of the open menu */
     tt::std::vector<int> menuItems;
-    AppStream channelStream {};
-    char channelBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
-    AppStream createStream {};
-    char createBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
-    AppStream privateNameStream {};
-    char privateNameBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
-    AppStream privateKeyStream {};
-    char privateKeyBuffer[MESH_CHANNEL_KEY_MAX_LENGTH * 2 + 1] = {};
     /** The name that was entered while the key is asked */
     ::std::string pendingChannelName;
-    AppStream contactNameStream {};
-    char contactNameBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
-    AppStream contactKeyStream {};
-    char contactKeyBuffer[MESH_ADDRESS_MAX_LENGTH * 2 + 1] = {};
     /** The name that was entered while the key is asked */
     ::std::string pendingContactName;
     tt::std::vector<MeshChannel> channels;
@@ -513,18 +494,34 @@ void startConversation(Context* ctx) {
 }
 
 void showMessage(Context* ctx, const char* title, const char* message) {
-    if (ctx->messageDialogId == 0) {
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, title, message);
-    }
+    // Refused while a dialog is already shown
+    dialog::alert(ctx->appInstanceId, title, message);
+}
+
+/** Shows a text field. The result is handled by the app's task, as it changes the mesh. */
+void startTextDialog(Context* ctx, Context::TextKind kind, const char* title, const char* message, const char* prefilled) {
+    ctx->textKind = kind;
+    dialog::input(ctx->appInstanceId, title, message, prefilled, [](bool confirmed, const char* text, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->textConfirmed = confirmed;
+        ctx->text = text;
+        task_event_group_signal(ctx->eventGroup, ctx->textResultBit);
+    }, ctx);
 }
 
 enum class AddType { JoinPublic, JoinPrivate, CreatePrivate };
 
 /** Only offers what the mesh network supports */
+void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const ::std::vector<::std::string>& items) {
+    ctx->selectKind = kind;
+    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->selectResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+    }, ctx);
+}
+
 void startAddChannel(Context* ctx) {
-    if (ctx->addTypeDialogId != 0) {
-        return;
-    }
     ctx->addTypes.clear();
     ::std::vector<::std::string> items;
     if (mesh_supports(MESH_FEATURE_NAMED_CHANNELS)) {
@@ -540,17 +537,14 @@ void startAddChannel(Context* ctx) {
     if (items.empty()) {
         return;
     }
-    ctx->addTypeDialogId = selectiondialog::start(ctx->appInstanceId, tr("Add channel"), items);
+    startSelection(ctx, Context::SelectKind::AddType, tr("Add channel"), items);
 }
 
 /** The order of these matches the options of the selection dialog */
 enum class AddContactType { ByKey, Seen };
 
 void startAddContactMenu(Context* ctx) {
-    if (ctx->addContactDialogId != 0) {
-        return;
-    }
-    ctx->addContactDialogId = selectiondialog::start(ctx->appInstanceId, tr("Add contact"), { tr("Add by key"), tr("Add seen") });
+    startSelection(ctx, Context::SelectKind::AddContact, tr("Add contact"), { tr("Add by key"), tr("Add seen") });
 }
 
 void startJoinChannel(Context* ctx);
@@ -575,26 +569,12 @@ void onAddTypeSelected(Context* ctx, int32_t selected) {
 }
 
 void startJoinChannel(Context* ctx) {
-    if (ctx->joinChannelDialogId != 0) {
-        return;
-    }
-    ctx->joinChannelDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Join channel"),
-        tr("Hashtag channel name, e.g. #test. To join Public, delete the # first."),
-        "#",
-        ctx->channelStream,
-        ctx->channelBuffer,
-        sizeof(ctx->channelBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::JoinChannel, tr("Join channel"), tr("Hashtag channel name, e.g. #test. To join Public, delete the # first."), "#");
 }
 
-void onJoinChannelResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char name[sizeof(Context::channelBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->channelStream, name, sizeof(name) - 1);
-        name[length] = '\0';
+void onJoinChannelResult(Context* ctx) {
+    if (ctx->textConfirmed) {
+        const char* name = ctx->text.c_str();
         const error_t error = meshsettings::joinHashtagChannel(name);
         if (error == ERROR_INVALID_ARGUMENT) {
             showMessage(ctx, tr("Couldn't join channel"), tr("Use a channel name that starts with # or Public. This mesh network can't join a channel by name."));
@@ -603,30 +583,15 @@ void onJoinChannelResult(Context* ctx, int32_t result) {
             showMessage(ctx, tr("Couldn't join channel"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
         }
     }
-    app_stream_unsubscribe(&ctx->channelStream);
 }
 
 void startCreateChannel(Context* ctx) {
-    if (ctx->createChannelDialogId != 0) {
-        return;
-    }
-    ctx->createChannelDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Create private channel"),
-        tr("Name of the channel"),
-        "",
-        ctx->createStream,
-        ctx->createBuffer,
-        sizeof(ctx->createBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::CreateChannel, tr("Create private channel"), tr("Name of the channel"), "");
 }
 
-void onCreateChannelResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char name[sizeof(Context::createBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->createStream, name, sizeof(name) - 1);
-        name[length] = '\0';
+void onCreateChannelResult(Context* ctx) {
+    if (ctx->textConfirmed) {
+        const char* name = ctx->text.c_str();
         const error_t error = meshsettings::createPrivateChannel(name);
         if (error == ERROR_INVALID_ARGUMENT) {
             showMessage(ctx, tr("Couldn't create channel"), tr("Enter a name for the channel."));
@@ -635,56 +600,24 @@ void onCreateChannelResult(Context* ctx, int32_t result) {
             showMessage(ctx, tr("Couldn't create channel"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
         }
     }
-    app_stream_unsubscribe(&ctx->createStream);
 }
 
 void startJoinPrivateChannel(Context* ctx) {
-    if (ctx->privateNameDialogId != 0 || ctx->privateKeyDialogId != 0) {
-        return;
-    }
-    ctx->privateNameDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Join private channel"),
-        tr("Name of the channel"),
-        "",
-        ctx->privateNameStream,
-        ctx->privateNameBuffer,
-        sizeof(ctx->privateNameBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::PrivateName, tr("Join private channel"), tr("Name of the channel"), "");
 }
 
-void onPrivateNameResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char name[sizeof(Context::privateNameBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->privateNameStream, name, sizeof(name) - 1);
-        name[length] = '\0';
-        ctx->pendingChannelName = name;
-    }
-    app_stream_unsubscribe(&ctx->privateNameStream);
-    if (result != 0 || ctx->pendingChannelName.empty()) {
-        ctx->pendingChannelName.clear();
+void onPrivateNameResult(Context* ctx) {
+    ctx->pendingChannelName = ctx->textConfirmed ? ctx->text : ::std::string();
+    if (ctx->pendingChannelName.empty()) {
         return;
     }
-    ctx->privateKeyDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Channel key"),
-        tr("Key of the channel in hexadecimal"),
-        "",
-        ctx->privateKeyStream,
-        ctx->privateKeyBuffer,
-        sizeof(ctx->privateKeyBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::PrivateKey, tr("Channel key"), tr("Key of the channel in hexadecimal"), "");
 }
 
-void onPrivateKeyResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char key[sizeof(Context::privateKeyBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->privateKeyStream, key, sizeof(key) - 1);
-        key[length] = '\0';
+void onPrivateKeyResult(Context* ctx) {
+    if (ctx->textConfirmed) {
         MeshAddress bytes;
-        if (!hexToAddress(key, &bytes)) {
+        if (!hexToAddress(ctx->text.c_str(), &bytes)) {
             showMessage(ctx, tr("Invalid key"), tr("Enter the key as hexadecimal characters, two for every byte."));
         } else {
             const error_t error = meshsettings::joinPrivateChannel(ctx->pendingChannelName.c_str(), bytes.bytes, bytes.length);
@@ -696,7 +629,6 @@ void onPrivateKeyResult(Context* ctx, int32_t result) {
             }
         }
     }
-    app_stream_unsubscribe(&ctx->privateKeyStream);
     ctx->pendingChannelName.clear();
 }
 
@@ -719,52 +651,21 @@ void showOwnQr(Context* ctx) {
 }
 
 void startContactNameDialog(Context* ctx) {
-    if (ctx->contactNameDialogId != 0 || ctx->contactKeyDialogId != 0) {
-        return;
-    }
-    ctx->contactNameDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Add contact"),
-        tr("Name of the contact"),
-        "",
-        ctx->contactNameStream,
-        ctx->contactNameBuffer,
-        sizeof(ctx->contactNameBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::ContactName, tr("Add contact"), tr("Name of the contact"), "");
 }
 
-void onContactNameResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char name[sizeof(Context::contactNameBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->contactNameStream, name, sizeof(name) - 1);
-        name[length] = '\0';
-        ctx->pendingContactName = name;
-    }
-    app_stream_unsubscribe(&ctx->contactNameStream);
-    if (result != 0 || ctx->pendingContactName.empty()) {
-        ctx->pendingContactName.clear();
+void onContactNameResult(Context* ctx) {
+    ctx->pendingContactName = ctx->textConfirmed ? ctx->text : ::std::string();
+    if (ctx->pendingContactName.empty()) {
         return;
     }
-    ctx->contactKeyDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Public key"),
-        tr("Public key of the contact in hexadecimal"),
-        "",
-        ctx->contactKeyStream,
-        ctx->contactKeyBuffer,
-        sizeof(ctx->contactKeyBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::ContactKey, tr("Public key"), tr("Public key of the contact in hexadecimal"), "");
 }
 
-void onContactKeyResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char key[sizeof(Context::contactKeyBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->contactKeyStream, key, sizeof(key) - 1);
-        key[length] = '\0';
+void onContactKeyResult(Context* ctx) {
+    if (ctx->textConfirmed) {
         MeshAddress address;
-        if (!hexToAddress(key, &address)) {
+        if (!hexToAddress(ctx->text.c_str(), &address)) {
             showMessage(ctx, tr("Invalid key"), tr("Enter the public key as hexadecimal characters, two for every byte."));
         } else {
             const error_t error = mesh_add_contact(&address, ctx->pendingContactName.c_str());
@@ -776,7 +677,6 @@ void onContactKeyResult(Context* ctx, int32_t result) {
             }
         }
     }
-    app_stream_unsubscribe(&ctx->contactKeyStream);
     ctx->pendingContactName.clear();
 }
 
@@ -784,9 +684,6 @@ enum class MenuItem { SetPath, ResetPath, MarkAllRead, AdvertZeroHop, AdvertFloo
 
 /** The contacts tab also has the path actions for contacts */
 void startMenu(Context* ctx) {
-    if (ctx->menuDialogId != 0) {
-        return;
-    }
     ctx->menuItems.clear();
     ::std::vector<::std::string> items;
     const auto add = [ctx, &items](MenuItem item, const char* text) {
@@ -803,7 +700,7 @@ void startMenu(Context* ctx) {
     add(MenuItem::ShowQr, tr("Show QR"));
     add(MenuItem::Info, tr("Info"));
     add(MenuItem::Inspect, tr("Inspect"));
-    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh"), items);
+    startSelection(ctx, Context::SelectKind::Menu, tr("Mesh"), items);
 }
 
 /** The hashes of the repeaters as hexadecimal tokens of one length, separated by commas or spaces, e.g. "a1,b2,c3" */
@@ -845,9 +742,6 @@ bool parsePath(const char* text, ::std::vector<uint8_t>& hops, size_t* hashSize)
 }
 
 void startPathContactSelection(Context* ctx, bool reset) {
-    if (ctx->pathContactDialogId != 0 || ctx->pathInputDialogId != 0) {
-        return;
-    }
     if (ctx->contacts.empty()) {
         showMessage(ctx, tr("No contacts"), tr("Add a contact first."));
         return;
@@ -859,7 +753,7 @@ void startPathContactSelection(Context* ctx, bool reset) {
         names.emplace_back(contact.name);
         ctx->pathContactChoices.push_back(contact.address);
     }
-    ctx->pathContactDialogId = selectiondialog::start(ctx->appInstanceId, reset ? tr("Reset path") : tr("Set path"), names);
+    startSelection(ctx, Context::SelectKind::PathContact, reset ? tr("Reset path") : tr("Set path"), names);
 }
 
 void showPathError(Context* ctx, error_t error) {
@@ -880,26 +774,14 @@ void onPathContactSelected(Context* ctx, int32_t selected) {
         }
         return;
     }
-    ctx->pathInputDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Set path"),
-        tr("Repeater hashes in hexadecimal, e.g. a1,b2,c3"),
-        "",
-        ctx->pathStream,
-        ctx->pathBuffer,
-        sizeof(ctx->pathBuffer),
-        ctx->eventGroup
-    );
+    startTextDialog(ctx, Context::TextKind::Path, tr("Set path"), tr("Repeater hashes in hexadecimal, e.g. a1,b2,c3"), "");
 }
 
-void onPathInputResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char text[sizeof(Context::pathBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->pathStream, text, sizeof(text) - 1);
-        text[length] = '\0';
+void onPathInputResult(Context* ctx) {
+    if (ctx->textConfirmed) {
         ::std::vector<uint8_t> hops;
         size_t hashSize = 0;
-        if (!parsePath(text, hops, &hashSize)) {
+        if (!parsePath(ctx->text.c_str(), hops, &hashSize)) {
             showMessage(ctx, tr("Invalid path"), tr("Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."));
         } else {
             const error_t error = mesh_set_contact_path(&ctx->pathContact, hops.data(), hops.size() / hashSize, hashSize);
@@ -910,14 +792,13 @@ void onPathInputResult(Context* ctx, int32_t result) {
             }
         }
     }
-    app_stream_unsubscribe(&ctx->pathStream);
 }
 
 void sendAdvert(Context* ctx, MeshAdvertRoute route) {
     const error_t error = mesh_send_advert(route);
-    if (error != ERROR_NONE && ctx->messageDialogId == 0) {
+    if (error != ERROR_NONE) {
         const char* reason = error == ERROR_INVALID_STATE ? tr("Turn mesh on to send an advert") : (error == ERROR_NOT_SUPPORTED ? tr("This mesh network has no adverts.") : error_to_string(error));
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Couldn't send advert"), reason);
+        showMessage(ctx, tr("Couldn't send advert"), reason);
     }
 }
 
@@ -973,6 +854,8 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&eventGroup, &ctx.settingsBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.addBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.tabBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.textResultBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.selectResultBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -1016,6 +899,58 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         bool changed = false;
+        if (flags & ctx.selectResultBit) {
+            const int32_t selected = ctx.selectResult;
+            switch (ctx.selectKind) {
+                case Context::SelectKind::Menu:
+                    if (selected >= 0) {
+                        onMenuSelected(&ctx, selected);
+                    }
+                    break;
+                case Context::SelectKind::AddContact:
+                    if (selected >= 0) {
+                        onAddContactSelected(&ctx, selected);
+                    }
+                    break;
+                case Context::SelectKind::AddType:
+                    if (selected >= 0) {
+                        onAddTypeSelected(&ctx, selected);
+                    }
+                    break;
+                case Context::SelectKind::PathContact:
+                    onPathContactSelected(&ctx, selected);
+                    break;
+            }
+            // The channels and contacts may have changed, and the window may have been rebuilt
+            changed = true;
+        }
+        if (flags & ctx.textResultBit) {
+            switch (ctx.textKind) {
+                case Context::TextKind::JoinChannel:
+                    onJoinChannelResult(&ctx);
+                    break;
+                case Context::TextKind::CreateChannel:
+                    onCreateChannelResult(&ctx);
+                    break;
+                case Context::TextKind::PrivateName:
+                    onPrivateNameResult(&ctx);
+                    break;
+                case Context::TextKind::PrivateKey:
+                    onPrivateKeyResult(&ctx);
+                    break;
+                case Context::TextKind::ContactName:
+                    onContactNameResult(&ctx);
+                    break;
+                case Context::TextKind::ContactKey:
+                    onContactKeyResult(&ctx);
+                    break;
+                case Context::TextKind::Path:
+                    onPathInputResult(&ctx);
+                    break;
+            }
+            // The channels and contacts may have changed
+            changed = true;
+        }
         MeshEvent meshEvent {};
         while (mesh_event_poll(&meshEvents, &meshEvent) == ERROR_NONE) {
             changed |= meshEvent.type == MESH_EVENT_STATE || meshEvent.type == MESH_EVENT_CHANNEL || meshEvent.type == MESH_EVENT_CONTACT ||
@@ -1035,53 +970,6 @@ int32_t appMain(int argc, char* argv[]) {
                     break;
                 }
                 setMode(&ctx, ctx.lastTab);
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.menuDialogId) {
-                    ctx.menuDialogId = 0;
-                    if (event.result.result >= 0) {
-                        onMenuSelected(&ctx, event.result.result);
-                    }
-                } else if (event.result.launch_id == ctx.addContactDialogId) {
-                    ctx.addContactDialogId = 0;
-                    if (event.result.result >= 0) {
-                        onAddContactSelected(&ctx, event.result.result);
-                    }
-                } else if (event.result.launch_id == ctx.addTypeDialogId) {
-                    ctx.addTypeDialogId = 0;
-                    if (event.result.result >= 0) {
-                        onAddTypeSelected(&ctx, event.result.result);
-                    }
-                } else if (event.result.launch_id == ctx.privateNameDialogId) {
-                    ctx.privateNameDialogId = 0;
-                    onPrivateNameResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.privateKeyDialogId) {
-                    ctx.privateKeyDialogId = 0;
-                    onPrivateKeyResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.createChannelDialogId) {
-                    ctx.createChannelDialogId = 0;
-                    onCreateChannelResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.joinChannelDialogId) {
-                    ctx.joinChannelDialogId = 0;
-                    onJoinChannelResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.contactNameDialogId) {
-                    ctx.contactNameDialogId = 0;
-                    onContactNameResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.contactKeyDialogId) {
-                    ctx.contactKeyDialogId = 0;
-                    onContactKeyResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.pathContactDialogId) {
-                    ctx.pathContactDialogId = 0;
-                    onPathContactSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.pathInputDialogId) {
-                    ctx.pathInputDialogId = 0;
-                    onPathInputResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.messageDialogId) {
-                    ctx.messageDialogId = 0;
-                }
-                app_manager_stop(event.result.launch_id);
-                // The channels and contacts may have changed, and the window may have been rebuilt
-                changed = true;
             }
         }
 

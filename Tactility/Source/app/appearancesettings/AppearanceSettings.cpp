@@ -1,8 +1,7 @@
 #define L10N_APP "appearancesettings"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/fileselection/FileSelection.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/file/File.h>
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
@@ -126,7 +125,9 @@ struct Context {
     uint32_t selectLaunchId = 0;
     /** The colour that the selection dialog is for */
     size_t selectColorIndex = 0;
-    uint32_t colorSelectLaunchId = 0;
+    /** Signaled by the colour selection dialog, which stores the selected index in colorResult first */
+    uint32_t colorResultBit = 0;
+    int32_t colorResult = WINDOW_DIALOG_DISMISSED;
     FontSlot selectSlot = FontSlot::Regular;
     AppStream selectStream {};
     uint8_t selectBuffer[256] {};
@@ -619,7 +620,7 @@ void onSystemBarsChipPressed(lv_event_t* event) {
         LOG_E(TAG, "Failed to save system bars settings");
         // The chips show what is applied, which is what the file still has
         updateSystemBarsWidgets(ctx, settings::launcher::loadOrGetDefault());
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to save the system bars settings"));
+        dialog::alert(ctx->appInstanceId, tr("Error"), tr("Failed to save the system bars settings"));
         return;
     }
     updateSystemBarsWidgets(ctx, settings);
@@ -939,7 +940,7 @@ void startFileSelection(Context* ctx, FontSlot slot) {
 }
 
 void startColorSelection(Context* ctx) {
-    if (ctx->colorSelectLaunchId != 0 || ctx->applying) {
+    if (ctx->applying) {
         return;
     }
     std::vector<std::string> items;
@@ -948,13 +949,16 @@ void startColorSelection(Context* ctx) {
     for (const auto& named_color : PALETTE_COLORS) {
         items.emplace_back(tr(named_color.name));
     }
-    ctx->colorSelectLaunchId = selectiondialog::start(ctx->appInstanceId, tr(COLOR_TITLES[ctx->selectColorIndex]), items);
+    dialog::selection(ctx->appInstanceId, tr(COLOR_TITLES[ctx->selectColorIndex]), items, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->colorResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->colorResultBit);
+    }, ctx);
 }
 
-void onColorSelectionResult(Context* ctx, const AppEvent& event) {
-    ctx->colorSelectLaunchId = 0;
+void onColorSelectionResult(Context* ctx) {
     // Index 0 is "Default", the others are the palette colours. Other results mean that the dialog was dismissed.
-    const int32_t selected = event.result.result;
+    const int32_t selected = ctx->colorResult;
     if (selected >= 0 && selected <= static_cast<int32_t>(PALETTE_COLOR_COUNT)) {
         lvgl_lock();
         auto& color = getColor(ctx->pendingSettings, ctx->selectColorIndex);
@@ -966,7 +970,6 @@ void onColorSelectionResult(Context* ctx, const AppEvent& event) {
         updateWidgets(ctx);
         lvgl_unlock();
     }
-    app_manager_stop(event.result.launch_id);
 }
 
 void onFileSelectionResult(Context* ctx, const AppEvent& event) {
@@ -1004,6 +1007,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&event_group, &ctx.selectRegularBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectMonoBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectColorBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.colorResultBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.applyBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.cacheUpdatedBit) == ERROR_NONE);
 
@@ -1026,6 +1030,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.selectColorBit) {
             startColorSelection(&ctx);
         }
+        if (flags & ctx.colorResultBit) {
+            onColorSelectionResult(&ctx);
+        }
         if (flags & ctx.applyBit) {
             startApply(&ctx);
         }
@@ -1039,8 +1046,6 @@ int32_t appMain(int argc, char* argv[]) {
                 should_close = true;
             } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.selectLaunchId) {
                 onFileSelectionResult(&ctx, event);
-            } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.colorSelectLaunchId) {
-                onColorSelectionResult(&ctx, event);
             }
         }
     }
