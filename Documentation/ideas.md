@@ -8,6 +8,7 @@
  
 ## Medium Priority
 
+- System overlay: show slider for sound and backlight.
 - App Hub: the "Updates" tab is shown and then hidden: reverse that. hidden until needed.
 - Rewrite System Info storage tab: use file system API instead of hard-coded SD and /data logic.
 - System overlay menu is in its own layer in lvgl. I want a new layer inbetween the apps and the system overlay.
