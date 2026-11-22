@@ -2,6 +2,8 @@ description: Shenghe SH8601 AMOLED display panel (SPI/QSPI)
 
 bus: spi
 
+include: ["display.yaml"]
+
 compatible: "shenghe,sh8601"
 
 properties:

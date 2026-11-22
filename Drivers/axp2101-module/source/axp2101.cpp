@@ -22,6 +22,7 @@ static constexpr uint8_t REG_ADC_DATA_RESULT0 = 0x34U;       // battery voltage,
 static constexpr uint8_t REG_ADC_DATA_RESULT1 = 0x35U;       // battery voltage, low 8 bits
 static constexpr uint8_t REG_ADC_DATA_RESULT4 = 0x38U;       // VBUS voltage, high 6 bits
 static constexpr uint8_t REG_ADC_DATA_RESULT5 = 0x39U;       // VBUS voltage, low 8 bits
+static constexpr uint8_t REG_BATTERY_PERCENT = 0xA4U;        // bits[6:0]: battery percentage from the fuel gauge
 static constexpr uint8_t REG_DC_ONOFF_DVM_CTRL = 0x80U;      // bits0-4: DCDC1-5 enable
 static constexpr uint8_t REG_DC_VOL0_CTRL = 0x82U;           // DCDC1 voltage; DCDC2-5 follow at +1..+4
 static constexpr uint8_t REG_LDO_ONOFF_CTRL0 = 0x90U;        // bits0-7: ALDO1-4, BLDO1-2, CPUSLDO, DLDO1 enable
@@ -390,7 +391,7 @@ error_t axp2101_power_off(Device* device) {
 // region Power supply child device
 
 static bool ps_supports_property(Device*, PowerSupplyProperty property) {
-    return property == POWER_SUPPLY_PROP_IS_CHARGING || property == POWER_SUPPLY_PROP_VOLTAGE;
+    return property == POWER_SUPPLY_PROP_IS_CHARGING || property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY;
 }
 
 static error_t ps_get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
@@ -414,6 +415,16 @@ static error_t ps_get_property(Device* device, PowerSupplyProperty property, Pow
                 return err;
             }
             out_value->int_value = millivolts;
+            return ERROR_NONE;
+        }
+        case POWER_SUPPLY_PROP_CAPACITY: {
+            auto* parent = device_get_parent(axp2101_device);
+            uint8_t percent;
+            error_t err = i2c_controller_register8_get(parent, GET_CONFIG(axp2101_device)->address, REG_BATTERY_PERCENT, &percent, TIMEOUT);
+            if (err != ERROR_NONE) {
+                return err;
+            }
+            out_value->int_value = percent & 0x7FU;
             return ERROR_NONE;
         }
         default:

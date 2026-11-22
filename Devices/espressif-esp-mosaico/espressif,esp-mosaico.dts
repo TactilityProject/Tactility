@@ -241,8 +241,8 @@
 		pin-cs = <&gpio0 23 GPIO_FLAG_NONE>;
 		pin-wp = <&gpio0 25 GPIO_FLAG_NONE>;
 		pin-hd = <&gpio0 24 GPIO_FLAG_NONE>;
-		mount-path = "/sdcard";
-		mount-name = "sdcard";
+		mount-path = "/data";
+		mount-name = "data";
 		/* Single-IO at 40 MHz; the BSP runs quad at 80 MHz. Safe start point for SIO. */
 		max-freq-khz = <40000>;
 		/* The chip ships blank; format once so the first boot has a volume. */
