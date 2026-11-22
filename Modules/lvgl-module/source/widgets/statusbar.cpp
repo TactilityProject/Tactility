@@ -685,6 +685,8 @@ void lvgl_statusbar_set_side_insets(lv_obj_t* obj, int32_t top, int32_t bottom) 
         const uint8_t spacing = lvgl_theme_get_spacing();
         lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing) + top, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_bottom(obj, lvgl_theme_lerp(0, 8, spacing) + bottom, LV_STATE_DEFAULT);
+        // The strip keeps its size, so no size event follows to recalculate how many icons fit
+        update_icons(statusbar);
     }
     statusbar->side_inset_top = top;
     statusbar->side_inset_bottom = bottom;

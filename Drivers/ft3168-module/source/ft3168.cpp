@@ -11,8 +11,8 @@
 #include <tactility/drivers/touch.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
+#include <tactility/Memory.hpp>
 
-#include <cstdlib>
 #include <utility>
 
 static constexpr const char* TAG = "FT3168";
@@ -48,28 +48,37 @@ static bool write_register(Device* i2c, uint8_t address, uint8_t reg, uint8_t va
     return i2c_controller_write(i2c, address, data, sizeof(data), I2C_TIMEOUT) == ERROR_NONE;
 }
 
-static void perform_reset(const Ft3168Config* config) {
+static error_t perform_reset(const Ft3168Config* config) {
     if (config->pin_reset.gpio_controller == nullptr) {
-        return;
+        return ERROR_NONE;
     }
     auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (rst == nullptr) {
-        LOG_W(TAG, "Failed to acquire reset pin");
-        return;
+        LOG_E(TAG, "Failed to acquire reset pin");
+        return ERROR_RESOURCE;
     }
-    gpio_descriptor_set_level(rst, true);
-    delay_millis(10);
-    gpio_descriptor_set_level(rst, false);
+    error_t error = gpio_descriptor_set_level(rst, true);
+    if (error == ERROR_NONE) {
+        delay_millis(10);
+        error = gpio_descriptor_set_level(rst, false);
+    }
     gpio_descriptor_release(rst);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to pulse reset pin");
+        return error;
+    }
     delay_millis(50);
+    return ERROR_NONE;
 }
 
 // The controller can fall into monitor mode, where it NAKs I2C reads until touched.
 // Keep it active so periodic polling always gets an answer.
-static void set_active_mode(Device* i2c, uint8_t address) {
+static error_t set_active_mode(Device* i2c, uint8_t address) {
     if (!write_register(i2c, address, REG_AUTO_MONITOR, 0) || !write_register(i2c, address, REG_POWER_MODE, POWER_MODE_ACTIVE)) {
-        LOG_W(TAG, "Failed to set active power mode");
+        LOG_E(TAG, "Failed to set active power mode");
+        return ERROR_RESOURCE;
     }
+    return ERROR_NONE;
 }
 
 static error_t start(Device* device) {
@@ -78,7 +87,7 @@ static error_t start(Device* device) {
 
     const auto* config = get_config(device);
 
-    auto* internal = static_cast<Ft3168Internal*>(calloc(1, sizeof(Ft3168Internal)));
+    auto* internal = tt::newObject<Ft3168Internal>();
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -86,39 +95,52 @@ static error_t start(Device* device) {
     internal->mirror_x = config->mirror_x;
     internal->mirror_y = config->mirror_y;
 
-    perform_reset(config);
-    set_active_mode(parent, config->address);
+    error_t error = perform_reset(config);
+    if (error == ERROR_NONE) {
+        error = set_active_mode(parent, config->address);
+    }
+    if (error != ERROR_NONE) {
+        tt::deleteObject(internal);
+        return error;
+    }
 
     device_set_driver_data(device, internal);
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
-    free(device_get_driver_data(device));
+    tt::deleteObject(static_cast<Ft3168Internal*>(device_get_driver_data(device)));
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }
 
 static error_t ft3168_enter_sleep(Device* device) {
     const auto* config = get_config(device);
+    // Only a reset wakes the controller from hibernate
+    if (config->pin_reset.gpio_controller == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
     return write_register(device_get_parent(device), config->address, REG_POWER_MODE, POWER_MODE_HIBERNATE) ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 static error_t ft3168_exit_sleep(Device* device) {
     const auto* config = get_config(device);
-    perform_reset(config);
-    set_active_mode(device_get_parent(device), config->address);
-    return ERROR_NONE;
+    const error_t error = perform_reset(config);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    return set_active_mode(device_get_parent(device), config->address);
 }
 
-static error_t ft3168_read_data(Device* device, TickType_t /*timeout*/) {
+static error_t ft3168_read_data(Device* device, TickType_t timeout) {
     auto* internal = static_cast<Ft3168Internal*>(device_get_driver_data(device));
     const auto* config = get_config(device);
 
     uint8_t buffer[FRAME_SIZE];
     uint8_t reg = REG_TOUCH_COUNT;
-    if (i2c_controller_write_read(device_get_parent(device), config->address, &reg, 1, buffer, sizeof(buffer), I2C_TIMEOUT) != ERROR_NONE) {
-        return ERROR_RESOURCE;
+    const error_t error = i2c_controller_write_read(device_get_parent(device), config->address, &reg, 1, buffer, sizeof(buffer), timeout);
+    if (error != ERROR_NONE) {
+        return error;
     }
 
     uint8_t count = buffer[0] & 0x0F;
