@@ -43,8 +43,8 @@
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
 @widget pathbar_button: lvgl_pathbar_button_class;
-@widget tab_bar: lvgl_tabs_class;
-@widget tab_bar_tab: lvgl_tabs_tab_class;
+@widget tabs: lvgl_tabs_class;
+@widget tabs_tab: lvgl_tabs_tab_class;
 @widget statusline: lvgl_statusline_class;
 @widget statusline_dot: lvgl_statusline_dot_class;
 
@@ -411,7 +411,7 @@
 @list-divider-width: @density-border;
 @list-subheader-text-color: @color-on-surface-variant;
 
-// Tabs: the tab bar is a Material 3 navigation bar with a pill-shaped active indicator
+// Tabs: the tabs are a Material 3 navigation bar with a pill-shaped active indicator
 @tabs-color: @card-color;
 @tabs-pad: ((2) + ((@space-1) - (2)) * $spacing / 100);
 @tabs-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
@@ -432,15 +432,15 @@
 @statusline-pad-ver: 4dp + ((1) + ((@space-1) - (1)) * $spacing / 100);
 @statusline-gap: ((3) + ((6dp) - (3)) * $spacing / 100);
 
-// Tab bar (lvgl_tabs_create): Material 3 primary tabs, the selected tab has an indicator above the divider
-@tab-bar-divider-color: @color-outline-variant;
-@tab-bar-label-color: @color-on-surface-variant;
-@tab-bar-selected-label-color: @color-primary;
-@tab-bar-indicator-color: @color-primary;
-@tab-bar-indicator-width: 3dp;
-@tab-bar-pad-hor: ((3) + ((@space-4) - (3)) * $spacing / 100);
-@tab-bar-pad-ver: ((4) + ((@space-3) - (4)) * $spacing / 100);
-@tab-bar-icon-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
+// Tabs (lvgl_tabs_create): Material 3 primary tabs, the selected tab has an indicator above the divider
+@tabs-divider-color: @color-outline-variant;
+@tabs-label-color: @color-on-surface-variant;
+@tabs-selected-label-color: @color-primary;
+@tabs-indicator-color: @color-primary;
+@tabs-indicator-width: 3dp;
+@tabs-pad-hor: ((3) + ((@space-4) - (3)) * $spacing / 100);
+@tabs-pad-ver: ((4) + ((@space-3) - (4)) * $spacing / 100);
+@tabs-icon-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
 
 // Dialog (message box)
 @dialog-color: @color-surface-container-high;
@@ -1137,7 +1137,7 @@ list_subheader {
     padBottom: @list-pad;
 }
 
-tabs {
+tabview_tabs {
     bgColor: @tabs-color;
     bgOpa: cover;
     borderWidth: 0;
@@ -1146,20 +1146,20 @@ tabs {
     padGap: @tabs-gap;
 }
 
-tab {
+tabview_tab {
     bgOpa: transp;
     textColor: @tab-label-color;
     radius: @tab-shape;
     padAll: @tab-pad;
 }
 
-tab_selected {
+tabview_tab_selected {
     bgColor: @tab-selected-color;
     bgOpa: cover;
     textColor: @tab-selected-label-color;
 }
 
-tab_page {
+tabview_page {
     padAll: @tab-page-pad;
 }
 
@@ -1188,33 +1188,33 @@ statusline_dot_error {
     bgColor: @statusline-error-color;
 }
 
-tab_bar {
+tabs {
     bgOpa: transp;
     borderSide: bottom;
     borderWidth: @density-border;
-    borderColor: @tab-bar-divider-color;
+    borderColor: @tabs-divider-color;
     radius: 0;
     padAll: 0;
     padGap: 0;
 }
 
 // Every tab has the indicator's border, so the label doesn't move when the tab is selected
-tab_bar_tab {
+tabs_tab {
     bgOpa: transp;
-    textColor: @tab-bar-label-color;
+    textColor: @tabs-label-color;
     radius: 0;
-    padHor: @tab-bar-pad-hor;
-    padVer: @tab-bar-pad-ver;
+    padHor: @tabs-pad-hor;
+    padVer: @tabs-pad-ver;
     // Between the icon and the label
-    padGap: @tab-bar-icon-gap;
+    padGap: @tabs-icon-gap;
     borderSide: bottom;
-    borderWidth: @tab-bar-indicator-width;
+    borderWidth: @tabs-indicator-width;
     borderOpa: transp;
 }
 
-tab_bar_tab_selected {
-    textColor: @tab-bar-selected-label-color;
-    borderColor: @tab-bar-indicator-color;
+tabs_tab_selected {
+    textColor: @tabs-selected-label-color;
+    borderColor: @tabs-indicator-color;
     borderOpa: cover;
 }
 
@@ -1436,11 +1436,11 @@ apply(tabview > obj[1]) {
 }
 
 apply(tabview > obj[0]) {
-    tabs: default;
+    tabview_tabs: default;
 }
 
 apply(tabview > * > obj) {
-    tab_page: default;
+    tabview_page: default;
     scrollbar: part.scrollbar;
     scrollbar_scrolled: part.scrollbar, state.scrolled;
 }
@@ -1468,11 +1468,11 @@ apply(obj) {
 // Buttons
 
 apply(tabview > *[0] > button) {
-    tab: default;
+    tabview_tab: default;
     transition_exit: default;
     state_pressed: state.pressed;
     transition_enter: state.pressed;
-    tab_selected: state.checked;
+    tabview_tab_selected: state.checked;
     focus_ring: state.focusKey;
     edit_ring: state.edited;
 }
@@ -1687,16 +1687,16 @@ apply(statusline_dot) {
     statusline_dot_error: state.user2;
 }
 
-apply(tab_bar) {
-    tab_bar: default;
+apply(tabs) {
+    tabs: default;
 }
 
-apply(tab_bar_tab) {
-    tab_bar_tab: default;
+apply(tabs_tab) {
+    tabs_tab: default;
     transition_exit: default;
     state_pressed: state.pressed;
     transition_enter: state.pressed;
-    tab_bar_tab_selected: state.checked;
+    tabs_tab_selected: state.checked;
     focus_ring_inset: state.focusKey;
     edit_ring_inset: state.edited;
     disabled: state.disabled;

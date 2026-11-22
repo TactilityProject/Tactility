@@ -126,7 +126,7 @@ struct Context {
     lv_obj_t* networkHeader = nullptr;
     lv_obj_t* content = nullptr;
     lv_obj_t* addButton = nullptr;
-    /** The tab bar, which shows the unread messages of the channels and contacts */
+    /** The tabs, which shows the unread messages of the channels and contacts */
     lv_obj_t* tabs = nullptr;
     NetworkInfo network;
 };
@@ -221,7 +221,7 @@ void onAddPressed(lv_event_t* event) { signalBit(event, &Context::addBit); }
 void onMenuPressed(lv_event_t* event) { signalBit(event, &Context::menuBit); }
 void onSettingsPressed(lv_event_t* event) { signalBit(event, &Context::settingsBit); }
 
-/** Switching tabs rebuilds the widgets, which can't happen in an event of the tab bar, so the app's task does it */
+/** Switching tabs rebuilds the widgets, which can't happen in an event of the tabs, so the app's task does it */
 void onTabChanged(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     ctx->selectedTab = lvgl_tabs_get_selected(lv_event_get_current_target_obj(event));
@@ -267,7 +267,7 @@ lv_obj_t* createHeaderButton(lv_obj_t* parent, const char* icon, lv_event_cb_t c
 
 /**
  * Replaces the toolbar of the tabs: the close button, the tabs next to it and the actions.
- * The tabs and the actions are grid navigation groups of their own, as grid navigation can't be nested.
+ * The close button, the tabs and the actions are grid navigation groups of their own, as grid navigation can't be nested.
  */
 void createTabsHeader(lv_obj_t* parent, Context* ctx) {
     auto* header = lv_obj_create(parent);
@@ -279,7 +279,14 @@ void createTabsHeader(lv_obj_t* parent, Context* ctx) {
     lv_obj_set_style_pad_hor(header, spacing, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(header, spacing, LV_STATE_DEFAULT);
 
-    createHeaderButton(header, LVGL_ICON_SHARED_CLOSE, onBackPressed, ctx);
+    // A plain button ignores left and right, so it's a grid navigation group of its own to reach the tabs with the keys
+    auto* close = lv_obj_create(header);
+    lv_obj_remove_style_all(close);
+    lv_obj_set_size(close, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(close, LV_FLEX_FLOW_ROW);
+    auto* closeButton = createHeaderButton(close, LVGL_ICON_SHARED_CLOSE, onBackPressed, ctx);
+    lvgl_grid_navigation_add(close);
+    lvgl_grid_navigation_focus_without_touch(close, closeButton);
 
     ctx->tabs = lvgl_tabs_create(header);
     lvgl_tabs_set_mode(ctx->tabs, LVGL_TABS_MODE_WRAP);

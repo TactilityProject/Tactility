@@ -329,11 +329,6 @@ void onUpdateAllPressed(lv_event_t* event) {
     showApps(ctx);
 }
 
-void updateUpdatesTabText(Context* ctx, size_t updateCount) {
-    const auto text = i18n::format(updateCount == 1 ? tr("{} update") : tr("{} updates"), { ::std::to_string(updateCount) });
-    lvgl_tabs_set_tab_text(ctx->tabs, static_cast<uint32_t>(Filter::Updates), text.c_str());
-}
-
 void onQueryChanged(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     ctx->query = lv_textarea_get_text(lv_event_get_target_obj(event));
@@ -552,7 +547,6 @@ void showApps(Context* ctx) {
     tt::std::vector<AppHubApp> apps = ctx->apps;
     const bool hasApps = !apps.empty();
     const auto updateCount = ::std::ranges::count_if(apps, [](const AppHubApp& app) { return app.update_available; });
-    updateUpdatesTabText(ctx, updateCount);
     // The updates tab only shows while there are updates. Hiding it while it's selected selects the first tab.
     if (updateCount == 0 && ctx->filter == Filter::Updates) {
         ctx->filter = Filter::All;
@@ -761,7 +755,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     // Replaces the toolbar: the close button, the tabs next to it and the actions.
-    // The tabs and the actions are grid navigation groups of their own, as grid navigation can't be nested.
+    // The close button, the tabs and the actions are grid navigation groups of their own, as grid navigation can't be nested.
     ctx->header = lv_obj_create(parent);
     lv_obj_remove_style_all(ctx->header);
     lv_obj_set_size(ctx->header, LV_PCT(100), LV_SIZE_CONTENT);
@@ -771,7 +765,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_hor(ctx->header, spacing, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(ctx->header, spacing, LV_STATE_DEFAULT);
 
-    createHeaderButton(ctx->header, LVGL_ICON_SHARED_CLOSE, true, onBackPressed, ctx);
+    // A plain button ignores left and right, so it's a grid navigation group of its own to reach the tabs with the keys
+    auto* close = lv_obj_create(ctx->header);
+    lv_obj_remove_style_all(close);
+    lv_obj_set_size(close, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(close, LV_FLEX_FLOW_ROW);
+    auto* closeButton = createHeaderButton(close, LVGL_ICON_SHARED_CLOSE, true, onBackPressed, ctx);
+    lvgl_grid_navigation_add(close);
+    lvgl_grid_navigation_focus_without_touch(close, closeButton);
     createFilterTabs(ctx->header, ctx);
     // Pushes the actions to the right
     createHeaderSpacer(ctx->header);

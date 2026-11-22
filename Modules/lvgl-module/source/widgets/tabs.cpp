@@ -52,7 +52,7 @@ void tab_constructor(const lv_obj_class_t*, lv_obj_t* obj) {
 
 }
 
-// Not static: the theme styles the tab bar and its tabs by these classes
+// Not static: the theme styles the tabs and each tab by these classes
 extern "C" const lv_obj_class_t lvgl_tabs_class = {
     .base_class = &lv_obj_class,
     .constructor_cb = tabs_constructor,
@@ -139,7 +139,7 @@ int32_t measure_text_width(lv_obj_t* label, const lv_font_t* font) {
     return measure_width(lv_label_get_text(label), font, lv_obj_get_style_text_letter_space(label, LV_PART_MAIN));
 }
 
-/** The regular font is the tab bar's, as the tabs only have a font of their own when it's the small one */
+/** The regular font is the tabs', as the tabs only have a font of their own when it's the small one */
 void set_tab_text(lv_obj_t* tab, const char* text) {
     auto* label = get_label(tab);
     lv_label_set_text(label, text);
@@ -170,8 +170,8 @@ bool fits(const std::vector<lv_obj_t*>& shown, LvglTabsMode mode, int32_t availa
 }
 
 /**
- * The width that the tabs can take. In a row, the tab bar gets the room that the other widgets leave,
- * except for widgets that grow, as they take the room that the tab bar leaves.
+ * The width that the tabs can take. In a row, the tabs get the room that the other widgets leave,
+ * except for widgets that grow, as they take the room that the tabs leave.
  */
 int32_t get_available_width(lv_obj_t* tabs) {
     auto* parent = lv_obj_get_parent(tabs);
@@ -418,9 +418,10 @@ void lvgl_tabs_set_tab_badge(lv_obj_t* tabs, uint32_t index, bool visible) {
     }
     auto* badge = lvgl_badge_create(tab);
     data->badge = badge;
-    // At the top of the label, in the padding at the end of the tab, so it never changes the size of the tab
+    // At the top of the label, in the padding at the end of the tab, so it never changes the size of the tab.
+    // The tab clips what's outside of it, so the badge goes no further than the padding.
     const int32_t size = lv_obj_get_style_width(badge, LV_PART_MAIN);
-    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, size + size / 2, 0);
+    lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, std::min(size + size / 2, lv_obj_get_style_pad_right(tab, LV_PART_MAIN)), 0);
 }
 
 void lvgl_tabs_set_tab_hidden(lv_obj_t* tabs, uint32_t index, bool hidden) {

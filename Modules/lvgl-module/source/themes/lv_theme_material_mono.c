@@ -111,7 +111,7 @@ extern const lv_obj_class_t lvgl_statusline_dot_class;
 #define STEP_INDICATOR_MARGIN (LV_DPX_CALC(theme->disp_dpi, 6))
 #define STEP_INDICATOR_GAP STEP_INDICATOR_MARGIN
 #define BADGE_COLOR COLOR_ON_SURFACE
-#define BADGE_SIZE (4 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 4) * theme->config.size) / 100))
+#define BADGE_SIZE (6 + (((LV_DPX_CALC(theme->disp_dpi, 8) - 6) * theme->config.size) / 100))
 #define SCROLLBAR_COLOR COLOR_ON_SURFACE
 #define SCROLLBAR_WIDTH (2 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 2) * theme->config.size) / 100))
 #define SCROLLBAR_PAD 1
@@ -208,10 +208,10 @@ extern const lv_obj_class_t lvgl_statusline_dot_class;
 #define STATUSLINE_PAD_HOR (4 + (((SPACE_3 - 4) * theme->config.spacing) / 100))
 #define STATUSLINE_PAD_VER (LV_DPX_CALC(theme->disp_dpi, 4) + (1 + (((SPACE_1 - 1) * theme->config.spacing) / 100)))
 #define STATUSLINE_GAP (3 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 3) * theme->config.spacing) / 100))
-#define TAB_BAR_INDICATOR_WIDTH LINE_THICK
-#define TAB_BAR_PAD_HOR (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
-#define TAB_BAR_PAD_VER (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
-#define TAB_BAR_ICON_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
+#define TABS_INDICATOR_WIDTH LINE_THICK
+#define TABS_PAD_HOR (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
+#define TABS_PAD_VER (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define TABS_ICON_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define DIALOG_COLOR COLOR_SURFACE
 #define DIALOG_BORDER_COLOR COLOR_OUTLINE
 #define DIALOG_BORDER_WIDTH LINE_MEDIUM
@@ -351,21 +351,21 @@ typedef struct {
     lv_style_t list_item;
     lv_style_t list_subheader;
 #if LV_USE_TABVIEW
-    lv_style_t tabs;
+    lv_style_t tabview_tabs;
 #endif
 #if LV_USE_BUTTON && LV_USE_TABVIEW
-    lv_style_t tab;
+    lv_style_t tabview_tab;
 #endif
 #if LV_USE_TABVIEW
-    lv_style_t tab_page;
+    lv_style_t tabview_page;
 #endif
     lv_style_t statusline;
     lv_style_t statusline_dot;
     lv_style_t statusline_dot_warning;
     lv_style_t statusline_dot_error;
-    lv_style_t tab_bar;
-    lv_style_t tab_bar_tab;
-    lv_style_t tab_bar_tab_selected;
+    lv_style_t tabs;
+    lv_style_t tabs_tab;
+    lv_style_t tabs_tab_selected;
 #if LV_USE_MSGBOX
     lv_style_t dialog;
 #endif
@@ -980,25 +980,25 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_bottom(&theme->styles.list_subheader, LIST_PAD);
 
 #if LV_USE_TABVIEW
-    style_init_reset(&theme->styles.tabs);
-    lv_style_set_bg_opa(&theme->styles.tabs, LV_OPA_TRANSP);
-    lv_style_set_border_width(&theme->styles.tabs, 0);
-    lv_style_set_pad_all(&theme->styles.tabs, TABS_PAD);
-    lv_style_set_pad_gap(&theme->styles.tabs, TABS_GAP);
+    style_init_reset(&theme->styles.tabview_tabs);
+    lv_style_set_bg_opa(&theme->styles.tabview_tabs, LV_OPA_TRANSP);
+    lv_style_set_border_width(&theme->styles.tabview_tabs, 0);
+    lv_style_set_pad_all(&theme->styles.tabview_tabs, TABS_PAD);
+    lv_style_set_pad_gap(&theme->styles.tabview_tabs, TABS_GAP);
 #endif
 
 #if LV_USE_BUTTON && LV_USE_TABVIEW
-    style_init_reset(&theme->styles.tab);
-    lv_style_set_bg_opa(&theme->styles.tab, LV_OPA_TRANSP);
-    lv_style_set_text_color(&theme->styles.tab, COLOR_ON_SURFACE);
-    lv_style_set_border_width(&theme->styles.tab, 0);
-    lv_style_set_radius(&theme->styles.tab, TAB_SHAPE);
-    lv_style_set_pad_all(&theme->styles.tab, TAB_PAD);
+    style_init_reset(&theme->styles.tabview_tab);
+    lv_style_set_bg_opa(&theme->styles.tabview_tab, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.tabview_tab, COLOR_ON_SURFACE);
+    lv_style_set_border_width(&theme->styles.tabview_tab, 0);
+    lv_style_set_radius(&theme->styles.tabview_tab, TAB_SHAPE);
+    lv_style_set_pad_all(&theme->styles.tabview_tab, TAB_PAD);
 #endif
 
 #if LV_USE_TABVIEW
-    style_init_reset(&theme->styles.tab_page);
-    lv_style_set_pad_all(&theme->styles.tab_page, TAB_PAGE_PAD);
+    style_init_reset(&theme->styles.tabview_page);
+    lv_style_set_pad_all(&theme->styles.tabview_page, TAB_PAGE_PAD);
 #endif
 
     style_init_reset(&theme->styles.statusline);
@@ -1025,29 +1025,29 @@ static void style_init(my_theme_t * theme)
     style_init_reset(&theme->styles.statusline_dot_error);
     lv_style_set_radius(&theme->styles.statusline_dot_error, 0);
 
-    style_init_reset(&theme->styles.tab_bar);
-    lv_style_set_bg_opa(&theme->styles.tab_bar, LV_OPA_TRANSP);
-    lv_style_set_border_side(&theme->styles.tab_bar, LV_BORDER_SIDE_BOTTOM);
-    lv_style_set_border_width(&theme->styles.tab_bar, BORDER);
-    lv_style_set_border_color(&theme->styles.tab_bar, COLOR_OUTLINE);
-    lv_style_set_radius(&theme->styles.tab_bar, 0);
-    lv_style_set_pad_all(&theme->styles.tab_bar, 0);
-    lv_style_set_pad_gap(&theme->styles.tab_bar, 0);
+    style_init_reset(&theme->styles.tabs);
+    lv_style_set_bg_opa(&theme->styles.tabs, LV_OPA_TRANSP);
+    lv_style_set_border_side(&theme->styles.tabs, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_border_width(&theme->styles.tabs, BORDER);
+    lv_style_set_border_color(&theme->styles.tabs, COLOR_OUTLINE);
+    lv_style_set_radius(&theme->styles.tabs, 0);
+    lv_style_set_pad_all(&theme->styles.tabs, 0);
+    lv_style_set_pad_gap(&theme->styles.tabs, 0);
 
-    style_init_reset(&theme->styles.tab_bar_tab);
-    lv_style_set_bg_opa(&theme->styles.tab_bar_tab, LV_OPA_TRANSP);
-    lv_style_set_text_color(&theme->styles.tab_bar_tab, COLOR_ON_SURFACE);
-    lv_style_set_radius(&theme->styles.tab_bar_tab, 0);
-    lv_style_set_pad_hor(&theme->styles.tab_bar_tab, TAB_BAR_PAD_HOR);
-    lv_style_set_pad_ver(&theme->styles.tab_bar_tab, TAB_BAR_PAD_VER);
-    lv_style_set_pad_gap(&theme->styles.tab_bar_tab, TAB_BAR_ICON_GAP);
-    lv_style_set_border_side(&theme->styles.tab_bar_tab, LV_BORDER_SIDE_BOTTOM);
-    lv_style_set_border_width(&theme->styles.tab_bar_tab, TAB_BAR_INDICATOR_WIDTH);
-    lv_style_set_border_opa(&theme->styles.tab_bar_tab, LV_OPA_TRANSP);
+    style_init_reset(&theme->styles.tabs_tab);
+    lv_style_set_bg_opa(&theme->styles.tabs_tab, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.tabs_tab, COLOR_ON_SURFACE);
+    lv_style_set_radius(&theme->styles.tabs_tab, 0);
+    lv_style_set_pad_hor(&theme->styles.tabs_tab, TABS_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.tabs_tab, TABS_PAD_VER);
+    lv_style_set_pad_gap(&theme->styles.tabs_tab, TABS_ICON_GAP);
+    lv_style_set_border_side(&theme->styles.tabs_tab, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_border_width(&theme->styles.tabs_tab, TABS_INDICATOR_WIDTH);
+    lv_style_set_border_opa(&theme->styles.tabs_tab, LV_OPA_TRANSP);
 
-    style_init_reset(&theme->styles.tab_bar_tab_selected);
-    lv_style_set_border_color(&theme->styles.tab_bar_tab_selected, COLOR_PRIMARY);
-    lv_style_set_border_opa(&theme->styles.tab_bar_tab_selected, LV_OPA_COVER);
+    style_init_reset(&theme->styles.tabs_tab_selected);
+    lv_style_set_border_color(&theme->styles.tabs_tab_selected, COLOR_PRIMARY);
+    lv_style_set_border_opa(&theme->styles.tabs_tab_selected, LV_OPA_COVER);
 
 #if LV_USE_MSGBOX
     style_init_reset(&theme->styles.dialog);
@@ -1389,14 +1389,14 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
 #if LV_USE_TABVIEW
         /* tabview > obj[0] */
         if(lv_obj_check_type(parent, &lv_tabview_class) && lss_is_child(parent, 0, obj)) {
-            lv_obj_add_style(obj, &theme->styles.tabs, 0);
+            lv_obj_add_style(obj, &theme->styles.tabview_tabs, 0);
             return;
         }
 #endif
 #if LV_USE_TABVIEW
         /* tabview > * > obj */
         if(lv_obj_check_type(lss_ancestor(obj, 2), &lv_tabview_class)) {
-            lv_obj_add_style(obj, &theme->styles.tab_page, 0);
+            lv_obj_add_style(obj, &theme->styles.tabview_page, 0);
             lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
             return;
         }
@@ -1432,7 +1432,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
 #if LV_USE_TABVIEW
         /* tabview > *[0] > button */
         if(lv_obj_check_type(lss_ancestor(obj, 2), &lv_tabview_class) && lss_is_child(lss_ancestor(obj, 2), 0, parent)) {
-            lv_obj_add_style(obj, &theme->styles.tab, 0);
+            lv_obj_add_style(obj, &theme->styles.tabview_tab, 0);
             lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
             lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_CHECKED);
             lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
@@ -1671,14 +1671,14 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         return;
     }
     if(lv_obj_check_type(obj, &lvgl_tabs_class)) {
-        /* tab_bar */
-        lv_obj_add_style(obj, &theme->styles.tab_bar, 0);
+        /* tabs */
+        lv_obj_add_style(obj, &theme->styles.tabs, 0);
         return;
     }
     if(lv_obj_check_type(obj, &lvgl_tabs_tab_class)) {
-        /* tab_bar_tab */
-        lv_obj_add_style(obj, &theme->styles.tab_bar_tab, 0);
-        lv_obj_add_style(obj, &theme->styles.tab_bar_tab_selected, LV_STATE_CHECKED);
+        /* tabs_tab */
+        lv_obj_add_style(obj, &theme->styles.tabs_tab, 0);
+        lv_obj_add_style(obj, &theme->styles.tabs_tab_selected, LV_STATE_CHECKED);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);

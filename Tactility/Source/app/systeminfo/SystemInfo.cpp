@@ -168,6 +168,8 @@ void createUsageCard(lv_obj_t* parent, const char* name, UsageCardWidgets& widge
     lv_obj_set_flex_align(widgets.card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(widgets.card, LV_DPX(6), LV_STATE_DEFAULT);
     lv_obj_set_scrollable(widgets.card, false);
+    // Selectable, so the keys can scroll to it on small displays
+    lv_obj_add_flag(widgets.card, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
 
     widgets.texts = lv_obj_create(widgets.card);
     lv_obj_remove_style_all(widgets.texts);
@@ -413,22 +415,32 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-/** Shows the content of the selected tab. Only the shown tab's task list can be focused. */
+/** Only the focusable content of the shown tab is in the focus group */
+void setFocusable(lv_group_t* group, lv_obj_t* container, bool shown) {
+    if (container == nullptr) {
+        return;
+    }
+    if (shown && lv_obj_get_group(container) == nullptr) {
+        lv_group_add_obj(group, container);
+    } else if (!shown && lv_obj_get_group(container) != nullptr) {
+        lv_group_remove_obj(container);
+    }
+}
+
+/** Shows the content of the selected tab. Only the shown tab's cards or task list can be focused. */
 void showSelectedTab(Context* ctx) {
     for (size_t i = 0; i < TAB_COUNT; i++) {
         lv_obj_set_hidden(ctx->panes[i], i != ctx->selectedTab);
     }
-#if configUSE_TRACE_FACILITY
     auto* group = lv_group_get_default();
-    if (group == nullptr || ctx->tasksContainer == nullptr) {
+    if (group == nullptr) {
         return;
     }
-    const bool tasks_shown = ctx->selectedTab == static_cast<uint32_t>(Tab::Tasks);
-    if (tasks_shown && lv_obj_get_group(ctx->tasksContainer) == nullptr) {
-        lv_group_add_obj(group, ctx->tasksContainer);
-    } else if (!tasks_shown && lv_obj_get_group(ctx->tasksContainer) != nullptr) {
-        lv_group_remove_obj(ctx->tasksContainer);
+    for (const Tab tab : { Tab::Memory, Tab::Storage }) {
+        setFocusable(group, ctx->panes[static_cast<size_t>(tab)], ctx->selectedTab == static_cast<uint32_t>(tab));
     }
+#if configUSE_TRACE_FACILITY
+    setFocusable(group, ctx->tasksContainer, ctx->selectedTab == static_cast<uint32_t>(Tab::Tasks));
 #endif
 }
 
@@ -447,7 +459,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     // Replaces the toolbar: the close button and the tabs next to it.
-    // The tabs are a grid navigation group of their own, as grid navigation can't be nested.
+    // The close button and the tabs are grid navigation groups of their own, as grid navigation can't be nested.
     auto* header = lv_obj_create(parent);
     lv_obj_remove_style_all(header);
     lv_obj_set_size(header, LV_PCT(100), LV_SIZE_CONTENT);
@@ -457,11 +469,18 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_hor(header, spacing, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(header, spacing, LV_STATE_DEFAULT);
 
-    auto* closeButton = lvgl_icon_button_create(header);
+    // A plain button ignores left and right, so it's a grid navigation group of its own to reach the tabs with the keys
+    auto* close = lv_obj_create(header);
+    lv_obj_remove_style_all(close);
+    lv_obj_set_size(close, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(close, LV_FLEX_FLOW_ROW);
+    auto* closeButton = lvgl_icon_button_create(close);
     lv_obj_add_event_cb(closeButton, onBackPressed, LV_EVENT_SHORT_CLICKED, ctx);
     auto* closeIcon = lv_label_create(closeButton);
     lv_obj_set_style_text_font(closeIcon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_label_set_text(closeIcon, LVGL_ICON_SHARED_CLOSE);
+    lvgl_grid_navigation_add(close);
+    lvgl_grid_navigation_focus_without_touch(close, closeButton);
 
     // Tabs that don't fit show only their icon
     ctx->tabs = lvgl_tabs_create(header);
@@ -490,6 +509,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // Space between the cards
     for (auto* pane : { memory_tab, storage_tab }) {
         lv_obj_set_style_pad_row(pane, lvgl_theme_lerp(LV_DPX(4), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
+        lvgl_grid_navigation_add(pane);
     }
 
     // Memory tab content

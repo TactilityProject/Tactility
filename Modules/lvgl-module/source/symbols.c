@@ -106,6 +106,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_grid_navigation
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_add),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_remove),
+    DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_focus_without_touch),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_step),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_get_focused),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_is_container),
