@@ -62,59 +62,21 @@ struct Context {
 };
 
 
-Device* getBacklightDevice() {
-    Device* display;
-    check(device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE);
-    // Boards not yet migrated to the kernel display driver register a placeholder device (so the
-    // devicetree node resolves) with a NULL api - nothing for display_get_backlight() to act on.
-    if (device_get_driver(display)->api == nullptr) {
-        device_put(display);
-        return nullptr;
-    }
-    Device* backlight = nullptr;
-    display_get_backlight(display, &backlight);
-    device_put(display);
-    return backlight;
-}
-
 void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     app_event_emit_close(ctx->appInstanceId);
 }
 
-constexpr int32_t BRIGHTNESS_STEP = 10;
-
-// The slider shows a percentage of the backlight's brightness range
-int32_t percentToBrightness(Device* backlight, int32_t percent) {
-    const int32_t min = backlight_get_min_brightness(backlight);
-    const int32_t range = backlight_get_max_brightness(backlight) - min;
-    const int32_t brightness = min + (percent * range + 50) / 100;
-    // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
-    return brightness < 1 ? 1 : brightness;
-}
-
-int32_t brightnessToPercent(Device* backlight, int32_t brightness) {
-    // A backlight with few levels can't map a level back to the exact percentage, so the slider step of the level is used
-    for (int32_t percent = 0; percent <= 100; percent += BRIGHTNESS_STEP) {
-        if (percentToBrightness(backlight, percent) == brightness) {
-            return percent;
-        }
-    }
-    const int32_t min = backlight_get_min_brightness(backlight);
-    const int32_t range = backlight_get_max_brightness(backlight) - min;
-    // A saved brightness can be out of range, e.g. when it was saved for another backlight driver
-    const int32_t clamped = ::std::clamp(brightness, min, min + range);
-    return range > 0 ? ((clamped - min) * 100 + range / 2) / range : 100;
-}
+constexpr int32_t BRIGHTNESS_STEP = settings::display::BACKLIGHT_STEP_PERCENT;
 
 void onBacklightSliderEvent(lv_event_t* event) {
     auto* slider_box = lv_event_get_current_target_obj(event);
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* backlight = getBacklightDevice();
+    auto* backlight = settings::display::getBacklight();
     assert(backlight != nullptr);
 
     const int32_t percent = lvgl_sliderbox_get_value(slider_box);
-    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(percentToBrightness(backlight, percent));
+    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(settings::display::backlightPercentToBrightness(backlight, percent));
     ctx->displaySettingsUpdated = true;
     backlight_set_brightness(backlight, ctx->displaySettings.backlightDuty);
     device_put(backlight);
@@ -217,7 +179,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* backlight = getBacklightDevice();
+    auto* backlight = settings::display::getBacklight();
 
     auto* toolbar = lvgl_toolbar_create(parent, tr("Display"));
     // The global toolbar nav callback only knows how to stop old-model apps.
@@ -234,15 +196,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // DisplayApi has no gamma curve control yet.
 
     if (backlight != nullptr) {
-        bool is_on_off_brightness = backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1;
-        if (!is_on_off_brightness) {
+        if (settings::display::backlightSupportsBrightness(backlight)) {
             auto* brightness_label = lv_label_create(main_wrapper);
             lv_label_set_text(brightness_label, tr("Brightness"));
 
             auto* brightness_card = lvgl_card_create(main_wrapper);
             lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
 
-            const int32_t percent = brightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
+            const int32_t percent = settings::display::backlightBrightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
             auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, BRIGHTNESS_STEP, percent);
             lv_obj_set_width(brightness_slider, LV_PCT(100));
             lvgl_sliderbox_add_value_changed_cb(brightness_slider, onBacklightSliderEvent, ctx);

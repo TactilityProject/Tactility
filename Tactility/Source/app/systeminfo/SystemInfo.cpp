@@ -169,7 +169,8 @@ void createUsageCard(lv_obj_t* parent, const char* name, UsageCardWidgets& widge
     lv_obj_set_style_pad_column(widgets.card, LV_DPX(6), LV_STATE_DEFAULT);
     lv_obj_set_scrollable(widgets.card, false);
     // Selectable, so the keys can scroll to it on small displays
-    lv_obj_add_flag(widgets.card, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    lv_obj_set_clickable(widgets.card, true);
+    lv_obj_set_click_focusable(widgets.card, true);
 
     widgets.texts = lv_obj_create(widgets.card);
     lv_obj_remove_style_all(widgets.texts);

@@ -13,7 +13,7 @@
 namespace tt::lvgl {
 
 bool systemMenuHasPowerOptions() {
-    return app::shutdown::supportsStandby() || app::shutdown::supportsSuspend() || app::shutdown::supportsPowerOff();
+    return app::shutdown::supportsStandby() || app::shutdown::supportsSuspend() || app::shutdown::supportsReboot() || app::shutdown::supportsPowerOff();
 }
 
 bool systemMenuPowerToggle(lv_obj_t* powerButton, lv_obj_t* quickPanel, lv_obj_t* powerPanel) {
@@ -64,6 +64,9 @@ lv_obj_t* systemMenuPowerPanelCreate(lv_obj_t* parent) {
     }
     if (app::shutdown::supportsSuspend()) {
         createPowerOption(panel, LVGL_ICON_SHARED_MODE_STANDBY, tr("Suspend"), app::shutdown::MODE_SUSPEND);
+    }
+    if (app::shutdown::supportsReboot()) {
+        createPowerOption(panel, LVGL_ICON_SHARED_REFRESH, tr("Reboot"), app::shutdown::MODE_REBOOT);
     }
     if (app::shutdown::supportsPowerOff()) {
         createPowerOption(panel, LVGL_ICON_SHARED_POWER_SETTINGS_NEW, tr("Power off"), app::shutdown::MODE_POWER_OFF);

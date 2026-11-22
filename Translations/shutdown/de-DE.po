@@ -6,5 +6,8 @@ msgstr ""
 msgid "Powered off"
 msgstr "Ausgeschaltet"
 
+msgid "Rebooting"
+msgstr "Neustart"
+
 msgid "Suspended"
 msgstr "Im Ruhezustand"

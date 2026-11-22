@@ -118,5 +118,8 @@ msgstr "En espera"
 msgid "Suspend"
 msgstr "Suspender"
 
+msgid "Reboot"
+msgstr "Reiniciar"
+
 msgid "Power off"
 msgstr "Apagar"

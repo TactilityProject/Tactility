@@ -118,5 +118,8 @@ msgstr "Veille"
 msgid "Suspend"
 msgstr "Suspendre"
 
+msgid "Reboot"
+msgstr "Redémarrer"
+
 msgid "Power off"
 msgstr "Éteindre"
