@@ -152,6 +152,11 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
     mutex_construct(&internal->mutex);
+    if (internal->mutex.handle == nullptr) {
+        gpio_descriptor_release(descriptor);
+        delete internal;
+        return ERROR_OUT_OF_MEMORY;
+    }
 
     device_set_driver_data(device, internal);
     return ERROR_NONE;

@@ -310,7 +310,7 @@ uint32_t MeshStore::scanSegment(uint32_t segment) {
     const int fd = ::open(path.c_str(), O_RDONLY);
     if (fd < 0) {
         memory_free(data);
-        return 0;
+        return scanSegmentStreaming(segment);
     }
     size_t size = 0;
     while (size < (size_t)info.st_size) {
@@ -321,6 +321,12 @@ uint32_t MeshStore::scanSegment(uint32_t segment) {
         size += (size_t)count;
     }
     ::close(fd);
+    if (size < (size_t)info.st_size) {
+        // A short read is not the end of the segment, so the records are read one by one instead
+        LOG_W(TAG, "Short read of segment %u (%u of %u bytes)", (unsigned)segment, (unsigned)size, (unsigned)info.st_size);
+        memory_free(data);
+        return scanSegmentStreaming(segment);
+    }
 
     uint32_t offset = 0;
     while (offset + RECORD_HEADER_SIZE <= size) {
