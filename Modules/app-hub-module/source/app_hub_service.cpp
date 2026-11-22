@@ -300,9 +300,9 @@ bool lessIgnoringCase(const AppHubApp& left, const AppHubApp& right) {
 /**
  * @param[in] certificate the PEM text that verifies the server, or an empty string for the trusted roots of the platform
  * @param[in] events the event group to wait on
- * @param[in] stopBit a bit of @a events that cancels the download, or 0
+ * @param[in] stopBits the bits of @a events that cancel the download, or 0. They stay signalled.
  */
-error_t download(const char* url, const char* certificate, const char* targetPath, TaskEventGroup* events, uint32_t stopBit) {
+error_t download(const char* url, const char* certificate, const char* targetPath, TaskEventGroup* events, uint32_t stopBits) {
     HttpDownloadSubscription sub {};
     if (http_download_subscribe(&sub, events) != ERROR_NONE) {
         return ERROR_RESOURCE;
@@ -314,10 +314,12 @@ error_t download(const char* url, const char* certificate, const char* targetPat
 
     while (true) {
         uint32_t flags = 0;
-        task_event_group_wait(events, sub.bit | stopBit, false, &flags, portMAX_DELAY);
-        if (flags & stopBit) {
+        task_event_group_wait(events, sub.bit | stopBits, false, &flags, portMAX_DELAY);
+        if (flags & stopBits) {
             http_download_cancel(&sub);
             http_download_unsubscribe(&sub);
+            // The wait cleared them, but the caller's own event loop handles them too
+            task_event_group_signal(events, flags & stopBits);
             return ERROR_INVALID_STATE;
         }
         HttpDownloadEvent event {};
@@ -330,6 +332,19 @@ error_t download(const char* url, const char* certificate, const char* targetPat
             return ERROR_NONE;
         }
     }
+}
+
+/** Calls download(events, stopBits) with the event group of @a interrupt, or with a temporary one when it's NULL */
+template <typename Download>
+error_t downloadInterruptible(const AppHubInterrupt* interrupt, Download download) {
+    if (interrupt != nullptr) {
+        return download(interrupt->event_group, interrupt->bits);
+    }
+    TaskEventGroup events {};
+    task_event_group_construct(&events);
+    const error_t error = download(&events, 0);
+    task_event_group_destruct(&events);
+    return error;
 }
 
 error_t ensureDirectory(const char* path) {
@@ -595,7 +610,7 @@ error_t executeRefresh() {
 }
 
 /** Downloads and reads the details file of an app from its repository, see download() for the event group */
-error_t fetchDetails(const char* id, const Source& source, AppHubCatalogDetails& details, TaskEventGroup* events, uint32_t stopBit) {
+error_t fetchDetails(const char* id, const Source& source, AppHubCatalogDetails& details, TaskEventGroup* events, uint32_t stopBits) {
     char tempDirectory[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = paths_get_temp_path(tempDirectory, sizeof(tempDirectory));
     if (error != ERROR_NONE) {
@@ -609,7 +624,7 @@ error_t fetchDetails(const char* id, const Source& source, AppHubCatalogDetails&
     static std::atomic<uint32_t> nextRequest { 0 };
     const std::string fileName = app_hub_catalog_get_details_file(id);
     const std::string path = std::string(tempDirectory) + "/" + std::to_string(nextRequest++) + "-" + fileName;
-    error = download(app_hub_catalog_get_download_url(source.url.c_str(), fileName).c_str(), getCertificate(source.official), path.c_str(), events, stopBit);
+    error = download(app_hub_catalog_get_download_url(source.url.c_str(), fileName).c_str(), getCertificate(source.official), path.c_str(), events, stopBits);
     if (error == ERROR_NONE && !app_hub_catalog_read_details(path.c_str(), details)) {
         error = ERROR_INVALID_ARGUMENT;
     }
@@ -960,7 +975,7 @@ error_t app_hub_get_app(const char* id, AppHubApp* app) {
     return ERROR_NONE;
 }
 
-error_t app_hub_get_details(const char* id, char* description, size_t description_size, AppHubAppDetails* app_details) {
+error_t app_hub_get_details(const char* id, char* description, size_t description_size, AppHubAppDetails* app_details, const AppHubInterrupt* interrupt) {
     AppHubCatalogEntry entry;
     lock();
     const bool found = findCatalogEntry(id, entry);
@@ -972,11 +987,10 @@ error_t app_hub_get_details(const char* id, char* description, size_t descriptio
     if (!getSource(entry.repository, source)) {
         return ERROR_NOT_FOUND;
     }
-    TaskEventGroup events {};
-    task_event_group_construct(&events);
     AppHubCatalogDetails details;
-    const error_t error = fetchDetails(id, source, details, &events, 0);
-    task_event_group_destruct(&events);
+    const error_t error = downloadInterruptible(interrupt, [&](TaskEventGroup* events, uint32_t stopBits) {
+        return fetchDetails(id, source, details, events, stopBits);
+    });
     if (error != ERROR_NONE) {
         return error;
     }
@@ -989,7 +1003,7 @@ error_t app_hub_get_details(const char* id, char* description, size_t descriptio
     return ERROR_NONE;
 }
 
-error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size) {
+error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size, const AppHubInterrupt* interrupt) {
     AppHubCatalogEntry entry;
     lock();
     const bool found = findCatalogEntry(id, entry);
@@ -1016,10 +1030,10 @@ error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size
         return ERROR_BUFFER_OVERFLOW;
     }
     if (!path_exists(cachePath.c_str())) {
-        TaskEventGroup events {};
-        task_event_group_construct(&events);
-        error = download(app_hub_catalog_get_download_url(source.url.c_str(), iconFile).c_str(), getCertificate(source.official), cachePath.c_str(), &events, 0);
-        task_event_group_destruct(&events);
+        const std::string url = app_hub_catalog_get_download_url(source.url.c_str(), iconFile);
+        error = downloadInterruptible(interrupt, [&](TaskEventGroup* events, uint32_t stopBits) {
+            return download(url.c_str(), getCertificate(source.official), cachePath.c_str(), events, stopBits);
+        });
         if (error != ERROR_NONE) {
             file_remove(cachePath.c_str());
             return error;

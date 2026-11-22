@@ -21,6 +21,14 @@ void lvgl_grid_navigation_add(lv_obj_t* container);
 void lvgl_grid_navigation_remove(lv_obj_t* container);
 
 /**
+ * @brief Selects a child of a container on devices without a touchscreen, e.g. the close button of an app,
+ * so that the user doesn't have to move the focus there first. It does nothing when there is a touchscreen.
+ * @param[in] container a container that was passed to lvgl_grid_navigation_add()
+ * @param[in] child the child to focus
+ */
+void lvgl_grid_navigation_focus_without_touch(lv_obj_t* container, lv_obj_t* child);
+
+/**
  * @brief Moves the focus to the next or previous widget, for devices that can only step through widgets.
  * The children of grid navigation containers are visited in their order: entering a container forwards focuses its first child, and backwards its last child.
  * @param[in] group the focus group

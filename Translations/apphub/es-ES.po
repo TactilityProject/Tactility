@@ -39,8 +39,3 @@ msgstr "{} aplicación no se pudo actualizar: {}"
 msgid "{} apps failed to update: {}"
 msgstr "{} aplicaciones no se pudieron actualizar: {}"
 
-msgid "{} update"
-msgstr "{} actualización"
-
-msgid "{} updates"
-msgstr "{} actualizaciones"

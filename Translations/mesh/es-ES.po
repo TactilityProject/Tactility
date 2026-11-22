@@ -3,9 +3,6 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: es-ES\n"
 
-msgid " via "
-msgstr " por "
-
 msgid "Add by key"
 msgstr "Añadir por clave"
 
@@ -81,11 +78,11 @@ msgstr "Clave del canal en hexadecimal"
 msgid "Leave channel"
 msgstr "Salir del canal"
 
-msgid "Mesh Contacts"
-msgstr "Contactos mesh"
+msgid "Load more"
+msgstr "Cargar más"
 
-msgid "Mesh is "
-msgstr "Mesh está "
+msgid "Mesh is off"
+msgstr "Mesh está apagado"
 
 msgid "Mesh: {}"
 msgstr "Mesh: {}"
@@ -108,9 +105,6 @@ msgstr "No disponible"
 msgid "Not delivered"
 msgstr "No entregado"
 
-msgid "OFF"
-msgstr "APAGADO"
-
 msgid "Public key"
 msgstr "Clave pública"
 
@@ -131,9 +125,6 @@ msgstr "Enviando..."
 
 msgid "Sent"
 msgstr "Enviado"
-
-msgid "Show my QR"
-msgstr "Mostrar mi QR"
 
 msgid "The key isn't available."
 msgstr "La clave no está disponible."
@@ -167,9 +158,6 @@ msgstr "Escribe un mensaje..."
 
 msgid "Use a channel name that starts with # or Public. This mesh network can't join a channel by name."
 msgstr "Usa un nombre de canal que empiece por # o Public. Esta red mesh no puede unirse a un canal por nombre."
-
-msgid "Using "
-msgstr "Usando "
 
 msgid "Waiting"
 msgstr "Esperando"

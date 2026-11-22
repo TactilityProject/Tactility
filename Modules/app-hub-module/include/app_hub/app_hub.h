@@ -81,6 +81,16 @@ error_t app_hub_search(const char* query, AppHubAppVisitorFn visitor, void* cont
  */
 error_t app_hub_get_app(const char* id, struct AppHubApp* app);
 
+/**
+ * Lets a blocking call return early when one of @a bits of @a event_group is signalled, e.g. the bit of the app's
+ * AppEventSubscription so that a close request isn't delayed by a download.
+ * The bits stay signalled for the caller to handle.
+ */
+struct AppHubInterrupt {
+    struct TaskEventGroup* event_group;
+    uint32_t bits;
+};
+
 /** What the details of a catalog app have next to its description */
 struct AppHubAppDetails {
     /** The catalog version */
@@ -95,11 +105,13 @@ struct AppHubAppDetails {
  * @param[out] description the description, must not be NULL
  * @param[in] description_size the size of @a description
  * @param[out] details the version name and whether this device can install and run the app, must not be NULL
+ * @param[in] interrupt NULL, or the bits that cancel the download
  * @retval ERROR_NOT_FOUND when the app isn't in the catalog
  * @retval ERROR_BUFFER_OVERFLOW when @a description_size is too small
  * @retval ERROR_RESOURCE when the download failed
+ * @retval ERROR_INVALID_STATE when @a interrupt cancelled the download
  */
-error_t app_hub_get_details(const char* id, char* description, size_t description_size, struct AppHubAppDetails* details);
+error_t app_hub_get_details(const char* id, char* description, size_t description_size, struct AppHubAppDetails* details, const struct AppHubInterrupt* interrupt);
 
 /**
  * Get the path of the icon of a catalog app, which is downloaded when it isn't cached yet.
@@ -108,10 +120,12 @@ error_t app_hub_get_details(const char* id, char* description, size_t descriptio
  * @param[in] mono true for the monochrome icon, false for the colour icon
  * @param[out] path the path of the SVG file, must not be NULL
  * @param[in] path_size the size of @a path
+ * @param[in] interrupt NULL, or the bits that cancel the download
  * @retval ERROR_NOT_FOUND when the app isn't in the catalog
  * @retval ERROR_RESOURCE when the app has no such icon or the download failed
+ * @retval ERROR_INVALID_STATE when @a interrupt cancelled the download
  */
-error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size);
+error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size, const struct AppHubInterrupt* interrupt);
 
 // endregion
 

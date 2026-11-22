@@ -4,8 +4,11 @@
 #include <tactility/filesystem/fs.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
+#include <tactility/time.h>
 
 #include <dirent.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include <algorithm>
@@ -36,24 +39,19 @@ bool isSameAddress(const MeshAddress& a, const MeshAddress& b) {
     return a.length == b.length && memcmp(a.bytes, b.bytes, a.length) == 0;
 }
 
-/** FNV-1a, never 0 for an address so that 0 can mean "no peer" */
-uint32_t hashPeer(const MeshAddress& address) {
+/**
+ * FNV-1a, never 0 for an address so that 0 can mean "no peer". It has 64 bits, so the index can tell conversations
+ * apart without reading the stored messages.
+ */
+uint64_t hashPeer(const MeshAddress& address) {
     if (address.length == 0) {
         return 0;
     }
-    uint32_t hash = 2166136261u;
+    uint64_t hash = 14695981039346656037ull;
     for (size_t i = 0; i < address.length; i++) {
-        hash = (hash ^ address.bytes[i]) * 16777619u;
+        hash = (hash ^ address.bytes[i]) * 1099511628211ull;
     }
     return hash | 1;
-}
-
-uint32_t hashBackend(const char* backend) {
-    uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < MESH_BACKEND_ID_MAX_LENGTH && backend[i] != '\0'; i++) {
-        hash = (hash ^ static_cast<uint8_t>(backend[i])) * 16777619u;
-    }
-    return hash;
 }
 
 uint8_t* allocateBuffer(size_t size) {
@@ -219,6 +217,7 @@ tt::std::string MeshStore::getSegmentPath(uint32_t segment) const {
 
 error_t MeshStore::open(const char* path) {
     close();
+    const uint64_t startUs = get_micros_since_boot();
     directory = path;
     const error_t made = directory_make(path, true);
     if (made != ERROR_NONE && made != ERROR_ALREADY_EXISTS) {
@@ -244,17 +243,13 @@ error_t MeshStore::open(const char* path) {
     }
     closedir(dir);
     std::sort(segments.begin(), segments.end());
+    const uint64_t listedUs = get_micros_since_boot();
 
-    replayIncomplete = false;
     uint32_t lastValidEnd = 0;
+    uint32_t scannedBytes = 0;
     for (uint32_t segment : segments) {
         lastValidEnd = scanSegment(segment);
-    }
-    if (replayIncomplete) {
-        // A store that still lists deleted messages must not look complete
-        LOG_E(TAG, "A deletion couldn't be applied, as a message couldn't be read");
-        close();
-        return ERROR_RESOURCE;
+        scannedBytes += lastValidEnd;
     }
 
     if (segments.empty()) {
@@ -271,7 +266,9 @@ error_t MeshStore::open(const char* path) {
     }
 
     opened = true;
-    LOG_I(TAG, "Opened %s: %u messages in %u segments", path, (unsigned)index.size(), (unsigned)segments.size());
+    const uint64_t endUs = get_micros_since_boot();
+    LOG_I(TAG, "Opened %s: %u messages in %u segments, %u KB in %u ms (listing %u ms)", path, (unsigned)index.size(), (unsigned)segments.size(),
+        (unsigned)(scannedBytes / 1024), (unsigned)((endUs - startUs) / 1000), (unsigned)((listedUs - startUs) / 1000));
     return ERROR_NONE;
 }
 
@@ -283,6 +280,7 @@ void MeshStore::close() {
     }
     opened = false;
     index.clear();
+    backends.clear();
     segments.clear();
     bufferUsed = 0;
     currentSegmentSize = 0;
@@ -290,6 +288,57 @@ void MeshStore::close() {
 }
 
 uint32_t MeshStore::scanSegment(uint32_t segment) {
+    const tt::std::string path = getSegmentPath(segment);
+    struct stat info {};
+    if (stat(path.c_str(), &info) != 0) {
+        return 0;
+    }
+    // Every command to an SD card on a shared SPI bus waits for the display and the radio,
+    // so the segment is read in one go instead of record by record
+    uint8_t* data = (info.st_size > 0) ? allocateBuffer((size_t)info.st_size) : nullptr;
+    if (data == nullptr) {
+        return scanSegmentStreaming(segment);
+    }
+    // Not through stdio: one read() lets the filesystem read whole clusters into the buffer at once
+    const int fd = ::open(path.c_str(), O_RDONLY);
+    if (fd < 0) {
+        memory_free(data);
+        return scanSegmentStreaming(segment);
+    }
+    size_t size = 0;
+    while (size < (size_t)info.st_size) {
+        const ssize_t count = ::read(fd, data + size, (size_t)info.st_size - size);
+        if (count <= 0) {
+            break;
+        }
+        size += (size_t)count;
+    }
+    ::close(fd);
+    if (size < (size_t)info.st_size) {
+        // A short read is not the end of the segment, so the records are read one by one instead
+        LOG_W(TAG, "Short read of segment %u (%u of %u bytes)", (unsigned)segment, (unsigned)size, (unsigned)info.st_size);
+        memory_free(data);
+        return scanSegmentStreaming(segment);
+    }
+
+    uint32_t offset = 0;
+    while (offset + RECORD_HEADER_SIZE <= size) {
+        const uint8_t* header = data + offset;
+        const size_t length = header[4] | (header[5] << 8);
+        if (header[0] != RECORD_MAGIC_0 || header[1] != RECORD_MAGIC_1 || length > MESSAGE_PAYLOAD_MAX_SIZE ||
+            offset + RECORD_HEADER_SIZE + length > size) {
+            // A torn write at the end of the segment
+            LOG_W(TAG, "Segment %u is corrupt at offset %u", (unsigned)segment, (unsigned)offset);
+            break;
+        }
+        applyRecord(header[2], header + RECORD_HEADER_SIZE, length, segment, offset);
+        offset += RECORD_HEADER_SIZE + length;
+    }
+    memory_free(data);
+    return offset;
+}
+
+uint32_t MeshStore::scanSegmentStreaming(uint32_t segment) {
     FILE* file = fopen(getSegmentPath(segment).c_str(), "rb");
     if (file == nullptr) {
         return 0;
@@ -316,6 +365,24 @@ uint32_t MeshStore::scanSegment(uint32_t segment) {
     return offset;
 }
 
+uint8_t MeshStore::findBackend(const char* backend) const {
+    for (size_t i = 0; i < backends.size(); i++) {
+        if (strncmp(backends[i].c_str(), backend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
+            return (uint8_t)i;
+        }
+    }
+    return NO_BACKEND;
+}
+
+uint8_t MeshStore::internBackend(const char* backend) {
+    const uint8_t existing = findBackend(backend);
+    if (existing != NO_BACKEND || backends.size() >= NO_BACKEND) {
+        return existing;
+    }
+    backends.push_back(tt::std::string(backend, strnlen(backend, MESH_BACKEND_ID_MAX_LENGTH)));
+    return (uint8_t)(backends.size() - 1);
+}
+
 MeshStore::IndexEntry MeshStore::makeIndexEntry(const MeshMessage& message, uint32_t segment, uint32_t offset) {
     return {
         .seq = message.seq,
@@ -324,11 +391,11 @@ MeshStore::IndexEntry MeshStore::makeIndexEntry(const MeshMessage& message, uint
         .delivery = message.delivery,
         .channel = message.channel,
         .peerHash = hashPeer(message.peer),
-        .backendHash = hashBackend(message.backend),
+        .backend = internBackend(message.backend),
     };
 }
 
-uint32_t MeshStore::hashPeerAddress(const MeshAddress* peer) {
+uint64_t MeshStore::hashPeerAddress(const MeshAddress* peer) {
     return peer != nullptr ? hashPeer(*peer) : 0;
 }
 
@@ -354,9 +421,7 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
         if (reader.ok()) {
             // Retention can remove all messages that had this sequence number, which still can't be used again
             nextSeq = std::max(nextSeq, lastSeq + 1);
-            if (!eraseConversation(backend, peer.length > 0 ? &peer : nullptr, channel, lastSeq)) {
-                replayIncomplete = true;
-            }
+            eraseConversation(backend, peer.length > 0 ? &peer : nullptr, channel, lastSeq);
         }
     } else if (type == RECORD_TYPE_DELIVERY && length >= 5) {
         Reader reader(payload, length);
@@ -368,48 +433,23 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
     }
 }
 
-bool MeshStore::canEraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) const {
-    const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
-    for (const auto& entry : index) {
-        if (entry.seq > lastSeq || entry.peerHash != peerHash || (peer == nullptr && entry.channel != channel)) {
-            continue;
-        }
-        MeshMessage message;
-        if (readEntry(entry, &message) != ERROR_NONE) {
-            return false;
-        }
+void MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
+    const uint64_t peerHash = hashPeerAddress(peer);
+    const uint8_t backendId = findBackend(backend);
+    if (backendId == NO_BACKEND) {
+        return;
     }
-    return true;
-}
-
-bool MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
-    const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
-    bool complete = true;
     std::erase_if(index, [&](const IndexEntry& entry) {
-        if (entry.seq > lastSeq || entry.peerHash != peerHash || (peer == nullptr && entry.channel != channel)) {
-            return false;
-        }
-        // The hash can collide, so the stored message decides
-        MeshMessage message;
-        if (readEntry(entry, &message) != ERROR_NONE) {
-            complete = false;
-            return false;
-        }
-        if (strncmp(message.backend, backend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
-            return false;
-        }
-        return peer != nullptr ? isSameAddress(message.peer, *peer) : message.peer.length == 0;
+        return entry.seq <= lastSeq && entry.backend == backendId && entry.peerHash == peerHash && (peer != nullptr || entry.channel == channel);
     });
-    return complete;
 }
 
 error_t MeshStore::removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel) {
-    const uint32_t lastSeq = nextSeq - 1;
-    // A deletion that can't be applied completely isn't stored. A stored one would apply when the message can be read
-    // again, after the unread count of the conversation was kept, which would raise a notification for nothing.
-    if (!canEraseConversation(backend, peer, channel, lastSeq)) {
-        return ERROR_RESOURCE;
+    // A zero-length address means a channel conversation
+    if (peer != nullptr && peer->length == 0) {
+        peer = nullptr;
     }
+    const uint32_t lastSeq = nextSeq - 1;
     uint8_t payload[1 + MESH_BACKEND_ID_MAX_LENGTH + 1 + MESH_ADDRESS_MAX_LENGTH + 1 + 4];
     Writer writer(payload, sizeof(payload));
     writer.string(backend, MESH_BACKEND_ID_MAX_LENGTH);
@@ -424,14 +464,8 @@ error_t MeshStore::removeConversation(const char* backend, const MeshAddress* pe
     if (result != ERROR_NONE) {
         return result;
     }
-    const bool complete = eraseConversation(backend, peer, channel, lastSeq);
-    const error_t flushed = flush();
-    if (flushed != ERROR_NONE) {
-        return flushed;
-    }
-    // The messages were readable a moment ago, so this only fails when the storage failed in between. The deletion is
-    // stored then, and applies when the messages can be read again.
-    return complete ? ERROR_NONE : ERROR_RESOURCE;
+    eraseConversation(backend, peer, channel, lastSeq);
+    return flush();
 }
 
 error_t MeshStore::appendRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t seq) {
@@ -512,17 +546,24 @@ error_t MeshStore::readEntry(const IndexEntry& entry, MeshMessage* message) cons
         length = header[4] | (header[5] << 8);
         memcpy(payload, buffer + entry.offset + RECORD_HEADER_SIZE, length);
     } else {
-        FILE* file = fopen(getSegmentPath(entry.segment).c_str(), "rb");
-        if (file == nullptr) {
+        // Not through stdio: its buffer would read far more of the segment than the one record.
+        // One read covers the header and the largest payload, as the length is only known from the header.
+        uint8_t record[RECORD_HEADER_SIZE + MESSAGE_PAYLOAD_MAX_SIZE];
+        const int fd = ::open(getSegmentPath(entry.segment).c_str(), O_RDONLY);
+        if (fd < 0) {
             return ERROR_RESOURCE;
         }
-        bool ok = fseek(file, entry.offset, SEEK_SET) == 0 && fread(header, 1, RECORD_HEADER_SIZE, file) == RECORD_HEADER_SIZE;
+        const ssize_t count = (::lseek(fd, entry.offset, SEEK_SET) == (off_t)entry.offset) ? ::read(fd, record, sizeof(record)) : -1;
+        ::close(fd);
+        if (count < (ssize_t)RECORD_HEADER_SIZE) {
+            return ERROR_RESOURCE;
+        }
+        memcpy(header, record, RECORD_HEADER_SIZE);
         length = header[4] | (header[5] << 8);
-        ok = ok && length <= sizeof(payload) && fread(payload, 1, length, file) == length;
-        fclose(file);
-        if (!ok) {
+        if (length > sizeof(payload) || RECORD_HEADER_SIZE + length > (size_t)count) {
             return ERROR_RESOURCE;
         }
+        memcpy(payload, record + RECORD_HEADER_SIZE, length);
     }
 
     if (!deserializeMessage(payload, length, message)) {
@@ -541,7 +582,7 @@ error_t MeshStore::get(uint32_t seq, MeshMessage* message) const {
 }
 
 size_t MeshStore::getConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t beforeSeq, MeshMessage* messages, size_t maxCount) const {
-    const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
+    const uint64_t peerHash = hashPeerAddress(peer);
     size_t count = 0;
     for (auto iterator = index.rbegin(); iterator != index.rend() && count < maxCount; ++iterator) {
         if (beforeSeq != 0 && iterator->seq >= beforeSeq) {
@@ -613,6 +654,13 @@ error_t MeshStore::flush() {
     if (file == nullptr) {
         LOG_E(TAG, "Failed to open segment %u", (unsigned)segment);
         return ERROR_RESOURCE;
+    }
+    // A missing segment is recreated empty, so the pending offsets start at the real end of the file
+    if (fseek(file, 0, SEEK_END) == 0) {
+        const long end = ftell(file);
+        if (end >= 0) {
+            currentSegmentSize = (uint32_t)end;
+        }
     }
     const size_t written = fwrite(buffer, 1, bufferUsed, file);
     fclose(file);

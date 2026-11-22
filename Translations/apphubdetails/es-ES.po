@@ -9,9 +9,6 @@ msgstr "Hay otra operación en curso. Inténtalo de nuevo cuando termine."
 msgid "Busy"
 msgstr "Ocupado"
 
-msgid "Confirm"
-msgstr "Confirmar"
-
 msgid "Failed to install app"
 msgstr "Error al instalar la aplicación"
 
@@ -21,20 +18,11 @@ msgstr "Error al desinstalar la aplicación"
 msgid "Failed to update app"
 msgstr "Error al actualizar la aplicación"
 
-msgid "Install {}?"
-msgstr "¿Instalar {}?"
-
 msgid "This app has no description yet."
 msgstr "Esta aplicación aún no tiene descripción."
 
-msgid "Uninstall {}?"
-msgstr "¿Desinstalar {}?"
-
 msgid "Update available!"
 msgstr "¡Actualización disponible!"
-
-msgid "Update {}?"
-msgstr "¿Actualizar {}?"
 
 msgid "Version {}"
 msgstr "Versión {}"

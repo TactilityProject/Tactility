@@ -5,6 +5,7 @@
 #include <app/start.h>
 
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/statusline.h>
 
 #include <tactility/log.h>
 
@@ -68,37 +69,25 @@ NetworkInfo loadNetworkInfo() {
     return info;
 }
 
-// The spans: "Using ", the network, " via ", the modulation. While mesh is off: "Mesh is ", "OFF", "", ""
-constexpr int32_t NETWORK_SPAN = 1;
-constexpr int32_t MODULATION_SPAN = 3;
-
 lv_obj_t* createNetworkHeader(lv_obj_t* parent) {
-    auto* header = lv_spangroup_create(parent);
-    lv_obj_set_width(header, LV_PCT(100));
-    lv_obj_set_height(header, LV_SIZE_CONTENT);
+    auto* header = lvgl_statusline_create(parent);
     // Lines up with the cards: the content's padding plus the card's margin, which is the theme's container padding
     auto* probe = lv_obj_create(parent);
     const int32_t cardMargin = lv_obj_get_style_pad_left(probe, LV_PART_MAIN);
     lv_obj_delete(probe);
     lv_obj_set_style_pad_hor(header, CONTENT_PADDING + cardMargin, LV_STATE_DEFAULT);
-
-    const auto secondary = lv_theme_get_color_secondary(header);
-    for (const char* text : { "Using ", "", " via ", "" }) {
-        auto* span = lv_spangroup_add_span(header);
-        lv_span_set_text_static(span, text);
-    }
-    lv_style_set_text_color(lv_span_get_style(lv_spangroup_get_child(header, NETWORK_SPAN)), secondary);
-    lv_style_set_text_color(lv_span_get_style(lv_spangroup_get_child(header, MODULATION_SPAN)), secondary);
     return header;
 }
 
 void updateNetworkHeader(lv_obj_t* header, const NetworkInfo& info) {
     lv_obj_set_hidden(header, info.running && info.network[0] == '\0');
-    lv_span_set_text(lv_spangroup_get_child(header, 0), info.running ? tr("Using ") : tr("Mesh is "));
-    lv_span_set_text(lv_spangroup_get_child(header, NETWORK_SPAN), info.running ? info.network : tr("OFF"));
-    lv_span_set_text(lv_spangroup_get_child(header, 2), info.running ? tr(" via ") : "");
-    lv_span_set_text(lv_spangroup_get_child(header, MODULATION_SPAN), info.modulation);
-    lv_spangroup_refresh(header);
+    if (info.running) {
+        lvgl_statusline_set_level(header, LVGL_STATUSLINE_LEVEL_OK);
+        lvgl_statusline_set_text(header, (::std::string(info.network) + " · " + info.modulation).c_str());
+    } else {
+        lvgl_statusline_set_level(header, LVGL_STATUSLINE_LEVEL_WARNING);
+        lvgl_statusline_set_text(header, tr("Mesh is off"));
+    }
 }
 
 lv_obj_t* createContent(lv_obj_t* parent) {

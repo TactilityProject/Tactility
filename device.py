@@ -16,6 +16,14 @@ else:
 
 DEVICES_DIRECTORY = "Devices"
 
+# Memory placement with SPIRAM. Tests/Python/device_memory_test.py pins these values and explains them.
+# malloc() puts allocations up to this size in internal RAM, larger ones in SPIRAM. Classic ESP32 keeps the IDF default.
+SPIRAM_MALLOC_ALWAYSINTERNAL = 8192
+# The stdio buffer of an open FAT file (the IDF default is 128 bytes). Larger than the threshold above, so it's in SPIRAM.
+FATFS_FILE_BUFFER_SIZE = 16384
+# Classic ESP32 has the IDF default threshold of 16384, so this buffer takes internal RAM
+FATFS_FILE_BUFFER_SIZE_ESP32 = 4096
+
 def print_warning(message):
     print(f"{SHELL_COLOR_ORANGE}WARNING: {message}{SHELL_COLOR_RESET}")
 
@@ -202,10 +210,16 @@ def write_core_variables(output_file, device_properties: dict):
         # EspNowBackendHosted.cpp's esp_hosted_send_custom_data()/esp_hosted_register_custom_callback()
         # need esp_hosted's peer-data feature enabled to exist at all.
         output_file.write("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA=y\n")
+        # The SDIO receive buffers (25 KB or more) are allocated from DMA-capable PSRAM first. Allocating them in
+        # internal RAM can fail, which drops Wi-Fi data and the link never recovers.
+        output_file.write("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y\n")
         # ESP-IDF 6.1 defaults to requiring chip rev >=v3.1; boards in this repo (e.g. m5stack-tab5)
         # ship v1.0 silicon, which that bootloader refuses to boot.
         output_file.write("CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y\n")
         output_file.write("CONFIG_ESP32P4_REV_MIN_100=y\n")
+        # The ECDSA peripheral doesn't exist on that silicon. Without this, every TLS handshake logs an error before
+        # falling back to software verification.
+        output_file.write("CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY=n\n")
 def write_flash_variables(output_file, device_properties: dict):
     flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):
@@ -258,10 +272,25 @@ def write_spiram_variables(output_file, device_properties: dict):
     # Reduce IRAM usage
     output_file.write("CONFIG_SPIRAM_USE_MALLOC=y\n")
     output_file.write("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y\n")
-    # With 5 buffers, HTTPS downloads stall for seconds on some access points. These buffers are allocated in SPIRAM.
-    output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16\n")
+    # lwIP holds a received packet in its Wi-Fi RX buffer until the app reads it. With fewer buffers than the TCP window
+    # (below) has packets, a slow reader (e.g. writing to an SD card) uses all of them, downloads stall and beacons are
+    # missed until the connection drops. These buffers are allocated in SPIRAM.
+    output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64\n")
     # TLS sessions (handshakes, record buffers) otherwise take internal RAM
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
+    # Record buffers stay allocated per connection instead of being allocated per read/write
+    output_file.write("CONFIG_MBEDTLS_DYNAMIC_BUFFER=n\n")
+    output_file.write("CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=16384\n")
+    # Larger TCP window for download throughput. The pbufs are allocated in SPIRAM.
+    output_file.write("CONFIG_LWIP_TCP_WND_DEFAULT=65535\n")
+    output_file.write("CONFIG_LWIP_TCP_RECVMBOX_SIZE=64\n")
+    output_file.write("CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768\n")
+    # stdio buffer per open file, so small reads and writes are combined into whole sectors
+    if idf_target == "esp32":
+        output_file.write(f"CONFIG_FATFS_VFS_FSTAT_BLKSIZE={FATFS_FILE_BUFFER_SIZE_ESP32}\n")
+    else:
+        output_file.write(f"CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL={SPIRAM_MALLOC_ALWAYSINTERNAL}\n")
+        output_file.write(f"CONFIG_FATFS_VFS_FSTAT_BLKSIZE={FATFS_FILE_BUFFER_SIZE}\n")
     # Performance improvements
     if idf_target == "esp32s3":
         output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")

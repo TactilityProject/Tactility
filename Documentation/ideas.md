@@ -8,6 +8,24 @@
  
 ## Medium Priority
 
+- Add reboot option in system overlay power menu
+- Remove devices:
+  - Heltec Wifi Lora32 v3
+  - LilyGO T-Dongle S3
+  - M5Stack StickS3
+  - M5Stack StickC Plus2
+  - Waveshare S3 Geek
+  - Waveshare S3 LCD 1.3"
+  - Waveshare S3 Touch LCD 1.28"
+  - Waveshare S3 Touch LCD 1.47"
+- System overlay: show slider for sound and backlight.
+- App Hub: the "Updates" tab is shown and then hidden: reverse that. hidden until needed.
+- Rewrite System Info storage tab: use file system API instead of hard-coded SD and /data logic.
+- System overlay menu is in its own layer in lvgl. I want a new layer inbetween the apps and the system overlay.
+  It is usable by system certain functionality.
+  For example: alertdialog/inputdialog/fileselection are now apps. Create new APIs like lvgl_alertdialog_* that shows the UI in this new overlay.
+  Deprecate the old apps.
+  Don't expose the new overlay as public API.
 - API for default sound playback/recording device selection
 - Copy/paste buffer
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
