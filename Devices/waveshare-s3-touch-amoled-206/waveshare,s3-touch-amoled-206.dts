@@ -10,11 +10,10 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_usbdevice.h>
-#include <tactility/bindings/gpio_hog.h>
 #include <bindings/bm8563.h>
 #include <bindings/qmi8658.h>
 #include <bindings/axp2101.h>
-#include <bindings/ft5x06.h>
+#include <bindings/ft3168.h>
 #include <bindings/es8311.h>
 #include <bindings/es7210.h>
 #include <bindings/sh8601.h>
@@ -25,12 +24,6 @@
 / {
 	compatible = "root";
 	model = "Waveshare S3 Touch AMOLED 2.06";
-
-	flash_fatfs0 {
-		compatible = "espressif,esp32-flash-fatfs";
-		partition-label = "data";
-		mount-path = "/data";
-	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";
@@ -43,13 +36,6 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
-	};
-
-	// ES8311 speaker amplifier enable, active-high on GPIO46.
-	amp_enable {
-		compatible = "gpio-hog";
-		pin = <&gpio0 46 GPIO_FLAG_NONE>;
-		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
 	// i2s0 must be before i2c0 so the codecs can reference it.
@@ -78,12 +64,9 @@
 		qmi8658 {
 			compatible = "qst,qmi8658";
 			reg = <0x6B>;
-			// Maps the sensor frame onto the device frame (Linux IIO "mount-matrix" convention).
-			// The QMI8658C is rotated relative to the panel; this matrix is the one calibrated
-			// on-device so auto-rotate orients the UI correctly.
-			mount-matrix = <0 -1 0
-			                1  0 0
-			                0  0 1>;
+			mount-matrix = <0 1  0
+			                1 0  0
+			                0 0 -1>;
 		};
 
 		// Mirrors the board's original power-up register writes: every LDO enabled, with
@@ -105,21 +88,20 @@
 			dldo2-enabled;
 		};
 
-		// FT3168, register-compatible with the FT5x06.
 		touch0 {
-			compatible = "focaltech,ft5x06";
+			compatible = "focaltech,ft3168";
 			reg = <0x38>;
 			x-max = <410>;
 			y-max = <502>;
 			pin-reset = <&gpio0 9 GPIO_FLAG_NONE>;
-			pin-interrupt = <&gpio0 38 GPIO_FLAG_NONE>;
-			disable-monitor-timeout;
 		};
 
 		es8311: es8311 {
 			compatible = "everest,es8311";
 			reg = <0x18>;
 			i2s = <&i2s0>;
+			// Speaker amplifier enable, active-high.
+			pin-pa = <&gpio0 46 GPIO_FLAG_NONE>;
 		};
 
 		es7210 {
@@ -145,6 +127,9 @@
 
 		display0: display@0 {
 			compatible = "shenghe,sh8601";
+			shape = <DISPLAY_SHAPE_ROUNDED>;
+			// Visible corner radius of 7 mm, measured on the device: 7 / 25.4 * 326 dpi = 90 px
+			corner-radius = <90>;
 			horizontal-resolution = <410>;
 			vertical-resolution = <502>;
 			gap-x = <22>;
@@ -161,7 +146,6 @@
 		};
 	};
 
-	// SD card on SPI3: CS=17, MOSI=1, MISO=3, SCLK=2.
 	spi3 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;

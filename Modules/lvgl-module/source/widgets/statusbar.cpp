@@ -91,6 +91,9 @@ struct Statusbar {
     bool side;
     /** In the side layout, the strip is on the right of the screen instead of the left */
     bool side_right;
+    // Extra padding above and below the content of the strip, which keeps it clear of rounded corners
+    int32_t side_inset_top;
+    int32_t side_inset_bottom;
 };
 
 static void statusbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj);
@@ -673,6 +676,20 @@ void lvgl_statusbar_set_side_right(lv_obj_t* obj, bool right) {
     reinterpret_cast<Statusbar*>(obj)->side_right = right;
 }
 
+void lvgl_statusbar_set_side_insets(lv_obj_t* obj, int32_t top, int32_t bottom) {
+    auto* statusbar = reinterpret_cast<Statusbar*>(obj);
+    if (statusbar->side_inset_top == top && statusbar->side_inset_bottom == bottom) {
+        return;
+    }
+    if (statusbar->side) {
+        const uint8_t spacing = lvgl_theme_get_spacing();
+        lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing) + top, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_bottom(obj, lvgl_theme_lerp(0, 8, spacing) + bottom, LV_STATE_DEFAULT);
+    }
+    statusbar->side_inset_top = top;
+    statusbar->side_inset_bottom = bottom;
+}
+
 void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
     auto* statusbar = reinterpret_cast<Statusbar*>(obj);
     // Circular displays only have room for the statusbar at the top
@@ -697,8 +714,8 @@ void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
         lv_obj_set_height(statusbar->icon_row, LV_SIZE_CONTENT);
         // Keeps the action buttons away from the screen's bottom edge. The compact layout has no room to spare.
         const uint8_t spacing = lvgl_theme_get_spacing();
-        lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing), LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_bottom(obj, lvgl_theme_lerp(0, 8, spacing), LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing) + statusbar->side_inset_top, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_bottom(obj, lvgl_theme_lerp(0, 8, spacing) + statusbar->side_inset_bottom, LV_STATE_DEFAULT);
         // Slightly darker than the colour behind it, so the strip stands out from the app next to it
         const lv_color_t background = get_visible_bg_color(obj);
         lv_obj_set_style_bg_color(obj, lv_color_darken(background, LV_OPA_20), LV_STATE_DEFAULT);

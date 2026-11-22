@@ -478,6 +478,11 @@ static bool sh8601_has_capability(Device* device, uint32_t capability) {
     return (capabilities & capability) == capability;
 }
 
+static void sh8601_get_shape(Device* device, DisplayShape* shape) {
+    const auto* config = GET_CONFIG(device);
+    *shape = { .shape = config->shape, .corner_radius = config->corner_radius };
+}
+
 static const DisplayApi sh8601_display_api = {
     .capabilities = SH8601_STATIC_CAPABILITIES,
     .reset = sh8601_reset,
@@ -504,7 +509,7 @@ static const DisplayApi sh8601_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = sh8601_get_backlight,
     .has_capability = sh8601_has_capability,
-    .get_shape = nullptr,
+    .get_shape = sh8601_get_shape,
 };
 
 Driver sh8601_driver = {

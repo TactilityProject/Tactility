@@ -81,6 +81,15 @@ void lvgl_statusbar_set_side(lv_obj_t* statusbar, bool side);
 void lvgl_statusbar_set_side_right(lv_obj_t* statusbar, bool right);
 
 /**
+ * @brief Adds padding above and below the content of the strip in the side layout, e.g. to keep it clear of the rounded corners of a display.
+ * @param[in] statusbar the statusbar
+ * @param[in] top the extra padding at the top of the strip in pixels
+ * @param[in] bottom the extra padding at the bottom of the strip in pixels
+ * @warning Needs to be called with the LVGL lock.
+ */
+void lvgl_statusbar_set_side_insets(lv_obj_t* statusbar, int32_t top, int32_t bottom);
+
+/**
  * @return the container for the action buttons of apps in the side layout, or NULL on circular displays. It is hidden in the split layout.
  * @warning Needs to be called with the LVGL lock.
  */
