@@ -13,6 +13,13 @@ namespace tt::lvgl {
 void systemMenuShow(int32_t swipeX);
 
 /**
+ * Shows the system menu with the power options (standby, suspend and power off) instead of the quick settings,
+ * or hides the system menu when it is shown.
+ * @warning Caller must hold the LVGL lock.
+ */
+void systemMenuTogglePower();
+
+/**
  * Shows the system menu on the notifications.
  * @warning Caller must hold the LVGL lock.
  */

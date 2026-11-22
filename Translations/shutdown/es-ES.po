@@ -1,0 +1,10 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Powered off"
+msgstr "Apagado"
+
+msgid "Suspended"
+msgstr "Suspendido"

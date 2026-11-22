@@ -25,6 +25,11 @@ static void print_usage() {
         "  install <id>\n"
         "  update\n"
         "  remove <id>\n"
+        "  repo [list]\n"
+        "  repo add <url> --yes\n"
+        "  repo remove <url>\n"
+        "  repo enable <url>\n"
+        "  repo disable <url>\n"
     );
 }
 
@@ -264,6 +269,75 @@ static int command_remove(int argc, char* argv[]) {
     return 0;
 }
 
+static int command_repo_list() {
+    app_hub_repository_for_each([](const AppHubRepository* repository, void*) {
+        printf("%c %s%s\n", repository->enabled ? '*' : ' ', repository->url, repository->official ? " (official)" : "");
+        return true;
+    }, nullptr);
+    printf("(* = enabled)\n");
+    return 0;
+}
+
+static int command_repo(int argc, char* argv[]) {
+    if (argc == 2 || (argc == 3 && strcmp(argv[2], "list") == 0)) {
+        return command_repo_list();
+    }
+    const bool adding = argc >= 3 && strcmp(argv[2], "add") == 0;
+    if (adding ? (argc != 4 && argc != 5) : argc != 4) {
+        print_usage();
+        return 1;
+    }
+
+    const char* action = argv[2];
+    const char* url = argv[3];
+    error_t error;
+    if (adding) {
+        if (argc != 5 || strcmp(argv[4], "--yes") != 0) {
+            printf(
+                "WARNING: apps from a third party repository are not checked by the Tactility project.\n"
+                "They can contain harmful software that steals your data or damages your device.\n"
+                "Only add repositories that you trust.\n"
+                "To add it anyway, run: apphub repo add %s --yes\n",
+                url
+            );
+            return 1;
+        }
+        error = app_hub_repository_add(url);
+    } else if (strcmp(action, "remove") == 0) {
+        error = app_hub_repository_remove(url);
+    } else if (strcmp(action, "enable") == 0) {
+        error = app_hub_repository_set_enabled(url, true);
+    } else if (strcmp(action, "disable") == 0) {
+        error = app_hub_repository_set_enabled(url, false);
+    } else {
+        print_usage();
+        return 1;
+    }
+
+    switch (error) {
+        case ERROR_NONE:
+            printf("Done. The catalog is being refreshed.\n");
+            return 0;
+        case ERROR_INVALID_ARGUMENT:
+            printf("apphub: the URL must start with https://\n");
+            return 1;
+        case ERROR_ALREADY_EXISTS:
+            printf("apphub: that repository is in the list already\n");
+            return 1;
+        case ERROR_OUT_OF_RANGE:
+            printf("apphub: there can be at most %d repositories\n", APP_HUB_REPOSITORY_MAX_COUNT);
+            return 1;
+        case ERROR_NOT_FOUND:
+            printf("apphub: unknown repository: %s\n", url);
+            return 1;
+        case ERROR_NOT_ALLOWED:
+            printf("apphub: the official repository can be disabled, but not removed\n");
+            return 1;
+        default:
+            return report_error(action, error);
+    }
+}
+
 static int32_t app_hub_command_main(int argc, char* argv[]) {
     if (argc < 2 || strcmp(argv[1], "help") == 0) {
         print_usage();
@@ -285,6 +359,8 @@ static int32_t app_hub_command_main(int argc, char* argv[]) {
         return command_update(argc);
     } else if (strcmp(command, "remove") == 0) {
         return command_remove(argc, argv);
+    } else if (strcmp(command, "repo") == 0) {
+        return command_repo(argc, argv);
     }
 
     printf("apphub: unknown command: %s\n", command);

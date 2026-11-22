@@ -53,6 +53,8 @@ const char* const lvgl_icon_shared_names[] = {
     "palette",
     "person_remove",
     "power_settings_new",
+    "bedtime",
+    "mode_standby",
     "refresh",
     "search",
     "select_window_2",

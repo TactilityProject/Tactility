@@ -47,8 +47,6 @@ struct NotificationPanel {
     bool subscribed = false;
     NotificationCountCallback onCount = nullptr;
     void* userData = nullptr;
-    size_t count = 0;
-    bool countReported = false;
     /** The last read failed, so the list shows an older snapshot until a later read succeeds */
     bool retryRead = false;
     tt::std::vector<Row> rows;
@@ -203,16 +201,11 @@ static void rebuild(NotificationPanel* panel) {
     }
     lv_obj_set_hidden(panel->emptyLabel, count > 0);
     lv_obj_set_hidden(panel->list, count == 0);
+    if (panel->onCount != nullptr) {
+        panel->onCount(panel->userData, count, clearable);
+    }
     lv_obj_update_layout(panel->list);
     lv_obj_scroll_to_y(panel->list, scrollY, LV_ANIM_OFF);
-
-    if (!panel->countReported || clearable != panel->count) {
-        panel->countReported = true;
-        panel->count = clearable;
-        if (panel->onCount != nullptr) {
-            panel->onCount(panel->userData, clearable);
-        }
-    }
 }
 
 static void onTimer(lv_timer_t* timer) {
@@ -258,15 +251,13 @@ NotificationPanel* notificationPanelCreate(lv_obj_t* parent, NotificationCountCa
 
     panel->list = lvgl_list_create(panel->root);
     lv_obj_set_width(panel->list, LV_PCT(100));
-    lv_obj_set_flex_grow(panel->list, 1);
     // Only the list scrolls, and only vertically
     lv_obj_set_scroll_dir(panel->list, LV_DIR_VER);
 
     // Takes the place of the list while it is empty, and centers its text in that space
     panel->emptyLabel = lv_obj_create(panel->root);
     lv_obj_remove_style_all(panel->emptyLabel);
-    lv_obj_set_width(panel->emptyLabel, LV_PCT(100));
-    lv_obj_set_flex_grow(panel->emptyLabel, 1);
+    lv_obj_set_size(panel->emptyLabel, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(panel->emptyLabel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(panel->emptyLabel, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollable(panel->emptyLabel, false);
@@ -282,6 +273,18 @@ NotificationPanel* notificationPanelCreate(lv_obj_t* parent, NotificationCountCa
 
 lv_obj_t* notificationPanelGetRoot(const NotificationPanel* panel) {
     return panel->root;
+}
+
+void notificationPanelFit(NotificationPanel* panel, int32_t maxHeight) {
+    lv_obj_set_height(panel->root, LV_SIZE_CONTENT);
+    lv_obj_set_height(panel->list, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(panel->list, 0);
+    lv_obj_update_layout(panel->root);
+    if (lv_obj_get_height(panel->root) > maxHeight) {
+        lv_obj_set_height(panel->root, maxHeight);
+        lv_obj_set_height(panel->list, 0);
+        lv_obj_set_flex_grow(panel->list, 1);
+    }
 }
 
 void notificationPanelDestroy(NotificationPanel* panel) {

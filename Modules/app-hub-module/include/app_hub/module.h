@@ -10,7 +10,8 @@ extern "C" {
 extern struct Module app_hub_module;
 
 /**
- * @brief Sets the root certificate that verifies the app catalog server.
+ * @brief Sets the root certificate that verifies the server of the official repository.
+ * The other repositories are verified with the trusted root certificates of the platform.
  * @param[in] certificate_pem PEM text that must stay valid forever
  */
 void app_hub_configure_certificate(const char* certificate_pem);

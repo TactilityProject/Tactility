@@ -133,11 +133,9 @@ def draw_icon(image_module, draw_module, kind, color):
                 draw.rectangle(box(x, row, x + 0.08, row + 0.06), fill=color)
         draw.rectangle(box(0.28, 0.63, 0.72, 0.69), fill=color)
     elif kind == "touch":
-        # A tap: the touched point and the ripples around it
-        draw.ellipse(box(0.40, 0.40, 0.60, 0.60), fill=color)
-        draw.ellipse(box(0.22, 0.22, 0.78, 0.78), outline=color, width=line)
-        draw.arc(box(0.06, 0.06, 0.94, 0.94), start=200, end=340, fill=color, width=line)
-        draw.arc(box(0.06, 0.06, 0.94, 0.94), start=20, end=160, fill=color, width=line)
+        # A mouse cursor arrow with a tail
+        arrow = [(0.22, 0.08), (0.22, 0.80), (0.40, 0.63), (0.54, 0.94), (0.68, 0.88), (0.54, 0.58), (0.80, 0.58)]
+        draw.polygon([(round(x * size), round(y * size)) for x, y in arrow], fill=color)
     elif kind == "rotate":
         # An arrow that follows a circle clockwise. PIL angles run clockwise from 3 o'clock
         import math

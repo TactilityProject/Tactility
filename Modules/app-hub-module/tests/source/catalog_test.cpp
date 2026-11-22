@@ -182,3 +182,45 @@ TEST_CASE("app hub: isCompatible requires this device's platform when the app li
     details.target_platforms = { "some-other-platform", app_hub_catalog_get_platform() };
     CHECK(app_hub_catalog_is_compatible(details));
 }
+
+TEST_CASE("app hub: entries keep the repository they came from") {
+    const auto path = writeAppsJson(R"({"pageCount": 1, "apps": [
+        {"id": "a", "version": 1, "name": "A", "description": "A"}
+    ]})");
+    remove(CATALOG_PATH.c_str());
+    int32_t pageCount = 0;
+    REQUIRE(app_hub_catalog_append_page(path.c_str(), CATALOG_PATH.c_str(), pageCount, 3));
+    const auto entries = readCatalog();
+    REQUIRE_EQ(entries.size(), 1u);
+    CHECK_EQ(entries[0].repository, 3);
+}
+
+TEST_CASE("app hub: entries that are not accepted are left out") {
+    const auto path = writeAppsJson(R"({"pageCount": 1, "apps": [
+        {"id": "a", "version": 1, "name": "A", "description": "A"},
+        {"id": "b", "version": 1, "name": "B", "description": "B"}
+    ]})");
+    remove(CATALOG_PATH.c_str());
+    int32_t pageCount = 0;
+    REQUIRE(app_hub_catalog_append_page(path.c_str(), CATALOG_PATH.c_str(), pageCount, 1, [](const AppHubCatalogEntry& entry, void*) {
+        return entry.id != "a";
+    }, nullptr));
+    const auto entries = readCatalog();
+    REQUIRE_EQ(entries.size(), 1u);
+    CHECK_EQ(entries[0].id, "b");
+}
+
+TEST_CASE("app hub: a catalog line without a repository is from the first repository") {
+    FILE* file = fopen(CATALOG_PATH.c_str(), "w");
+    REQUIRE_NE(file, nullptr);
+    fputs("a\t1\tA\tShort\t1\n", file);
+    fclose(file);
+    const auto entries = readCatalog();
+    REQUIRE_EQ(entries.size(), 1u);
+    CHECK_EQ(entries[0].repository, 0);
+}
+
+TEST_CASE("app hub: urls are built from the base url of a repository") {
+    CHECK_EQ(app_hub_catalog_get_download_url("https://example.com/apps", "a-1.app").rfind("https://example.com/apps/", 0), 0u);
+    CHECK_NE(app_hub_catalog_get_page_url("https://example.com/apps", 2).find("-2.json"), std::string::npos);
+}

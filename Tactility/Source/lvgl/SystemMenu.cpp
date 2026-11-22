@@ -1,6 +1,7 @@
 #include <Tactility/lvgl/SystemMenu.h>
 
 #include <Tactility/TactilityPrivate.h>
+#include <Tactility/lvgl/SystemMenuPower.h>
 #include <Tactility/lvgl/NotificationPanel.h>
 #include <Tactility/service/audio/Audio.h>
 #include <Tactility/settings/RadioSettings.h>
@@ -37,8 +38,6 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
 #include <tactility/drivers/bluetooth.h>
-#include <tactility/drivers/power_supply.h>
-#include <tactility/drivers/sleep_controller.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
@@ -56,7 +55,6 @@ namespace tt::lvgl {
 constexpr auto* TAG = "SystemMenu";
 /** The narrowest landscape display that gets a narrower menu, in pixels */
 constexpr int32_t WIDE_DISPLAY_MIN_WIDTH = 600;
-constexpr auto* POWER_OFF_APP_ID = "tactility.poweroff";
 
 static void* toContext(bool enabled) {
     return reinterpret_cast<void*>(static_cast<intptr_t>(enabled));
@@ -253,39 +251,6 @@ static void onBackdropGesture(lv_event_t* /*event*/) {
     }
 }
 
-static bool supportsPowerOff() {
-    ::AppManifest manifest;
-    if (app_manager_find_manifest(POWER_OFF_APP_ID, &manifest) != ERROR_NONE) {
-        return false;
-    }
-    bool supported = false;
-    device_for_each_of_type(&POWER_SUPPLY_TYPE, &supported, [](Device* device, void* context) {
-        if (device_is_ready(device) && power_supply_supports_power_off(device)) {
-            *static_cast<bool*>(context) = true;
-            return false;
-        }
-        return true;
-    });
-    device_for_each_of_type(&SLEEP_CONTROLLER_TYPE, &supported, [](Device* device, void* context) {
-        if (device_is_ready(device)) {
-            *static_cast<bool*>(context) = true;
-            return false;
-        }
-        return true;
-    });
-    return supported;
-}
-
-static void onPowerOffClicked(lv_event_t* /*event*/) {
-    // The app's window is created in the app layer, which the overlay would cover
-    window_manager_overlay_hide();
-    AppStartContext context;
-    uint32_t instance_id = 0;
-    if (app_start_context_from_id(POWER_OFF_APP_ID, &context) == ERROR_NONE) {
-        app_start_with_context(&context, &instance_id);
-    }
-}
-
 /** Twice the icon at regular size, and 1.5 times at the most compact, as the tiles take much of a small display */
 static int32_t getTileSize() {
     const auto icon_height = static_cast<int32_t>(lvgl_get_shared_icon_default_font_height());
@@ -318,6 +283,10 @@ static void createOption(lv_obj_t* parent, const ToggleOption* option) {
 /** The menu shows either the quick settings or the notifications */
 enum class Kind { Settings, Notifications };
 
+/** The overlay's data holds the kind in its lowest bits, and this flag to show the power options instead of the quick settings */
+constexpr intptr_t KIND_MASK = 0xFF;
+constexpr intptr_t SHOW_POWER_OPTIONS = 0x100;
+
 /** Only one menu exists at a time, as it is the window manager's overlay. Allocated while the menu is shown. */
 struct MenuState {
     Kind kind = Kind::Settings;
@@ -327,8 +296,13 @@ struct MenuState {
     lv_obj_t* topRow = nullptr;
     /** Removes all notifications, which is hidden while there are none */
     lv_obj_t* clearButton = nullptr;
+    /** Pushes the clear button to the right, which is hidden when the card is a single row */
+    lv_obj_t* clearGap = nullptr;
     /** The quick settings, which are null while the notifications are shown */
     lv_obj_t* quickPanel = nullptr;
+    /** The standby, suspend and power off options, which are hidden until the power button is checked. Null without options. */
+    lv_obj_t* powerPanel = nullptr;
+    lv_obj_t* powerButton = nullptr;
     /** The memory indicators, which are null on devices where free memory is not a concern */
     lv_obj_t* memoryRow = nullptr;
     lv_timer_t* memoryTimer = nullptr;
@@ -345,6 +319,7 @@ struct MenuState {
     lv_obj_t* volumeSlider = nullptr;
     lv_obj_t* volumeLabel = nullptr;
     NotificationPanel* notifications = nullptr;
+    size_t notificationTotal = 0;
 };
 
 static MenuState* menu = nullptr;
@@ -413,8 +388,11 @@ static void updateGauge(const MenuState::MemoryGauge& gauge, size_t freeBytes, s
         // No colors, so a critical gauge inverts: a solid disc with the value in the background color
         const bool critical = level == MemoryLevel::Critical;
         lv_obj_set_style_arc_color(gauge.arc, text_color, LV_PART_INDICATOR);
+        // Only the ring marks the unfilled part, as a gray can't be shown
+        lv_obj_set_style_arc_color(gauge.arc, lv_obj_get_style_bg_color(menu->card, LV_PART_MAIN), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(gauge.inner, critical ? LV_OPA_COVER : LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lv_obj_set_style_bg_color(gauge.inner, text_color, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(gauge.arc, text_color, LV_PART_MAIN);
         lv_obj_set_style_text_color(gauge.value, critical ? lv_obj_get_style_bg_color(menu->card, LV_PART_MAIN) : text_color, LV_STATE_DEFAULT);
     } else {
         lv_obj_set_style_arc_color(gauge.arc, color, LV_PART_INDICATOR);
@@ -505,6 +483,14 @@ static MenuState::MemoryGauge createGauge(lv_obj_t* parent, const char* name, bo
     lv_obj_set_style_arc_width(gauge.arc, LV_DPX(5), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(gauge.arc, false, LV_PART_INDICATOR);
     lv_obj_set_style_pad_all(gauge.arc, 0, LV_STATE_DEFAULT);
+    if (lvgl_theme_is_mono()) {
+        // A thin ring over the outer edge of the arc, drawn after it
+        lv_obj_set_style_bg_opa(gauge.arc, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_radius(gauge.arc, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_border_width(gauge.arc, LV_DPX(1), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(gauge.arc, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_post(gauge.arc, true, LV_PART_MAIN);
+    }
     lv_obj_set_clickable(gauge.arc, false);
 
     gauge.inner = lv_obj_create(gauge.arc);
@@ -681,11 +667,42 @@ static void createVolumeRow(lv_obj_t* parent) {
     lvgl_grid_navigation_add(row);
 }
 
+/**
+ * The card is as high as the notifications need. With at most one, it is a single row of the buttons and the
+ * notification or the empty text. Otherwise the list is below the buttons.
+ */
+static void layoutNotifications(int32_t maxCardHeight) {
+    if (menu->notifications == nullptr) {
+        return;
+    }
+    const bool single = menu->notificationTotal <= 1;
+    auto* root = notificationPanelGetRoot(menu->notifications);
+    lv_obj_set_flex_flow(menu->card, single ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_column(menu->card, 0, LV_STATE_DEFAULT);
+    lv_obj_set_hidden(menu->clearGap, single);
+    lv_obj_set_width(menu->topRow, single ? LV_SIZE_CONTENT : LV_PCT(100));
+    lv_obj_set_width(root, single ? 0 : LV_PCT(100));
+    lv_obj_set_flex_grow(root, single ? 1 : 0);
+    lv_obj_update_layout(menu->card);
+    int32_t available = maxCardHeight - lv_obj_get_style_pad_top(menu->card, LV_PART_MAIN) - lv_obj_get_style_pad_bottom(menu->card, LV_PART_MAIN);
+    if (!single) {
+        available -= lv_obj_get_height(menu->topRow) + lv_obj_get_style_pad_row(menu->card, LV_PART_MAIN);
+    }
+    notificationPanelFit(menu->notifications, available);
+}
+
 /** The card fills most of a narrow display, and is narrower on a wide one where the content would stretch */
 static void applyCardSize() {
     const int32_t width = lv_display_get_horizontal_resolution(menu->display);
     const int32_t height = lv_display_get_vertical_resolution(menu->display);
     const bool wide = width > height && width >= WIDE_DISPLAY_MIN_WIDTH;
+    if (menu->kind == Kind::Notifications) {
+        const int32_t maxHeight = height * (wide ? 80 : 90) / 100;
+        lv_obj_set_size(menu->card, lv_pct(wide ? 60 : 90), LV_SIZE_CONTENT);
+        lv_obj_set_style_max_height(menu->card, maxHeight, LV_STATE_DEFAULT);
+        layoutNotifications(maxHeight);
+        return;
+    }
     lv_obj_set_size(menu->card, lv_pct(wide ? 60 : 90), lv_pct(wide ? 80 : 90));
     if (menu->quickPanel != nullptr) {
         lv_obj_update_layout(menu->card);
@@ -764,9 +781,14 @@ static lv_obj_t* createQuickSettingsPanel(lv_obj_t* parent) {
     return panel;
 }
 
-static void onNotificationCount(void* /*userData*/, size_t count) {
+static void onNotificationCount(void* /*userData*/, size_t total, size_t clearable) {
     // Nothing that can be cleared. A hidden button also leaves the focus order.
-    lv_obj_set_hidden(menu->clearButton, count == 0);
+    lv_obj_set_hidden(menu->clearButton, clearable == 0);
+    menu->notificationTotal = total;
+    // The list is rebuilt while the menu is created and the card isn't sized yet. It is laid out when it is.
+    if (menu->notifications != nullptr) {
+        applyCardSize();
+    }
 }
 
 /** Removes the notifications that aren't sticky, as the sender decides when a sticky one goes */
@@ -779,6 +801,14 @@ static void createGap(lv_obj_t* parent, int32_t width) {
     lv_obj_remove_style_all(gap);
     lv_obj_set_size(gap, width, 1);
     lv_obj_set_clickable(gap, false);
+}
+
+static void onPowerToggled(lv_event_t* /*event*/) {
+    if (!systemMenuPowerToggle(menu->powerButton, menu->quickPanel, menu->powerPanel)) {
+        // The display can have rotated while the quick settings were hidden
+        lv_obj_update_layout(menu->card);
+        updateVolumeMode();
+    }
 }
 
 /** Creates the close button, the memory indicators and the power button in one row that the arrow keys navigate */
@@ -800,7 +830,7 @@ static lv_obj_t* createTopRow(lv_obj_t* parent) {
     }
 
     // Between the buttons, with a gap as wide as a button where one is missing, so the rings are in the middle of the row
-    const bool hasPower = menu->kind == Kind::Settings && supportsPowerOff();
+    const bool hasPower = menu->kind == Kind::Settings && systemMenuHasPowerOptions();
     if (menu->kind == Kind::Settings) {
         const auto tileSize = getTileSize();
         if (closeButton == nullptr && hasPower) {
@@ -813,12 +843,15 @@ static lv_obj_t* createTopRow(lv_obj_t* parent) {
     }
 
     if (hasPower) {
-        auto* powerButton = createTile(topRow, LVGL_ICON_SHARED_POWER_SETTINGS_NEW);
-        lv_obj_add_event_cb(powerButton, onPowerOffClicked, LV_EVENT_SHORT_CLICKED, nullptr);
+        menu->powerButton = createTile(topRow, LVGL_ICON_SHARED_POWER_SETTINGS_NEW);
+        // Checked while the power options are shown
+        lv_obj_set_checkable(menu->powerButton, true);
+        lv_obj_add_event_cb(menu->powerButton, onPowerToggled, LV_EVENT_VALUE_CHANGED, nullptr);
     }
     if (menu->kind == Kind::Notifications) {
         // A growing gap pushes the button to the right
         auto* gap = lv_obj_create(topRow);
+        menu->clearGap = gap;
         lv_obj_remove_style_all(gap);
         lv_obj_set_size(gap, 0, 1);
         lv_obj_set_flex_grow(gap, 1);
@@ -862,7 +895,9 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
         return;
     }
     menu->display = lv_obj_get_display(parent);
-    menu->kind = static_cast<Kind>(reinterpret_cast<intptr_t>(userData));
+    const auto data = reinterpret_cast<intptr_t>(userData);
+    menu->kind = static_cast<Kind>(data & KIND_MASK);
+    const bool showPowerOptions = (data & SHOW_POWER_OPTIONS) != 0;
 
     menu->card = lvgl_card_create(parent);
     lv_obj_set_flex_flow(menu->card, LV_FLEX_FLOW_COLUMN);
@@ -873,25 +908,28 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_t* close_button = createTopRow(menu->card);
     if (menu->kind == Kind::Settings) {
         menu->quickPanel = createQuickSettingsPanel(menu->card);
+        if (menu->powerButton != nullptr) {
+            menu->powerPanel = systemMenuPowerPanelCreate(menu->card);
+            lv_obj_set_state(menu->powerButton, LV_STATE_CHECKED, showPowerOptions);
+            systemMenuPowerToggle(menu->powerButton, menu->quickPanel, menu->powerPanel);
+        }
     } else {
         menu->notifications = notificationPanelCreate(menu->card, onNotificationCount, nullptr);
         if (menu->notifications == nullptr) {
             LOG_E(TAG, "Failed to create the notification panel");
             return;
         }
-        auto* root = notificationPanelGetRoot(menu->notifications);
-        lv_obj_set_size(root, LV_PCT(100), 0);
-        lv_obj_set_flex_grow(root, 1);
         // The user is looking at them now, which is only true once the list exists
         setNotificationsOpen(true);
         system_bars_set_notification_unread(false);
     }
 
     if (close_button != nullptr) {
-        // The row is in the focus group, and it focuses the button for the keys
+        // The row is in the focus group, and it focuses the button for the keys. The power button when it opened the power options.
+        lv_obj_t* focused_button = (showPowerOptions && menu->powerButton != nullptr) ? menu->powerButton : close_button;
         lv_group_focus_obj(menu->topRow);
-        lv_gridnav_set_focused(menu->topRow, close_button, LV_ANIM_OFF);
-        lv_obj_add_state(close_button, LV_STATE_FOCUS_KEY);
+        lv_gridnav_set_focused(menu->topRow, focused_button, LV_ANIM_OFF);
+        lv_obj_add_state(focused_button, LV_STATE_FOCUS_KEY);
     }
 
     // The display can rotate while the menu is open
@@ -899,8 +937,18 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
     applyCardSize();
 }
 
-static void showMenu(Kind kind) {
-    window_manager_overlay_show(createWidgets, destroyWidgets, reinterpret_cast<void*>(static_cast<intptr_t>(kind)));
+static void showMenu(Kind kind, bool showPowerOptions = false) {
+    const intptr_t data = static_cast<intptr_t>(kind) | (showPowerOptions ? SHOW_POWER_OPTIONS : 0);
+    window_manager_overlay_show(createWidgets, destroyWidgets, reinterpret_cast<void*>(data));
+}
+
+void systemMenuTogglePower() {
+    // The menu only exists while it is shown
+    if (menu != nullptr) {
+        window_manager_overlay_hide();
+    } else {
+        showMenu(Kind::Settings, true);
+    }
 }
 
 void systemMenuShowNotifications() {

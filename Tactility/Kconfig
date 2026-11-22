@@ -129,14 +129,6 @@ menu "Tactility App"
         help
             Play a short vibration pulse when boot finishes, using the strength from the
             Vibration settings. No pulse is played when vibration is disabled there.
-    config TT_DISPLAY_IDLE_TICK_MS
-        int "Display idle tick interval (ms)"
-        default 50
-        range 10 200
-        help
-            How often the display-idle service wakes to drive the screensaver animation and poll the
-            backlight timeout. Lower it on boards with a fast panel so the screensaver animates at
-            the panel's refresh rate; higher values reduce wakeups and save power.
     config TT_LANGUAGE_SELECTION
         bool "Language selection"
         default y
