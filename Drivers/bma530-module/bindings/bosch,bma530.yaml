@@ -1,0 +1,12 @@
+description: Bosch BMA530 3-axis accelerometer
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "bosch,bma530"
+
+properties:
+  mount-matrix:
+    type: values
+    default: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    description: >
+      Row-major 3x3 rotation matrix that maps the sensor frame onto the device frame.

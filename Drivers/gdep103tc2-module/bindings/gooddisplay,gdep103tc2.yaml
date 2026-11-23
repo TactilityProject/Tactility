@@ -1,0 +1,121 @@
+description: >
+  eInk GDEP103TC2 10.3" 1872x1404 display.
+  Pixels are black and white (dithered) or, with a waveform supplied by the board, 16 shades.
+
+compatible: "gooddisplay,gdep103tc2"
+
+properties:
+  rotation:
+    type: int
+    default: 0
+    description: Fixed rotation in degrees (0, 90, 180 or 270), applied at start
+  grayscale:
+    type: boolean
+    default: false
+    description: Draw 16 shades using gray-waveform
+  gray-waveform:
+    type: array
+    element-type: const uint8_t
+    description: >
+      16 rows (shades) of the same number of passes, row-major. Each pass is 0 (neutral), 1 (darken)
+      or 2 (lighten). Required when grayscale is enabled.
+  pixel-clock-hz:
+    type: int
+    default: 26666666
+    description: Clock of the bus that sends the pixel data of a row
+  pin-power-enable:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional board-level supply enable, asserted while the panel is driven
+  pin-oe:
+    type: phandles
+    required: true
+    description: Source driver output enable pin
+  pin-gmod:
+    type: phandles
+    required: true
+    description: Gate driver mode pin
+  pin-wr:
+    type: phandles
+    required: true
+    description: Write clock of the parallel bus (CL), an ESP32-S3 GPIO
+  pin-sph:
+    type: phandles
+    required: true
+    description: Start pulse of the source driver (SPH). The LCD peripheral toggles it as data/command line, so it must be an ESP32-S3 GPIO
+  pin-ckv:
+    type: phandles
+    required: true
+    description: Gate driver clock (CKV), an ESP32-S3 GPIO
+  pin-spv:
+    type: phandles
+    required: true
+    description: Gate driver start pulse (SPV), an ESP32-S3 GPIO
+  pin-le:
+    type: phandles
+    required: true
+    description: Source driver latch enable (LE), an ESP32-S3 GPIO
+  pin-data0:
+    type: phandles
+    required: true
+    description: Bit 0 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data1:
+    type: phandles
+    required: true
+    description: Bit 1 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data2:
+    type: phandles
+    required: true
+    description: Bit 2 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data3:
+    type: phandles
+    required: true
+    description: Bit 3 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data4:
+    type: phandles
+    required: true
+    description: Bit 4 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data5:
+    type: phandles
+    required: true
+    description: Bit 5 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data6:
+    type: phandles
+    required: true
+    description: Bit 6 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data7:
+    type: phandles
+    required: true
+    description: Bit 7 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data8:
+    type: phandles
+    required: true
+    description: Bit 8 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data9:
+    type: phandles
+    required: true
+    description: Bit 9 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data10:
+    type: phandles
+    required: true
+    description: Bit 10 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data11:
+    type: phandles
+    required: true
+    description: Bit 11 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data12:
+    type: phandles
+    required: true
+    description: Bit 12 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data13:
+    type: phandles
+    required: true
+    description: Bit 13 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data14:
+    type: phandles
+    required: true
+    description: Bit 14 of the parallel data bus, an ESP32-S3 GPIO
+  pin-data15:
+    type: phandles
+    required: true
+    description: Bit 15 of the parallel data bus, an ESP32-S3 GPIO

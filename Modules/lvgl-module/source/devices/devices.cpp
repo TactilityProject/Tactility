@@ -3,6 +3,7 @@
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/mouse.h>
 #include <lvgl/devices/pointer.h>
+#include <lvgl/devices/touchbar.h>
 #include <lvgl/lvgl.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -12,6 +13,7 @@
 #include <tactility/drivers/mouse.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/drivers/touch.h>
+#include <tactility/drivers/touchbar.h>
 #include <tactility/log.h>
 
 #include <tactility/Memory.hpp>
@@ -130,6 +132,11 @@ static void lvgl_bind_input_device(struct Device* device, lv_display_t* display)
         if (lvgl_keyboard_add(device, display, &indev) != ERROR_NONE) {
             LOG_E(TAG, "Failed to bind %s to LVGL", device->name);
         }
+    } else if (type == &TOUCHBAR_TYPE) {
+        lv_indev_t* indev;
+        if (lvgl_touchbar_add(device, display, &indev) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to bind %s to LVGL", device->name);
+        }
     } else if (type == &MOUSE_TYPE) {
         lv_indev_t* indev;
         if (lvgl_mouse_add(device, display, &indev) != ERROR_NONE) {
@@ -154,6 +161,8 @@ static void lvgl_unbind_input_device(struct Device* device) {
     const struct DeviceType* type = device_get_type(device);
     if (type == &KEYBOARD_TYPE) {
         lvgl_keyboard_remove(indev);
+    } else if (type == &TOUCHBAR_TYPE) {
+        lvgl_touchbar_remove(indev);
     } else if (type == &MOUSE_TYPE) {
         lvgl_mouse_remove(indev);
     } else if (type == &POINTER_TYPE || type == &TOUCH_TYPE) {
@@ -166,7 +175,7 @@ static void lvgl_unbind_input_device(struct Device* device) {
 static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, void* context) {
     (void)context;
     const struct DeviceType* type = device_get_type(device);
-    if (type != &KEYBOARD_TYPE && type != &MOUSE_TYPE && type != &POINTER_TYPE && type != &TOUCH_TYPE) {
+    if (type != &KEYBOARD_TYPE && type != &TOUCHBAR_TYPE && type != &MOUSE_TYPE && type != &POINTER_TYPE && type != &TOUCH_TYPE) {
         return;
     }
     if (event != DEVICE_EVENT_STARTED && event != DEVICE_EVENT_STOPPING) {
@@ -355,6 +364,19 @@ void lvgl_devices_attach() {
         }
     }
 
+    struct LvglDeviceList touchbar_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_PER_TYPE };
+    // So touchbars are special, they *are* (treated as) keyboards but they need to be treated differently.
+    device_for_each_of_type(&TOUCHBAR_TYPE, &touchbar_devices, lvgl_device_list_collect);
+    for (size_t i = 0; i < touchbar_devices.count; i++) {
+        struct Device* kernel_touchbar_device = touchbar_devices.devices[i];
+        lv_indev_t* lvgl_touchbar_device;
+        if (lvgl_touchbar_add(kernel_touchbar_device, lvgl_display, &lvgl_touchbar_device) == ERROR_NONE) {
+            LOG_I(TAG, "Bound %s to LVGL", kernel_touchbar_device->name);
+        } else {
+            LOG_E(TAG, "Failed to bind %s to LVGL", kernel_touchbar_device->name);
+        }
+    }
+
     struct LvglDeviceList mouse_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_PER_TYPE };
     device_for_each_of_type(&MOUSE_TYPE, &mouse_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < mouse_devices.count; i++) {
@@ -406,7 +428,12 @@ void lvgl_devices_detach() {
                 lv_indev_delete(indev);
             }
         } else if (type == LV_INDEV_TYPE_KEYPAD) {
-            lvgl_keyboard_remove(indev);
+            auto* wrapper = static_cast<LvglDeviceContext*>(lv_indev_get_driver_data(indev));
+            if (wrapper != nullptr && wrapper->device != nullptr && device_get_type(wrapper->device) == &TOUCHBAR_TYPE) {
+                lvgl_touchbar_remove(indev);
+            } else {
+                lvgl_keyboard_remove(indev);
+            }
         } else {
             lv_indev_delete(indev);
         }

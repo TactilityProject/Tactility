@@ -1,0 +1,14 @@
+description: >
+  Texas Instruments BQ27427 Impedance Track battery fuel gauge. 
+  Creates a "power-supply" child device (see drivers/bq27427.h) exposing battery current, 
+  voltage, charge level and charging status. 
+  The device address is fixed to 0x55 by the chip.
+
+  The gauge comes with a default 1340 mAh profile. A board that knows its battery programs 
+  the gauge's data memory with bq27427_profile_needed() and bq27427_apply_profile().
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,bq27427"
+
+bus: i2c

@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <driver/gpio.h>
-#include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <soc/soc_caps.h>
+
+#if SOC_RTCIO_PIN_COUNT > 0
+#include <driver/rtc_io.h>
+#endif
 
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_sleep.h>
@@ -63,6 +67,9 @@ static error_t start_device(Device* device) {
     return validate_config(GET_CONFIG(device));
 }
 
+#if SOC_RTCIO_PIN_COUNT > 0
+// Targets with actual RTC-GPIO pads (ESP32, S3, C6, P4, ...): pulls survive deep sleep only on
+// these pads, and EXT0/EXT1 are the wakeup sources that read them
 static error_t deep_sleep(Device* device) {
     const auto* config = GET_CONFIG(device);
 
@@ -125,6 +132,47 @@ static error_t deep_sleep(Device* device) {
     esp_deep_sleep_start();
     return ERROR_NONE;
 }
+#else
+
+static error_t deep_sleep(Device* device) {
+    const auto* config = GET_CONFIG(device);
+
+    uint64_t mask = 0;
+    for (uint8_t i = 0; i < config->wakeup_gpios_count; i++) {
+        const auto& spec = config->wakeup_gpios[i];
+        auto pin = static_cast<gpio_num_t>(spec.pin);
+        gpio_input_enable(pin);
+        if (spec.flags & GPIO_FLAG_PULL_UP) {
+            gpio_pullup_en(pin);
+        }
+        if (spec.flags & GPIO_FLAG_PULL_DOWN) {
+            gpio_pulldown_en(pin);
+        }
+        mask |= 1ULL << spec.pin;
+    }
+
+    // Sleeping while a wakeup pin is still active wakes the system right away
+    TickType_t waited = 0;
+    while (any_pin_active(config) && waited < RELEASE_TIMEOUT) {
+        vTaskDelay(RELEASE_POLL_INTERVAL);
+        waited += RELEASE_POLL_INTERVAL;
+    }
+
+    bool active_low = is_active_low(config->wakeup_gpios[0]);
+    esp_err_t esp_error = esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown(
+        mask,
+        active_low ? ESP_GPIO_WAKEUP_GPIO_LOW : ESP_GPIO_WAKEUP_GPIO_HIGH
+    );
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "Failed to configure wakeup: %s", esp_err_to_name(esp_error));
+        return esp_err_to_error(esp_error);
+    }
+
+    LOG_I(TAG, "Entering deep sleep");
+    esp_deep_sleep_start();
+    return ERROR_NONE;
+}
+#endif
 
 static const SleepControllerApi esp32_sleep_api = {
     .deep_sleep = deep_sleep

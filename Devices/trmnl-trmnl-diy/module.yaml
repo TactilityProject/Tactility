@@ -1,0 +1,6 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/uc8179-module
+  - Drivers/rotary-button-module
+dts: trmnl,trmnl-diy.dts
+dts-only: true
