@@ -658,9 +658,20 @@ void createTaskChips(lv_obj_t* parent, Context* ctx) {
     lv_obj_set_scrollable(legend, false);
     for (size_t i = 0; i < TASK_CHIP_COUNT - 1; i++) {
         const auto group = static_cast<TaskGroup>(i);
-        auto* item = lv_label_create(legend);
-        lv_obj_set_style_text_font(item, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
-        lv_label_set_text_fmt(item, "%s %s", getGroupIcon(group), getGroupWord(group));
+        // The shape is in the icon font, which the text font doesn't have
+        auto* item = lv_obj_create(legend);
+        lv_obj_remove_style_all(item);
+        lv_obj_set_size(item, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(item, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(item, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(item, LV_DPX(4), LV_STATE_DEFAULT);
+        lv_obj_set_scrollable(item, false);
+        auto* icon = lv_label_create(item);
+        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+        lv_label_set_text(icon, getGroupIcon(group));
+        auto* word = lv_label_create(item);
+        lv_obj_set_style_text_font(word, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+        lv_label_set_text(word, getGroupWord(group));
     }
     ctx->taskLegend = legend;
 }

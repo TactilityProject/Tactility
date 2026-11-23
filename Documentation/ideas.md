@@ -8,6 +8,8 @@
 
 ## Medium Priority
 
+- Sound settings: need API and UI for default playback and recording device selection
+- saveBacklightDuty() and similar settings should be bound to a device
 - "data" and "/data": Rename to "internal"? Find and get rid of hard-coding these names?
 - Copy/paste buffer
 - Add "Downloading Apps" step in Setup that downloads useful apps.
