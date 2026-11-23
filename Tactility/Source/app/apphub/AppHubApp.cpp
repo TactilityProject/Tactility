@@ -4,6 +4,7 @@
 #include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/TileGrid.h>
 #include <Tactility/app/apphub/AppHubIcon.h>
+#include <Tactility/app/apphub/AppHubOnline.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 
 #include <app/event.h>
@@ -247,19 +248,32 @@ void forgetMissingIcons(Context* ctx) {
     ctx->mutex.unlock();
 }
 
+/** Without the online features, only the installed apps are listed */
+bool isShownOffline(const AppHubApp& app) {
+    return isOnlineEnabled() || app.installed;
+}
+
 /** Reads the apps from App Hub for showApps(). Doesn't touch widgets, so it runs without the LVGL lock. */
 void loadApps(Context* ctx) {
     // Counted first, so the vector is allocated once. Growing it by doubling needs several large blocks
     // while the old one is still alive, which aborts when the heap is fragmented, e.g. during a download.
     size_t count = 0;
-    app_hub_search(nullptr, [](const AppHubApp*, void* context) {
-        (*static_cast<size_t*>(context))++;
+    app_hub_search(nullptr, [](const AppHubApp* app, void* context) {
+        (*static_cast<size_t*>(context)) += isShownOffline(*app) ? 1 : 0;
         return true;
     }, &count);
     tt::std::vector<AppHubApp> apps;
     apps.reserve(count);
     app_hub_search(nullptr, [](const AppHubApp* app, void* context) {
-        static_cast<tt::std::vector<AppHubApp>*>(context)->push_back(*app);
+        if (isShownOffline(*app)) {
+            auto local = *app;
+            if (!isOnlineEnabled()) {
+                // The catalog isn't used, so the app is only known by what is installed
+                local.in_catalog = false;
+                local.update_available = false;
+            }
+            static_cast<tt::std::vector<AppHubApp>*>(context)->push_back(local);
+        }
         return true;
     }, &apps);
     ctx->mutex.lock();
@@ -425,6 +439,11 @@ void createFilterTabs(lv_obj_t* parent, Context* ctx) {
     // The updates tab stays hidden until there are updates, so it doesn't show up while the apps are loading
     const bool hasUpdates = ::std::ranges::any_of(ctx->apps, [](const AppHubApp& app) { return app.update_available; });
     lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::Updates), !hasUpdates);
+    if (!isOnlineEnabled()) {
+        // Every app that is listed is installed, so the tab would repeat the Installed tab
+        lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::All), true);
+        ctx->filter = Filter::Installed;
+    }
     lvgl_tabs_set_selected(ctx->tabs, static_cast<uint32_t>(ctx->filter));
     lv_obj_add_event_cb(ctx->tabs, onFilterChanged, LV_EVENT_VALUE_CHANGED, ctx);
 }
@@ -547,19 +566,30 @@ void showApps(Context* ctx) {
     const bool iconsEnabled = areIconsShown();
     const bool showDescriptions = !isCompact();
     const uint32_t iconSize = getIconSize();
-    tt::std::vector<AppHubApp> apps = ctx->apps;
-    const bool hasApps = !apps.empty();
-    const auto updateCount = ::std::ranges::count_if(apps, [](const AppHubApp& app) { return app.update_available; });
+    // The mutex is held until the list is built, so the apps are used in place. A copy of the catalog would double its memory.
+    const auto& allApps = ctx->apps;
+    const bool hasApps = !allApps.empty();
+    const auto updateCount = ::std::ranges::count_if(allApps, [](const AppHubApp& app) { return app.update_available; });
     // The updates tab only shows while there are updates. Hiding it while it's selected selects the first tab.
     if (updateCount == 0 && ctx->filter == Filter::Updates) {
-        ctx->filter = Filter::All;
+        ctx->filter = isOnlineEnabled() ? Filter::All : Filter::Installed;
     }
     lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::Updates), updateCount == 0);
-    updateToolbarActions(ctx, ::std::ranges::any_of(apps, [](const AppHubApp& app) { return app.update_available; }));
-    ::std::erase_if(apps, [ctx](const AppHubApp& app) {
-        return !matchesFilter(app, ctx->filter) || !matchesQuery(app, ctx->query);
-    });
+    updateToolbarActions(ctx, updateCount > 0);
+    // The indices of the apps that match. Counted first, so the vector is allocated once.
+    size_t matchCount = 0;
+    for (const auto& app : allApps) {
+        matchCount += (matchesFilter(app, ctx->filter) && matchesQuery(app, ctx->query)) ? 1 : 0;
+    }
+    tt::std::vector<uint32_t> apps;
+    apps.reserve(matchCount);
+    for (size_t index = 0; index < allApps.size(); index++) {
+        if (matchesFilter(allApps[index], ctx->filter) && matchesQuery(allApps[index], ctx->query)) {
+            apps.push_back(static_cast<uint32_t>(index));
+        }
+    }
     ctx->appIds.clear();
+    ctx->appIds.reserve(matchCount);
 
     if (!apps.empty()) {
         auto* card = createCard(ctx->contentWrapper);
@@ -576,7 +606,7 @@ void showApps(Context* ctx) {
         lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
         lv_obj_t* focus_target = nullptr;
         for (int i = 0; i < apps.size(); i++) {
-            const auto& app = apps[i];
+            const auto& app = allApps[apps[i]];
             auto* entry_button = lvgl_list_add_button(list, nullptr, nullptr);
             lv_obj_set_flex_align(entry_button, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
             if (iconsEnabled) {
@@ -645,6 +675,8 @@ void showApps(Context* ctx) {
         }
     } else if (hasApps) {
         showStatusLabel(ctx, ctx->query.empty() ? getEmptyFilterText(ctx->filter) : tr("No apps found"));
+    } else if (!isOnlineEnabled()) {
+        showStatusLabel(ctx, getEmptyFilterText(Filter::Installed));
     } else if (ctx->refreshOperationId == 0) {
         // A more specific error stays
         if (ctx->errorMessage.empty()) {
@@ -672,6 +704,16 @@ void refresh(Context* ctx) {
     }
     setError(ctx, nullptr);
     lvgl_unlock();
+
+    if (!isOnlineEnabled()) {
+        loadApps(ctx);
+        lvgl_lock();
+        if (ctx->contentWrapper != nullptr) {
+            showApps(ctx);
+        }
+        lvgl_unlock();
+        return;
+    }
 
     WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
     Device* wifi_device = nullptr;

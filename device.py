@@ -319,6 +319,14 @@ def write_iram_reduction(output_file, device_properties: dict):
     ):
         output_file.write(f"CONFIG_{option}=n\n")
 
+def write_app_hub_online(output_file, device_properties: dict):
+    has_spiram = get_property_or_exit(device_properties, "hardware.spiRam")
+    if has_spiram == "true":
+        return
+    # Devices without PSRAM don't have the memory for a TLS connection, so App Hub only handles the installed apps
+    output_file.write("# App Hub offline only on devices without PSRAM\n")
+    output_file.write("CONFIG_TT_APP_HUB_ONLINE=n\n")
+
 def write_performance_improvements(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
     if idf_target == "esp32s3":
@@ -535,6 +543,7 @@ def write_properties(output_file, device_properties: dict, device_id: str, is_de
     write_partition_table(output_file, device_properties, is_dev)
     write_spiram_variables(output_file, device_properties)
     write_iram_reduction(output_file, device_properties)
+    write_app_hub_online(output_file, device_properties)
     write_performance_improvements(output_file, device_properties)
     write_usb_variables(output_file, device_properties)
     write_bluetooth_variables(output_file, device_properties)

@@ -21,6 +21,13 @@ menu "Tactility App"
         help
             The name of the directory in Devices/
             See https://docs.tactilityproject.org for formatting guidance.
+    config TT_APP_HUB_ONLINE
+        bool "App Hub online features"
+        default y
+        help
+            Allows App Hub to download the app catalog, install apps and update apps, and includes the Software app.
+            When disabled, App Hub only lists the installed apps and uninstalls them.
+            Devices without PSRAM disable it, as they don't have the memory for a TLS connection.
     config TT_FONT_DEFAULT_SIZE
         int "Default font size"
         default 14

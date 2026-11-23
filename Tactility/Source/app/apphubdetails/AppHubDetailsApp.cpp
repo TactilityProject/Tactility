@@ -3,6 +3,7 @@
 #include <Tactility/app/TileGrid.h>
 #include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/apphub/AppHubIcon.h>
+#include <Tactility/app/apphub/AppHubOnline.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 
 #include <app/event.h>
@@ -112,6 +113,11 @@ AppHubApp readApp(Context* ctx) {
     if (app_hub_get_app(ctx->appId.c_str(), &app) != ERROR_NONE) {
         strncpy(app.id, ctx->appId.c_str(), sizeof(app.id) - 1);
         strncpy(app.name, ctx->appId.c_str(), sizeof(app.name) - 1);
+    }
+    if (!apphub::isOnlineEnabled()) {
+        // Without the catalog there are no details to download, and no installs or updates
+        app.in_catalog = false;
+        app.update_available = false;
     }
     return app;
 }
