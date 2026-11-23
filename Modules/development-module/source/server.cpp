@@ -328,14 +328,24 @@ int32_t listenerMain(void* context) {
         fd_set readFds;
         FD_ZERO(&readFds);
         FD_SET(data->listenFd, &readFds);
+#ifdef ESP_PLATFORM
         timeval timeout { .tv_sec = 0, .tv_usec = ACCEPT_POLL_TIMEOUT_MS * 1000 };
+#else
+        // A select() that waits blocks outside the scheduler on POSIX, so the task counts as running and the idle task never
+        // gets to free the tasks that have finished. Polling and delaying lets the scheduler see the task as waiting.
+        timeval timeout { .tv_sec = 0, .tv_usec = 0 };
+#endif
         if (select(data->listenFd + 1, &readFds, nullptr, nullptr, &timeout) <= 0) {
+#ifndef ESP_PLATFORM
+            vTaskDelay(pdMS_TO_TICKS(ACCEPT_POLL_TIMEOUT_MS));
+#endif
             continue;
         }
         sockaddr_in address {};
         socklen_t addressLength = sizeof(address);
         const int socket = accept(data->listenFd, reinterpret_cast<sockaddr*>(&address), &addressLength);
         if (socket >= 0) {
+            fcntl(socket, F_SETFD, fcntl(socket, F_GETFD) | FD_CLOEXEC);
             handleConnection(data, socket, address);
         }
     }
@@ -391,6 +401,8 @@ error_t startListening(ServerData* data) {
     if (fd < 0) {
         return ERROR_RESOURCE;
     }
+    // The simulator restarts by replacing its process image, which would keep this socket open and the port taken
+    fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
     int reuse = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     sockaddr_in address {};

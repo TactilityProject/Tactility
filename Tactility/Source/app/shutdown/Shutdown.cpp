@@ -20,6 +20,10 @@
 #include <tactility/drivers/sleep_controller.h>
 #include <tactility/log.h>
 
+#ifdef ESP_PLATFORM
+#include <esp_system.h>
+#endif
+
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -93,6 +97,15 @@ bool suspend() {
     return true;
 }
 
+bool rebootDevice() {
+#ifdef ESP_PLATFORM
+    esp_restart();
+    return true;
+#else
+    return false;
+#endif
+}
+
 /** Only one operation owns the screen at a time, until its recovery is done */
 std::atomic<bool> running { false };
 
@@ -143,7 +156,7 @@ bool run(const char* subtitle, bool (*action)()) {
 
 int32_t main(int argc, char* argv[]) {
     if (argc != 2) {
-        printf("usage: shutdown <standby|suspend|poweroff|menu>\n");
+        printf("usage: shutdown <standby|suspend|poweroff|reboot|menu>\n");
         return 1;
     }
 
@@ -164,6 +177,11 @@ int32_t main(int argc, char* argv[]) {
         if (!success) {
             printf("shutdown: power off is not supported\n");
         }
+    } else if (strcmp(mode, MODE_REBOOT) == 0) {
+        success = supportsReboot() && run(tr("Rebooting"), rebootDevice);
+        if (!success) {
+            printf("shutdown: reboot is not supported\n");
+        }
     } else if (strcmp(mode, MODE_MENU) == 0) {
         if (!lvgl_is_running()) {
             printf("shutdown: the display is not available\n");
@@ -174,7 +192,7 @@ int32_t main(int argc, char* argv[]) {
         lvgl_unlock();
         success = true;
     } else {
-        printf("usage: shutdown <standby|suspend|poweroff|menu>\n");
+        printf("usage: shutdown <standby|suspend|poweroff|reboot|menu>\n");
         return 1;
     }
     return success ? 0 : 1;
@@ -192,6 +210,14 @@ bool supportsPowerOff() {
         return true;
     });
     return supported;
+}
+
+bool supportsReboot() {
+#ifdef ESP_PLATFORM
+    return true;
+#else
+    return false;
+#endif
 }
 
 bool supportsSuspend() {

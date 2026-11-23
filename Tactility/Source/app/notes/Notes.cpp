@@ -2,7 +2,6 @@
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/notes/Notes.h>
 
-#include "Tactility/app/alertdialog/AlertDialog.h"
 
 #include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/file/File.h>

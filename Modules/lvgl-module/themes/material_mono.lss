@@ -739,6 +739,8 @@ field {
 
 field_focused {
     borderWidth: @field-focused-border-width;
+    // The padding gives back what the thicker border takes, so the content area of the field keeps its size
+    padAll: ((@field-pad) - ((@field-focused-border-width) - (@field-border-width)));
 }
 
 field_cursor {

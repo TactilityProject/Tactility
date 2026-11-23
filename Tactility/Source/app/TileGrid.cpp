@@ -54,9 +54,9 @@ int32_t getCardRingSpace() {
     return ringWidth + lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size());
 }
 
-// Minimum spacing between tiles, horizontally and vertically. Cards keep twice the room of their selection ring, however small the scale is.
+// Spacing between tiles, horizontally and vertically. Cards keep twice the room of their selection ring, however small the scale is.
 int32_t getTileGap(bool card) {
-    const int32_t gap = scaleSpacing(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()));
+    const int32_t gap = scaleSpacing(lvgl_theme_lerp(0, LV_DPX(12), lvgl_theme_get_spacing()));
     return card ? std::max(gap, 2 * getCardRingSpace()) : gap;
 }
 
@@ -72,10 +72,13 @@ struct PageLayout {
     int32_t labelGap;
     int32_t tileWidth;
     int32_t tileHeight;
-    /** The space left of, between and right of the columns */
+    /** The space between the columns */
     int32_t horizontalSpacing;
-    /** The space above, between and below the rows */
+    /** The space between the rows */
     int32_t verticalSpacing;
+    /** The space left of the columns and above the rows, which center the tiles in the grid */
+    int32_t leftMargin;
+    int32_t topMargin;
     int32_t columns;
     int32_t rows;
     uint32_t pageSize;
@@ -131,9 +134,11 @@ PageLayout computePageLayout(lv_obj_t* grid, TileGrid::Style style, int32_t rese
         .labelGap = label_gap,
         .tileWidth = tile_width,
         .tileHeight = tile_height,
-        // The space that the tiles leave is divided equally over the edges and between the tiles, for each direction
-        .horizontalSpacing = std::max<int32_t>(gap, (grid_width - columns * tile_width) / (columns + 1)),
-        .verticalSpacing = std::max<int32_t>(gap, (grid_height - rows * tile_height) / (rows + 1)),
+        // The tiles keep the gap between them, and the space that they leave is divided over the edges
+        .horizontalSpacing = gap,
+        .verticalSpacing = gap,
+        .leftMargin = std::max<int32_t>(gap, (grid_width - columns * tile_width - (columns - 1) * gap) / 2),
+        .topMargin = std::max<int32_t>(gap, (grid_height - rows * tile_height - (rows - 1) * gap) / 2),
         .columns = columns,
         .rows = rows,
         .pageSize = static_cast<uint32_t>(columns * rows)
@@ -415,14 +420,14 @@ void TileGrid::populate() {
     pageCount = page_count;
 
     // The rows of a page of cards that isn't full are centered vertically
-    int32_t top = layout.verticalSpacing;
+    int32_t top = layout.topMargin;
     if (style == Style::Card) {
         const auto count = static_cast<int32_t>(std::min<uint32_t>(item_count - page * layout.pageSize, layout.pageSize));
         const auto used_rows = (count + layout.columns - 1) / layout.columns;
         top += (layout.rows - used_rows) * (layout.tileHeight + layout.verticalSpacing) / 2;
     }
     lv_obj_set_style_pad_top(grid, top + getReservedHeight(), LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(grid, layout.horizontalSpacing + columnWidth, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(grid, layout.leftMargin + columnWidth, LV_STATE_DEFAULT);
 
     if (pageIndicator != nullptr) {
         lvgl_page_indicator_set_page_count(pageIndicator, page_count);
@@ -510,13 +515,17 @@ void TileGrid::populate() {
             const int32_t glyphSize = static_cast<int32_t>(largeFits ? lvgl_get_shared_icon_large_font_height() : lvgl_get_shared_icon_default_font_height());
             lv_obj_set_style_text_font(icon, largeFits ? lvgl_get_shared_icon_large_font() : lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-            lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
+            // The frame centers the glyph in both directions. The glyph's own line height decides its size, not the nominal font height.
+            const int32_t frameSize = layout.iconSize + 2 * layout.framePad;
+            lv_obj_set_size(frame, frameSize, frameSize);
+            lv_obj_set_flex_flow(frame, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(frame, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_size(icon, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
             if (glyphSize > layout.iconSize) {
-                // Not even the smallest font fits, so the glyph is scaled down around its center, which is moved to the center of the box
-                lv_obj_set_style_transform_pivot_x(icon, layout.iconSize / 2, LV_STATE_DEFAULT);
-                lv_obj_set_style_transform_pivot_y(icon, glyphSize / 2, LV_STATE_DEFAULT);
+                // Not even the smallest font fits, so the glyph is scaled down around its center
+                lv_obj_set_style_transform_pivot_x(icon, LV_PCT(50), LV_STATE_DEFAULT);
+                lv_obj_set_style_transform_pivot_y(icon, LV_PCT(50), LV_STATE_DEFAULT);
                 lv_obj_set_style_transform_scale(icon, 256 * layout.iconSize / glyphSize, LV_STATE_DEFAULT);
-                lv_obj_set_style_translate_y(icon, -(glyphSize - layout.iconSize) / 2, LV_STATE_DEFAULT);
             }
             lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
             // A placeholder for an image that isn't loaded yet has the theme's text colour

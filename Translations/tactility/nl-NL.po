@@ -118,5 +118,8 @@ msgstr "Stand-by"
 msgid "Suspend"
 msgstr "Slaapstand"
 
+msgid "Reboot"
+msgstr "Herstarten"
+
 msgid "Power off"
 msgstr "Uitschakelen"

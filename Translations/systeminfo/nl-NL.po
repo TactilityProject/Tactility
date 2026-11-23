@@ -12,29 +12,68 @@ msgstr "(naamloos)"
 msgid "About"
 msgstr "Over"
 
-msgid "Failed to allocate memory for task list"
-msgstr "Geheugen reserveren voor de takenlijst mislukt"
+msgid "All"
+msgstr "Alles"
 
-msgid "Hardware model: {}"
-msgstr "Hardwaremodel: {}"
+msgid "Chip"
+msgstr "Chip"
 
-msgid "Hardware vendor: {}"
-msgstr "Hardwarefabrikant: {}"
+msgid "Device"
+msgstr "Apparaat"
+
+msgid "Display"
+msgstr "Scherm"
+
+msgid "Flash"
+msgstr "Flash"
 
 msgid "Internal RAM"
 msgstr "Intern RAM"
 
-msgid "Internal storage"
-msgstr "Interne opslag"
+msgid "Low stack first"
+msgstr "Weinig stack eerst"
 
 msgid "Memory"
 msgstr "Geheugen"
 
+msgid "Model"
+msgstr "Model"
+
 msgid "PSRAM"
 msgstr "PSRAM"
 
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+msgid "Paused tasks"
+msgstr "Gepauzeerde taken"
+
+msgid "Priority"
+msgstr "Prioriteit"
+
+msgid "Ready"
+msgstr "Gereed"
+
+msgid "Ready to run"
+msgstr "Klaar om te draaien"
+
+msgid "Running"
+msgstr "Actief"
+
+msgid "Running now"
+msgstr "Nu actief"
+
 msgid "SD card"
 msgstr "SD-kaart"
+
+msgid "Software"
+msgstr "Software"
+
+msgid "Stack minimum"
+msgstr "Minimale stack"
+
+msgid "State"
+msgstr "Status"
 
 msgid "Storage"
 msgstr "Opslag"
@@ -42,23 +81,32 @@ msgstr "Opslag"
 msgid "Tasks"
 msgstr "Taken"
 
-msgid "blocked"
-msgstr "geblokkeerd"
+msgid "Uptime"
+msgstr "Looptijd"
 
-msgid "deleted"
-msgstr "verwijderd"
+msgid "Vendor"
+msgstr "Fabrikant"
 
-msgid "invalid"
-msgstr "ongeldig"
+msgid "Version {}"
+msgstr "Versie {}"
 
-msgid "ready"
-msgstr "gereed"
+msgid "Waiting"
+msgstr "Wachtend"
 
-msgid "running"
-msgstr "actief"
+msgid "Waiting for something"
+msgstr "Wacht op iets"
 
-msgid "suspended"
-msgstr "onderbroken"
+msgid "{} d {} h"
+msgstr "{} d {} u"
 
 msgid "{} free of {}"
 msgstr "{} vrij van {}"
+
+msgid "{} h {} min"
+msgstr "{} u {} min"
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "{} · {} cores"
+msgstr "{} · {} kernen"

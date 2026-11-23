@@ -1004,6 +1004,9 @@ field {
 field_focused {
     borderColor: @field-focused-border-color;
     borderWidth: @field-focused-border-width;
+    // The padding gives back what the thicker border takes, so the content area of the field keeps its size
+    padHor: ((@field-pad-hor) - ((@field-focused-border-width) - (@field-border-width)));
+    padVer: ((@field-pad-ver) - ((@field-focused-border-width) - (@field-border-width)));
 }
 
 field_placeholder {

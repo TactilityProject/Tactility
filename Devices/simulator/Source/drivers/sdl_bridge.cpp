@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "sdl_bridge.h"
+#include "sdl_display.h"
 #include "sdl_input.h"
 
 #include <tactility/error.h>
@@ -45,6 +46,7 @@ error_t sdl_bridge_present(Device* device, void* internal, int32_t x_start, int3
 void sdl_bridge_run_main_loop() {
     while (true) {
         sdl_input_pump();
+        sdl_display_present_if_requested();
 
         std::unique_lock<std::mutex> lock(job_mutex);
         if (job_ready_cv.wait_for(lock, std::chrono::milliseconds(1), [] { return job_pending; })) {

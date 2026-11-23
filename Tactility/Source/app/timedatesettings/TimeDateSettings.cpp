@@ -1,6 +1,6 @@
 #define L10N_APP "timedatesettings"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/timedatesettings/TimeDateSettings.h>
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/settings/SystemSettings.h>
@@ -52,7 +52,9 @@ struct Context {
     // Guarded by the LVGL lock, and refreshed by the app's task
     bool locationEnabled = false;
     uint32_t pendingTimeZoneDialogId = 0;
-    uint32_t dateFormatDialogId = 0;
+    /** Signaled by the date format dialog, which stores the selected index in dateFormatResult first */
+    uint32_t dateFormatResultBit = 0;
+    int32_t dateFormatResult = WINDOW_DIALOG_DISMISSED;
     // Valid while the window is shown
     lv_obj_t* timeZoneLabel = nullptr;
     lv_obj_t* dateFormatLabel = nullptr;
@@ -108,17 +110,17 @@ void onSelectDateFormatPressed(lv_event_t* event) {
 }
 
 void startDateFormatSelection(Context* ctx) {
-    if (ctx->dateFormatDialogId != 0) {
-        return;
-    }
     const std::vector<std::string> items(std::begin(DATE_FORMATS), std::end(DATE_FORMATS));
-    ctx->dateFormatDialogId = selectiondialog::start(ctx->appInstanceId, tr("Date format"), items);
+    dialog::selection(ctx->appInstanceId, tr("Date format"), items, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->dateFormatResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->dateFormatResultBit);
+    }, ctx);
 }
 
-void onDateFormatSelectionResult(Context* ctx, const AppEvent& event) {
-    ctx->dateFormatDialogId = 0;
+void onDateFormatSelectionResult(Context* ctx) {
     // Other results mean that the dialog was dismissed
-    const int32_t selected = event.result.result;
+    const int32_t selected = ctx->dateFormatResult;
     if (selected >= 0 && selected < static_cast<int32_t>(std::size(DATE_FORMATS))) {
         settings::SystemSettings sysSettings;
         if (settings::loadSystemSettings(sysSettings)) {
@@ -286,6 +288,7 @@ int32_t appMain(int argc, char* argv[]) {
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
     check(task_event_group_claim_bit(&event_group, &ctx.selectDateFormatBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.dateFormatResultBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.gpsSyncChangedBit) == ERROR_NONE);
 
     ctx.hasGps = device_exists_of_type(&GPS_TYPE);
@@ -318,6 +321,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.selectDateFormatBit) {
             startDateFormatSelection(&ctx);
         }
+        if (flags & ctx.dateFormatResultBit) {
+            onDateFormatSelectionResult(&ctx);
+        }
         if (flags & ctx.gpsSyncChangedBit) {
             settings::setGpsTimeSyncAtBoot(ctx.gpsSyncAtBoot);
         }
@@ -329,9 +335,7 @@ int32_t appMain(int argc, char* argv[]) {
                     shouldClose = true;
                     break;
                 case APP_EVENT_RESULT:
-                    if (event.result.launch_id == ctx.dateFormatDialogId) {
-                        onDateFormatSelectionResult(&ctx, event);
-                    } else if (event.result.launch_id == ctx.pendingTimeZoneDialogId) {
+                    if (event.result.launch_id == ctx.pendingTimeZoneDialogId) {
                         ctx.pendingTimeZoneDialogId = 0;
                         if (event.result.result == 0 /* Ok */) {
                             const auto name = timezone::getLastName();

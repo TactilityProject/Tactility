@@ -1,6 +1,6 @@
 #define L10N_APP "wifiapsettings"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/lvgl/Style.h>
 
 #include <app/event.h>
@@ -47,7 +47,8 @@ struct Context {
     lv_obj_t* forgetButton = nullptr;
     lv_obj_t* autoConnectWrapper = nullptr;
 
-    uint32_t forgetDialogId = 0;
+    /** Set by the result of the forget dialog, which is followed by a signal of requestBit */
+    std::atomic<bool> forgetConfirmed = false;
     // Set once in appMain() before subscribing, left null if this device has no WiFi driver
     Device* wifiDevice = nullptr;
     WifiEventSubscription wifiEventSub {};
@@ -129,7 +130,13 @@ void onBackPressed(lv_event_t* event) {
 
 void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->forgetDialogId = alertdialog::start(ctx->appInstanceId, tr("Confirmation"), tr("Forget the Wi-Fi access point?"), std::vector<std::string> { tr("Yes"), tr("No") });
+    dialog::alert(ctx->appInstanceId, tr("Confirmation"), tr("Forget the Wi-Fi access point?"), { tr("Yes"), tr("No") }, [](int32_t button, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        if (button == 0) { // 0 = Yes
+            ctx->forgetConfirmed = true;
+            task_event_group_signal(ctx->eventGroup, ctx->requestBit);
+        }
+    }, ctx);
 }
 
 void onToggleAutoConnect(lv_event_t* event) {
@@ -200,7 +207,7 @@ void updateAutoConnectSection(Context* ctx) {
 // Runs on whichever thread calls it, not necessarily the LVGL task
 void updateViews(Context* ctx) {
     if (ctx->connectButton == nullptr) {
-        // Buried (e.g. the forget confirmation dialog opened on top)
+        // Buried
         return;
     }
     updateConnectButton(ctx);
@@ -377,31 +384,25 @@ int32_t appMain(int argc, char* argv[]) {
 
         handleRequests(&ctx);
 
-        AppEvent event {};
-        while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    if (event.result.launch_id == ctx.forgetDialogId && event.result.result == 0) { // 0 = Yes
-                        if (wifi_settings_remove(ctx.ssid.c_str()) != ERROR_NONE) {
-                            LOG_E(TAG, "Failed to remove SSID");
-                        } else {
-                            LOG_I(TAG, "Removed SSID");
-                            if (isConnectedToSsid(&ctx)) {
-                                disconnectFromAp();
-                            }
-                            shouldClose = true;
-                        }
-                    }
-                    app_manager_stop(event.result.launch_id);
-                    break;
-                default:
-                    break;
+        if (ctx.forgetConfirmed.exchange(false)) {
+            if (wifi_settings_remove(ctx.ssid.c_str()) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to remove SSID");
+            } else {
+                LOG_I(TAG, "Removed SSID");
+                if (isConnectedToSsid(&ctx)) {
+                    disconnectFromAp();
+                }
+                shouldClose = true;
             }
-            if (shouldClose) break;
         }
+
+        AppEvent event {};
+        while (!shouldClose && app_event_poll(&sub, &event) == ERROR_NONE) {
+            if (event.type == APP_EVENT_CLOSE) {
+                shouldClose = true;
+            }
+        }
+        if (shouldClose) break;
 
         if (ctx.wifiDevice != nullptr) {
             WifiEvent wifi_event {};

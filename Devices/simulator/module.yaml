@@ -1,4 +1,5 @@
 dependencies:
   - Platforms/platform-posix
   - Drivers/mock-drivers-module
+  - Drivers/audio-stream-module
 dts: simulator.dts

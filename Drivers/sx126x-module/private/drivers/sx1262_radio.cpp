@@ -40,8 +40,7 @@ constexpr auto SX1262_CAD_TIMEOUT_MILLIS = 500;
 constexpr auto SX1262_LBT_MAX_ATTEMPTS = 5;
 constexpr auto SX1262_LBT_BACKOFF_MIN_MILLIS = 20;
 constexpr auto SX1262_LBT_BACKOFF_MAX_MILLIS = 200;
-// RX callbacks run on the radio thread and may do non-trivial work (e.g. packet decryption)
-constexpr size_t SX1262_THREAD_STACK_SIZE = 8192;
+constexpr size_t SX1262_THREAD_STACK_SIZE = 4096;
 
 const char* toString(enum RadioState state) {
     switch (state) {
@@ -322,6 +321,7 @@ error_t Sx1262Radio::setEnabled(bool enabled) {
             unlock();
             return ERROR_OUT_OF_MEMORY;
         }
+        thread_set_stack_external(thread, true);
         thread_set_priority(thread, THREAD_PRIORITY_HIGH);
 
         if (thread_start(thread) != ERROR_NONE) {

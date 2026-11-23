@@ -2,6 +2,7 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include "system_bars_internal.h"
+#include "window_manager_internal.h"
 
 #include <app/instance.h>
 
@@ -98,6 +99,8 @@ WindowManagerState& state() {
 struct OverlayState {
     lv_obj_t* widget = nullptr;
     lv_group_t* group = nullptr;
+    /** The group that was active before the overlay, which is active again after it */
+    lv_group_t* previous_group = nullptr;
     WindowDestroyWidgetsFn destroy_widgets = nullptr;
     void* user_data = nullptr;
 };
@@ -121,7 +124,8 @@ void hide_overlay_locked() {
     if (overlay.destroy_widgets != nullptr) {
         overlay.destroy_widgets(overlay.user_data);
     }
-    lvgl_keyboard_set_active_group(nullptr);
+    // The keyboard goes back to a dialog that was shown before the overlay, and otherwise to the app
+    lvgl_keyboard_set_active_group(overlay.previous_group != nullptr && overlay.previous_group == dialog_get_group_locked() ? overlay.previous_group : nullptr);
     lv_group_delete(overlay.group);
     // Deleted asynchronously, as this may run inside an event of one of the overlay's widgets
     lv_obj_set_hidden(overlay.widget, true);
@@ -228,6 +232,22 @@ void give_and_release(WindowWaitSignal* signal) {
 }
 
 } // namespace
+
+lv_obj_t* window_manager_get_app_widget_locked(AppInstanceId app_instance_id) {
+    auto& s = state();
+    mutex_lock(&s.mutex);
+    lv_obj_t* widget = (!s.windows.empty() && s.windows.back().app_instance_id == app_instance_id) ? s.top_widget : nullptr;
+    mutex_unlock(&s.mutex);
+    return widget;
+}
+
+lv_obj_t* window_manager_get_content_widget_locked() {
+    auto& s = state();
+    mutex_lock(&s.mutex);
+    lv_obj_t* widget = s.started ? s.content_root_widget : nullptr;
+    mutex_unlock(&s.mutex);
+    return widget;
+}
 
 extern "C" {
 
@@ -399,6 +419,7 @@ error_t window_manager_stop(void) {
 
     // Deleting the real widget cascades to everything under it - chrome and top_widget alike.
     delete_widget(widget, top_destroy_widgets, top_user_data);
+    dialog_reap_tasks();
 
     mutex_unlock(&s.lifecycle_mutex);
     return ERROR_NONE;
@@ -423,6 +444,7 @@ WindowId window_manager_create_ext(AppInstanceId app_instance_id, WindowCreateWi
     // create()/remove()) from touching real_root_widget/content_root_widget/top_widget while
     // this call still holds pointers to them.
     mutex_lock(&s.lifecycle_mutex);
+    dialog_allow_for_app(app_instance_id);
 
     mutex_lock(&s.mutex);
     if (!s.started) {
@@ -497,7 +519,7 @@ void window_manager_remove(WindowId id) {
         mutex_unlock(&s.lifecycle_mutex);
         return;
     }
-    bool was_topmost = (iterator + 1 == s.windows.end());
+    const bool was_topmost = (iterator + 1 == s.windows.end());
     // The window being removed owns its own waiter, if any. A waiter is only ever registered
     // while its window is topmost (see window_manager_await_state_change()); if this window had
     // since stopped being topmost without being removed, window_manager_create() would already
@@ -505,57 +527,71 @@ void window_manager_remove(WindowId id) {
     WindowWaitSignal* waiter = claim_waiter_locked(*iterator);
     WindowDestroyWidgetsFn removed_destroy_widgets = iterator->destroy_widgets;
     void* removed_user_data = iterator->user_data;
+    const AppInstanceId removed_app_instance_id = iterator->app_instance_id;
     s.windows.erase(iterator);
 
-    lv_obj_t* content = s.content_root_widget;
     lv_obj_t* old_widget = nullptr;
-    WindowCreateWidgetsFn next_create_widgets = nullptr;
-    WindowDestroyWidgetsFn next_destroy_widgets = nullptr;
-    void* next_user_data = nullptr;
-    WindowId next_id = 0;
-    bool has_next = false;
 
     if (was_topmost) {
         old_widget = s.top_widget;
         s.top_widget = nullptr;
-        if (!s.windows.empty()) {
-            next_create_widgets = s.windows.back().create_widgets;
-            next_destroy_widgets = s.windows.back().destroy_widgets;
-            next_user_data = s.windows.back().user_data;
-            next_id = s.windows.back().id;
-            has_next = true;
-        }
     }
     mutex_unlock(&s.mutex);
 
     give_and_release(waiter);
 
-    if (!was_topmost) {
-        // A buried window was removed; the topmost window's widgets are unaffected.
-        mutex_unlock(&s.lifecycle_mutex);
-        return;
+    // The app is going away, so its dialog must not call back into it. This also drains dialogs
+    // for a buried window, which has no widget deletion event to close its app's dialog.
+    dialog_cancel_for_app(removed_app_instance_id);
+    if (was_topmost) {
+        delete_widget(old_widget, removed_destroy_widgets, removed_user_data);
     }
 
-    delete_widget(old_widget, removed_destroy_widgets, removed_user_data);
-    lv_obj_t* new_widget = has_next ? build_window_widget(content, next_create_widgets, next_user_data) : nullptr;
-
-    if (has_next && new_widget == nullptr) {
-        // The build is canceled when LVGL stopped before it ran. The window has no widget then, and the next
-        // window_manager_start() builds it again.
-        LOG_E(TAG, "Building the window that resurfaced failed");
-        mutex_unlock(&s.lifecycle_mutex);
-        return;
+    // A result callback already in progress cannot be canceled. Do not retain lifecycle_mutex
+    // while waiting for it: callbacks may need to call unrelated window-manager operations.
+    mutex_unlock(&s.lifecycle_mutex);
+    while (!dialog_wait_for_app(removed_app_instance_id)) {
+        // Keep waiting after the warning timeout; removal cannot release app-owned callback data
+        // while a result callback might still be using it.
     }
+    mutex_lock(&s.lifecycle_mutex);
 
     mutex_lock(&s.mutex);
-    bool still_topmost = has_next && !s.windows.empty() && s.windows.back().id == next_id;
-    if (still_topmost) {
-        s.top_widget = new_widget;
-        new_widget = nullptr; // consumed
+    const bool rebuild_topmost = s.started && s.top_widget == nullptr && !s.windows.empty();
+    lv_obj_t* content = s.started ? s.content_root_widget : nullptr;
+    WindowId next_id = 0;
+    WindowCreateWidgetsFn next_create_widgets = nullptr;
+    WindowDestroyWidgetsFn next_destroy_widgets = nullptr;
+    void* next_user_data = nullptr;
+    if (rebuild_topmost) {
+        const WindowRecord& next = s.windows.back();
+        next_id = next.id;
+        next_create_widgets = next.create_widgets;
+        next_destroy_widgets = next.destroy_widgets;
+        next_user_data = next.user_data;
     }
     mutex_unlock(&s.mutex);
 
-    delete_widget(new_widget, next_destroy_widgets, next_user_data);
+    if (rebuild_topmost) {
+        lv_obj_t* new_widget = build_window_widget(content, next_create_widgets, next_user_data);
+        if (new_widget == nullptr) {
+            // The build is canceled when LVGL stopped before it ran. The window has no widget then, and the next
+            // window_manager_start() builds it again.
+            LOG_E(TAG, "Building the window that resurfaced failed");
+        } else {
+            mutex_lock(&s.mutex);
+            const bool still_topmost = !s.windows.empty() && s.windows.back().id == next_id && s.top_widget == nullptr;
+            if (still_topmost) {
+                s.top_widget = new_widget;
+                new_widget = nullptr; // consumed
+            }
+            mutex_unlock(&s.mutex);
+
+            delete_widget(new_widget, next_destroy_widgets, next_user_data);
+        }
+    }
+
+    dialog_finish_remove_for_app(removed_app_instance_id);
 
     mutex_unlock(&s.lifecycle_mutex);
 }
@@ -642,6 +678,7 @@ error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, Window
         lvgl_unlock();
         return ERROR_OUT_OF_MEMORY;
     }
+    const lv_group_t* previous_group = lv_group_get_default();
     // Widgets created from here on join the overlay's group
     lvgl_keyboard_set_active_group(group);
 
@@ -659,7 +696,7 @@ error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, Window
     lv_obj_add_event_cb(widget, on_overlay_backdrop_clicked, LV_EVENT_CLICKED, nullptr);
     lv_obj_add_event_cb(widget, on_overlay_widget_deleted, LV_EVENT_DELETE, nullptr);
 
-    overlay = OverlayState { widget, group, destroy_widgets, user_data };
+    overlay = OverlayState { widget, group, const_cast<lv_group_t*>(previous_group), destroy_widgets, user_data };
 
     if (create_widgets != nullptr) {
         create_widgets(widget, user_data);

@@ -2,7 +2,7 @@
 
 #include <Tactility/app/TileGrid.h>
 
-#include <app/stream.h>
+#include <lvgl_window_manager/dialog.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/file_ops.h>
 
@@ -28,8 +28,21 @@ class View final {
     FileOpsSubscription fileOpsSub {};
     /** True from queueing a directory read until it completed. Set on the LVGL task, cleared on the app task. */
     ::std::atomic<bool> navigationPending = false;
-    /** The launch id of the overwrite confirmation that waits for an answer, or 0. Only used on the app task. */
-    uint32_t pasteDialogId = 0;
+    /** Signalled on the event group when a dialog was closed, after its result was stored in dialogResult and dialogText */
+    uint32_t dialogBit = 0;
+    /**
+     * What the dialog that is shown is for. Set before it is shown, and reset on the app task when its result was read.
+     * The pending action and its paths belong to that dialog, so no other action is started meanwhile.
+     */
+    enum class DialogOwner { None, Install, Action, Paste };
+    ::std::atomic<DialogOwner> dialogOwner = DialogOwner::None;
+    /** The pressed button, or 0 for OK and 1 for Cancel in a text dialog, or WINDOW_DIALOG_DISMISSED */
+    int32_t dialogResult = WINDOW_DIALOG_DISMISSED;
+    ::std::string dialogText;
+    /** The entry that the rename dialog is for, chosen when it was opened */
+    ::std::string renameTargetPath;
+    /** Whether the overwrite confirmation waits for an answer. Only used on the app task. */
+    bool pasteDialogShown = false;
 
     /** The sources of a paste that still have to be handled, with its destination folder and mode. Only used on the app task. */
     tt::std::vector<tt::std::string> pasteQueue;
@@ -37,9 +50,6 @@ class View final {
     bool pasteIsCut = false;
     /** A line per source of the current paste that failed. Only used on the app task. */
     tt::std::vector<tt::std::string> pasteFailures;
-
-    AppStream inputDialogStream {};
-    uint8_t inputDialogBuffer[256] {};
 
     /** Rasterized file type icons, indexed by FileIcon. Freed after the widgets are gone. */
     lv_draw_buf_t* icons[9] = {};
@@ -70,7 +80,6 @@ class View final {
     lv_obj_t* overflow_button = nullptr;
 
     ::std::string installAppPath = { 0 };
-    uint32_t installDialogId = 0;
 
     static ::std::vector<TileGridItem> collectItems(void* userData);
     static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
@@ -166,7 +175,12 @@ public:
     void onEjectPressed();
     void onRunPressed();
     void onOverlayKey(uint32_t key);
-    void onResult(uint32_t launchId, int32_t result);
+    /** The event group bit that is signalled when the app task has to call onDialogResult() */
+    uint32_t getDialogBit() const { return dialogBit; }
+    /** Stores the result of a dialog and signals the app task. Runs on the task of the dialog. */
+    void onDialogClosed(int32_t result, const char* text);
+    /** Handles the result of the dialog that was closed. Runs on the app task. */
+    void onDialogResult();
 
 private:
 

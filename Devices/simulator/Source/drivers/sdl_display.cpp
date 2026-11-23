@@ -4,6 +4,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
@@ -33,6 +34,14 @@ struct SdlDisplayInternal {
     bool shown_swap_xy = false;
     const SdlDisplayConfig* config = nullptr;
 };
+
+// The simulated backlight, which dims the frame when it is presented. The lowest brightness stays readable.
+// Only turning the display off makes the frame black.
+constexpr uint8_t BRIGHTNESS_FLOOR = 40;
+static std::atomic<uint8_t> g_brightness { 255 };
+static std::atomic<bool> g_display_on { true };
+// Set from any task, and handled by the main thread, which is the only one that may present
+static std::atomic<bool> g_repaint_requested { false };
 
 // Only one sdl-display device exists in the simulator; sdl_input.cpp uses this to map window
 // coordinates back to the fixed logical resolution SDL_RenderSetLogicalSize() scales to the window.
@@ -94,8 +103,25 @@ void sdl_display_present_now(void) {
         return;
     }
     SDL_RenderClear(g_display_internal->renderer);
+    const int brightness = g_display_on.load() ? BRIGHTNESS_FLOOR + g_brightness.load() * (255 - BRIGHTNESS_FLOOR) / 255 : 0;
+    SDL_SetTextureColorMod(g_display_internal->texture, brightness, brightness, brightness);
     SDL_RenderCopy(g_display_internal->renderer, g_display_internal->texture, nullptr, nullptr);
     SDL_RenderPresent(g_display_internal->renderer);
+}
+
+void sdl_display_set_brightness(uint8_t brightness) {
+    g_brightness.store(brightness);
+    g_repaint_requested.store(true);
+}
+
+void sdl_display_present_if_requested(void) {
+    if (g_repaint_requested.exchange(false)) {
+        sdl_display_present_now();
+    }
+}
+
+uint8_t sdl_display_get_brightness(void) {
+    return g_brightness.load();
 }
 
 // region Driver lifecycle
@@ -298,6 +324,21 @@ static bool sdl_display_get_mirror_y(Device* device) {
     return static_cast<SdlDisplayInternal*>(device_get_driver_data(device))->requested_mirror_y.load();
 }
 
+// The backlight device is a child of the display, which only exists when the profile isn't monochrome
+static Device* g_backlight_device = nullptr;
+
+void sdl_display_set_backlight_device(Device* device) {
+    g_backlight_device = device;
+}
+
+static error_t sdl_display_get_backlight(Device*, Device** backlight) {
+    if (g_backlight_device == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    *backlight = g_backlight_device;
+    return ERROR_NONE;
+}
+
 static enum DisplayColorFormat sdl_display_get_color_format(Device* device) {
     return GET_CONFIG(device)->grayscale ? DISPLAY_COLOR_FORMAT_GRAYSCALE8 : DISPLAY_COLOR_FORMAT_RGB565;
 }
@@ -310,10 +351,16 @@ static uint16_t sdl_display_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
+static error_t sdl_display_disp_on_off(Device*, bool on) {
+    g_display_on.store(on);
+    g_repaint_requested.store(true);
+    return ERROR_NONE;
+}
+
 // endregion
 
 static const DisplayApi sdl_display_api = {
-    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY,
+    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY | DISPLAY_CAPABILITY_ON_OFF,
     .reset = sdl_display_reset,
     .init = sdl_display_init,
     .draw_bitmap = sdl_display_draw_bitmap,
@@ -328,14 +375,14 @@ static const DisplayApi sdl_display_api = {
     .get_gap_x = nullptr,
     .get_gap_y = nullptr,
     .invert_color = nullptr,
-    .disp_on_off = nullptr,
+    .disp_on_off = sdl_display_disp_on_off,
     .disp_sleep = nullptr,
     .get_color_format = sdl_display_get_color_format,
     .get_resolution_x = sdl_display_get_resolution_x,
     .get_resolution_y = sdl_display_get_resolution_y,
     .get_frame_buffer = nullptr,
     .get_frame_buffer_count = nullptr,
-    .get_backlight = nullptr,
+    .get_backlight = sdl_display_get_backlight,
     .has_capability = nullptr,
     .get_shape = nullptr,
 };
@@ -352,3 +399,54 @@ Driver sdl_display_driver = {
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr,
 };
+
+// region Backlight
+
+static error_t sdl_backlight_set_brightness(Device*, uint8_t brightness) {
+    sdl_display_set_brightness(brightness);
+    return ERROR_NONE;
+}
+
+static error_t sdl_backlight_set_brightness_default(Device*) {
+    sdl_display_set_brightness(255);
+    return ERROR_NONE;
+}
+
+static error_t sdl_backlight_get_brightness(Device*, uint8_t* brightness) {
+    *brightness = sdl_display_get_brightness();
+    return ERROR_NONE;
+}
+
+static uint8_t sdl_backlight_get_min_brightness(Device*) { return 0; }
+static uint8_t sdl_backlight_get_max_brightness(Device*) { return 255; }
+
+static error_t sdl_backlight_start(Device* device) {
+    sdl_display_set_backlight_device(device);
+    return ERROR_NONE;
+}
+
+static error_t sdl_backlight_stop(Device*) {
+    sdl_display_set_backlight_device(nullptr);
+    return ERROR_NONE;
+}
+
+static const BacklightApi sdl_backlight_api = {
+    .set_brightness = sdl_backlight_set_brightness,
+    .set_brightness_default = sdl_backlight_set_brightness_default,
+    .get_brightness = sdl_backlight_get_brightness,
+    .get_min_brightness = sdl_backlight_get_min_brightness,
+    .get_max_brightness = sdl_backlight_get_max_brightness,
+};
+
+Driver sdl_backlight_driver = {
+    .name = "sdl-backlight",
+    .compatible = (const char*[]) { "tactility,sdl-backlight", nullptr },
+    .start_device = sdl_backlight_start,
+    .stop_device = sdl_backlight_stop,
+    .probe = nullptr,
+    .api = &sdl_backlight_api,
+    .device_type = &BACKLIGHT_TYPE,
+    .internal = nullptr,
+};
+
+// endregion
