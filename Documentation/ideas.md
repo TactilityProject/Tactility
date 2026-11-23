@@ -10,7 +10,6 @@
 
 - "data" and "/data": Rename to "internal"? Find and get rid of hard-coding these names?
 - Copy/paste buffer
-- DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
