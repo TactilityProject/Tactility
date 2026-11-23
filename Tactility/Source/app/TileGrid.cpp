@@ -515,13 +515,17 @@ void TileGrid::populate() {
             const int32_t glyphSize = static_cast<int32_t>(largeFits ? lvgl_get_shared_icon_large_font_height() : lvgl_get_shared_icon_default_font_height());
             lv_obj_set_style_text_font(icon, largeFits ? lvgl_get_shared_icon_large_font() : lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-            lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
+            // The frame centers the glyph in both directions. The glyph's own line height decides its size, not the nominal font height.
+            const int32_t frameSize = layout.iconSize + 2 * layout.framePad;
+            lv_obj_set_size(frame, frameSize, frameSize);
+            lv_obj_set_flex_flow(frame, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(frame, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_size(icon, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
             if (glyphSize > layout.iconSize) {
-                // Not even the smallest font fits, so the glyph is scaled down around its center, which is moved to the center of the box
-                lv_obj_set_style_transform_pivot_x(icon, layout.iconSize / 2, LV_STATE_DEFAULT);
-                lv_obj_set_style_transform_pivot_y(icon, glyphSize / 2, LV_STATE_DEFAULT);
+                // Not even the smallest font fits, so the glyph is scaled down around its center
+                lv_obj_set_style_transform_pivot_x(icon, LV_PCT(50), LV_STATE_DEFAULT);
+                lv_obj_set_style_transform_pivot_y(icon, LV_PCT(50), LV_STATE_DEFAULT);
                 lv_obj_set_style_transform_scale(icon, 256 * layout.iconSize / glyphSize, LV_STATE_DEFAULT);
-                lv_obj_set_style_translate_y(icon, -(glyphSize - layout.iconSize) / 2, LV_STATE_DEFAULT);
             }
             lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
             // A placeholder for an image that isn't loaded yet has the theme's text colour
