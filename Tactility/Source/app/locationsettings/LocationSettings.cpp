@@ -92,8 +92,9 @@ struct Context {
     // Filled by the app's task. The list shows shownSubscribers.
     std::vector<std::string> subscribers;
     std::vector<std::string> shownSubscribers;
-    // Set while a delete confirmation is pending
-    bool hasPendingDelete = false;
+    // Set from a delete button until the app's task has read the confirmation, which belongs to pendingDeleteIndex.
+    // Another delete button is ignored meanwhile, so it can't replace the target of the confirmation.
+    ::std::atomic<bool> hasPendingDelete = false;
     size_t pendingDeleteIndex = 0;
 };
 
@@ -193,15 +194,21 @@ void onAddGpsPressed(lv_event_t*) {
 void onDeleteGpsPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* device = static_cast<Device*>(lv_obj_get_user_data(lv_event_get_target_obj(event)));
+    if (ctx->hasPendingDelete) {
+        return;
+    }
     for (const auto& row : ctx->gpsConfigurationRows) {
         if (row.device == device) {
             ctx->pendingDeleteIndex = row.configurationIndex;
             ctx->hasPendingDelete = true;
-            dialog::alert(ctx->appInstanceId, tr("Confirmation"), i18n::format(tr("Do you want to delete {}?"), { device->name }), { tr("Yes"), tr("No") }, [](int32_t button, void* userData) {
+            const error_t error = dialog::alert(ctx->appInstanceId, tr("Confirmation"), i18n::format(tr("Do you want to delete {}?"), { device->name }), { tr("Yes"), tr("No") }, [](int32_t button, void* userData) {
                 auto* ctx = static_cast<Context*>(userData);
                 ctx->deleteResult = button;
                 task_event_group_signal(ctx->eventGroup, ctx->deleteBit);
             }, ctx);
+            if (error != ERROR_NONE) {
+                ctx->hasPendingDelete = false;
+            }
             return;
         }
     }

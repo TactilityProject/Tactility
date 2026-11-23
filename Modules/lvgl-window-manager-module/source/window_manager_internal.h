@@ -18,16 +18,29 @@ lv_obj_t* window_manager_get_app_widget_locked(AppInstanceId app_instance_id);
 lv_obj_t* window_manager_get_content_widget_locked();
 
 /**
- * Marks the dialogs of the app as canceled, so they don't call their result function.
- * Called before the widgets of a window of the app are deleted.
+ * Begins removing a window of the app: marks its active dialogs as canceled and prevents new
+ * dialogs from being accepted until the removal is finished.
  */
 void dialog_cancel_for_app(AppInstanceId app_instance_id);
 
 /**
- * Waits until the dialog tasks of the app have finished, for a limited time. Call it without holding the LVGL lock.
- * Called after the widgets of a window of the app were deleted.
+ * Re-enables dialogs for an app that is creating a window, unless one of its removals is still
+ * active.
  */
-void dialog_wait_for_app(AppInstanceId app_instance_id);
+void dialog_allow_for_app(AppInstanceId app_instance_id);
+
+/**
+ * Finishes one removal and re-enables dialogs when the app still has a window and no other
+ * removal is active.
+ */
+void dialog_finish_remove_for_app(AppInstanceId app_instance_id, bool app_has_window);
+
+/**
+ * Waits up to the drain timeout for the app's dialog tasks to finish. Returns false on timeout;
+ * callers that require callback-context safety must retry until it returns true. Call without
+ * holding the LVGL or lifecycle locks.
+ */
+bool dialog_wait_for_app(AppInstanceId app_instance_id);
 
 /** Frees the tasks of dialogs that have finished */
 void dialog_reap_tasks();

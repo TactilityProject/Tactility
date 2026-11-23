@@ -345,8 +345,6 @@ struct MenuState {
     lv_obj_t* volumeMuteIcon = nullptr;
     /** The brightness of the display, with a root that is null when the backlight can't be dimmed */
     LevelControl brightness;
-    /** The last brightness that was set, which is saved when the user is done */
-    uint8_t brightnessDuty = 0;
     NotificationPanel* notifications = nullptr;
     size_t notificationTotal = 0;
 };
@@ -638,20 +636,10 @@ static void applyBrightness(int32_t level) {
     }
     const auto duty = static_cast<uint8_t>(settings::display::backlightPercentToBrightness(backlight, level));
     backlight_set_brightness(backlight, duty);
-    menu->brightnessDuty = duty;
-    device_put(backlight);
-}
-
-static void saveBrightness(void* context) {
-    settings::display::saveBacklightDuty(static_cast<uint8_t>(reinterpret_cast<intptr_t>(context)));
-}
-
-/** Saving is file access, so it happens on the worker thread */
-static void commitBrightness() {
-    auto* worker = getToggleWorker();
-    if (worker == nullptr || dispatcher_dispatch(worker->dispatcher, reinterpret_cast<void*>(static_cast<intptr_t>(menu->brightnessDuty)), saveBrightness) != ERROR_NONE) {
+    if (!settings::display::queueSaveBacklightDuty(duty)) {
         LOG_E(TAG, "Failed to queue saving the brightness");
     }
+    device_put(backlight);
 }
 
 // Checked while the sound is on, like the other toggles
@@ -743,7 +731,6 @@ static void createVolumeControl(lv_obj_t* parent) {
 static void createBrightnessControl(lv_obj_t* parent, int32_t level) {
     menu->brightness.step = settings::display::BACKLIGHT_STEP_PERCENT;
     menu->brightness.apply = applyBrightness;
-    menu->brightness.commit = commitBrightness;
     auto* row = createLevelRow(parent, menu->brightness);
 
     const int32_t size = getTileSize();
@@ -878,7 +865,6 @@ static void createControls(lv_obj_t* parent) {
     if (hasBrightness) {
         uint8_t duty = 0;
         if (backlight_get_brightness(backlight, &duty) == ERROR_NONE) {
-            menu->brightnessDuty = duty;
             brightnessLevel = settings::display::backlightBrightnessToPercent(backlight, duty);
         }
     }

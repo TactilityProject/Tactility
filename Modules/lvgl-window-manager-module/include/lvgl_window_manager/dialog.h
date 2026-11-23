@@ -46,7 +46,10 @@ typedef void (*WindowSelectionDialogResultFn)(int32_t item_index, void* user_dat
  *
  * Every dialog runs on a task of its own. The result function is called on that task, after the dialog is gone and the keyboard
  * focus is back with the app. The LVGL lock isn't held then, so the function may take it, show another dialog, or do slow work.
- * When the app removes its window while its dialog is shown, the dialog is closed without calling the result function.
+ * When a window of the app is removed, a result function that hasn't started is suppressed; if it is already running,
+ * window_manager_remove() waits for it to return before the app can release its callback context.
+ * @warning A result function must not synchronously call window_manager_remove() for a window of its app, because removal
+ * waits for the result function to finish. Do not hold locks needed by the result function while removing the window.
  */
 
 /**

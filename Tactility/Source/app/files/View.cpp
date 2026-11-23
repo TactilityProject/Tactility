@@ -357,6 +357,9 @@ void View::viewFile(const ::std::string& path, const ::std::string& filename) {
     LOG_I(TAG, "Clicked %s", file_path.c_str());
 
     if (isSupportedAppFile(filename)) {
+        if (dialogOwner != DialogOwner::None) {
+            return;
+        }
         // install(filename);
         auto message = i18n::format(tr("Do you want to install {}?"), { filename });
         installAppPath = file_path;
@@ -714,16 +717,26 @@ void View::onOverflowPressed() {
 
 void View::onRenamePressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     ::std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
+    renameTargetPath = state->getSelectedChildPath();
     state->setPendingAction(State::ActionRename);
     dialogOwner = DialogOwner::Action;
-    dialog::input(appInstanceId, tr("Rename"), "", entry_name, onInputClosed, this);
+    if (dialog::input(appInstanceId, tr("Rename"), "", entry_name, onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onDeletePressed() {
-    const auto paths = getSelectedPaths();
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
+    const auto paths = getSelectedPaths();
     state->setPendingDeletePaths(paths);
     state->setPendingAction(State::ActionDelete);
     ::std::string message;
@@ -735,23 +748,38 @@ void View::onDeletePressed() {
         message = i18n::format(tr("Do you want to delete these {} items?"), { ::std::to_string(paths.size()) });
     }
     dialogOwner = DialogOwner::Action;
-    dialog::alert(appInstanceId, tr("Are you sure?"), message, { tr("Yes"), tr("No") }, onAlertClosed, this);
+    if (dialog::alert(appInstanceId, tr("Are you sure?"), message, { tr("Yes"), tr("No") }, onAlertClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onNewFilePressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
     dialogOwner = DialogOwner::Action;
-    dialog::input(appInstanceId, tr("New File"), tr("Enter filename:"), "", onInputClosed, this);
+    if (dialog::input(appInstanceId, tr("New File"), tr("Enter filename:"), "", onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onNewFolderPressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
     dialogOwner = DialogOwner::Action;
-    dialog::input(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", onInputClosed, this);
+    if (dialog::input(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
@@ -1215,7 +1243,9 @@ void View::onDialogResult() {
         }
         case State::ActionRename: {
             ::std::string new_name = resultText;
-            if (!new_name.empty() && new_name != state->getSelectedChildEntry()) {
+            // The entry that was chosen when the dialog opened, not the selection of now
+            filepath = renameTargetPath;
+            if (!new_name.empty() && new_name != file::getLastPathSegment(filepath)) {
                 ::std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
                 struct stat st;
                 if (stat(rename_to.c_str(), &st) == 0) {
@@ -1360,8 +1390,8 @@ void View::onPasteRequested() {
     if (!request.has_value()) return;
 
     // The pending destination, source and dialog belong to one paste: a second one waits for the answer
-    if (pasteDialogShown || !pasteQueue.empty()) {
-        LOG_W(TAG, "Paste: another paste is busy, skipping");
+    if (pasteDialogShown || !pasteQueue.empty() || dialogOwner != DialogOwner::None) {
+        LOG_W(TAG, "Paste: another paste or dialog is busy, skipping");
         return;
     }
 

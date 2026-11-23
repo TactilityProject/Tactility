@@ -40,8 +40,14 @@ bool save(const DisplaySettings& settings);
 /** Changes only the orientation of the saved settings. Safe to call while other tasks save. */
 bool saveOrientation(Orientation orientation);
 
+/** Changes only the orientation and auto-rotate setting. Safe to call while other tasks save. */
+bool saveOrientationAndAutoRotate(Orientation orientation, bool autoRotateEnabled);
+
 /** Changes only the backlight duty of the saved settings. Safe to call while other tasks save. */
 bool saveBacklightDuty(uint8_t duty);
+
+/** Queues a coalesced asynchronous save of the latest backlight duty. */
+bool queueSaveBacklightDuty(uint8_t duty);
 
 /** The step of a brightness slider, in percent */
 constexpr int32_t BACKLIGHT_STEP_PERCENT = 10;

@@ -513,12 +513,14 @@ enum class AddType { JoinPublic, JoinPrivate, CreatePrivate };
 
 /** Only offers what the mesh network supports */
 void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const ::std::vector<::std::string>& items) {
-    ctx->selectKind = kind;
-    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+    const error_t error = dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
         ctx->selectResult = selected;
         task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
     }, ctx);
+    if (error == ERROR_NONE) {
+        ctx->selectKind = kind;
+    }
 }
 
 void startAddChannel(Context* ctx) {

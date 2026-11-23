@@ -70,6 +70,11 @@ struct Context {
     int32_t advancedResult = WINDOW_DIALOG_DISMISSED;
     uint32_t selectRadioBit = 0;
     uint32_t radioSettingBits[RADIO_SETTING_COUNT] = {};
+    /**
+     * Set while a dialog is shown or its result isn't read yet, which the app's task does and then clears it.
+     * A request for another dialog meanwhile is ignored, as it would replace what the shown dialog is for.
+     */
+    std::atomic<bool> dialogOpen { false };
     /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
     uint32_t selectResultBit = 0;
     enum class SelectKind { Service, Region, Preset, Radio, RadioSetting } selectKind = SelectKind::Service;
@@ -344,12 +349,16 @@ void onChangeNamePressed(lv_event_t* event) {
 /** Shows a text field. The result is handled by the app's task, as it changes the settings of the mesh. */
 void startTextDialog(Context* ctx, Context::TextKind kind, const char* title, const char* message, const char* prefilled) {
     ctx->textKind = kind;
-    dialog::input(ctx->appInstanceId, title, message, prefilled, [](bool confirmed, const char* text, void* userData) {
+    ctx->dialogOpen = true;
+    const error_t error = dialog::input(ctx->appInstanceId, title, message, prefilled, [](bool confirmed, const char* text, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
         ctx->textConfirmed = confirmed;
         ctx->text = text;
         task_event_group_signal(ctx->eventGroup, ctx->textResultBit);
     }, ctx);
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
+    }
 }
 
 void startNameDialog(Context* ctx) {
@@ -394,11 +403,15 @@ void onSelectPresetPressed(lv_event_t* event) {
 
 void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const std::vector<std::string>& items) {
     ctx->selectKind = kind;
-    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+    ctx->dialogOpen = true;
+    const error_t error = dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
         ctx->selectResult = selected;
         task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
     }, ctx);
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
+    }
 }
 
 void startServiceSelection(Context* ctx) {
@@ -502,7 +515,8 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
 }
 
 void startAdvancedWarning(Context* ctx) {
-    dialog::alert(
+    ctx->dialogOpen = true;
+    const error_t error = dialog::alert(
         ctx->appInstanceId,
         tr("Legal warning"),
         tr("Advanced radio settings can make your radio operate outside the limits that apply in your country or region. You are responsible for following the local regulations. Wrong settings can cause interference and may have legal consequences."),
@@ -514,6 +528,9 @@ void startAdvancedWarning(Context* ctx) {
         },
         ctx
     );
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
+    }
 }
 
 /** Frequency and power are shared, so a change goes to every backend that has presets */
@@ -842,16 +859,18 @@ int32_t appMain(int argc, char* argv[]) {
         uint32_t flags = 0;
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
-        if (flags & ctx.selectServiceBit) {
+        // Requests are checked here, before they change what a dialog stands for. One that comes while a dialog is open is dropped.
+        const auto canStartDialog = [&ctx]() { return !ctx.dialogOpen; };
+        if ((flags & ctx.selectServiceBit) && canStartDialog()) {
             startServiceSelection(&ctx);
         }
-        if (flags & ctx.selectRegionBit) {
+        if ((flags & ctx.selectRegionBit) && canStartDialog()) {
             startRegionSelection(&ctx);
         }
-        if (flags & ctx.selectPresetBit) {
+        if ((flags & ctx.selectPresetBit) && canStartDialog()) {
             startPresetSelection(&ctx, MESHCORE_ID);
         }
-        if (flags & ctx.selectModemPresetBit) {
+        if ((flags & ctx.selectModemPresetBit) && canStartDialog()) {
             startPresetSelection(&ctx, MESHTASTIC_ID);
         }
         if (flags & ctx.rxBoostedGainBit) {
@@ -860,23 +879,25 @@ int32_t appMain(int argc, char* argv[]) {
                 LOG_E(TAG, "Failed to set the RX boosted gain: %s", error_to_string(error));
             }
         }
-        if (flags & ctx.advancedBit) {
+        if ((flags & ctx.advancedBit) && canStartDialog()) {
             startAdvancedWarning(&ctx);
         }
-        if (flags & ctx.changeNameBit) {
+        if ((flags & ctx.changeNameBit) && canStartDialog()) {
             startNameDialog(&ctx);
         }
-        if (flags & ctx.selectRadioBit) {
+        if ((flags & ctx.selectRadioBit) && canStartDialog()) {
             startRadioSelection(&ctx);
         }
         for (size_t i = 0; i < RADIO_SETTING_COUNT; i++) {
-            if (flags & ctx.radioSettingBits[i]) {
+            if ((flags & ctx.radioSettingBits[i]) && canStartDialog()) {
                 startRadioSettingSelection(&ctx, static_cast<RadioSetting>(i));
             }
         }
 
         bool changed = false;
         if (flags & ctx.textResultBit) {
+            // Before the handler, which can show the next dialog
+            ctx.dialogOpen = false;
             switch (ctx.textKind) {
                 case Context::TextKind::Name:
                     onNameDialogResult(&ctx);
@@ -891,6 +912,7 @@ int32_t appMain(int argc, char* argv[]) {
             changed = true;
         }
         if (flags & ctx.selectResultBit) {
+            ctx.dialogOpen = false;
             switch (ctx.selectKind) {
                 case Context::SelectKind::Service:
                     onServiceSelected(&ctx, ctx.selectResult);
@@ -911,6 +933,7 @@ int32_t appMain(int argc, char* argv[]) {
             changed = true;
         }
         if (flags & ctx.advancedResultBit) {
+            ctx.dialogOpen = false;
             onAdvancedWarningResult(&ctx, ctx.advancedResult);
             changed = true;
         }

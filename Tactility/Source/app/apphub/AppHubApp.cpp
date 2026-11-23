@@ -437,7 +437,9 @@ void createFilterTabs(lv_obj_t* parent, Context* ctx) {
         lvgl_tabs_add_tab(ctx->tabs, tr(label));
     }
     // The updates tab stays hidden until there are updates, so it doesn't show up while the apps are loading
+    ctx->mutex.lock();
     const bool hasUpdates = ::std::ranges::any_of(ctx->apps, [](const AppHubApp& app) { return app.update_available; });
+    ctx->mutex.unlock();
     lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::Updates), !hasUpdates);
     if (!isOnlineEnabled()) {
         // Every app that is listed is installed, so the tab would repeat the Installed tab

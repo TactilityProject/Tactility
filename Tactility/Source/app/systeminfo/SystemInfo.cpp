@@ -422,6 +422,9 @@ lv_obj_t* createPane(lv_obj_t* parent) {
 struct StorageVolume {
     std::string name;
     std::string path;
+    /** The capacity when the app started */
+    uint64_t total = 0;
+    uint64_t free = 0;
     UsageCardWidgets card;
 };
 
@@ -439,7 +442,7 @@ bool getStorageUsage(const char* path, uint64_t& total, uint64_t& free) {
 #endif
 }
 
-/** Collects the mounted file systems of which the capacity is known */
+/** Collects the mounted file systems of which the capacity is known. Querying the capacity can be slow, so this isn't for the LVGL task. */
 bool collectStorageVolume(FileSystem* fs, void* context) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     uint64_t total = 0;
@@ -449,7 +452,7 @@ bool collectStorageVolume(FileSystem* fs, void* context) {
     }
     auto* owner = file_system_get_owner(fs);
     const bool sdcard = owner != nullptr && device_get_type(owner) == &SDCARD_TYPE;
-    static_cast<std::vector<StorageVolume>*>(context)->push_back({ sdcard ? tr("SD card") : file_system_get_name(fs), path, {} });
+    static_cast<std::vector<StorageVolume>*>(context)->push_back({ sdcard ? tr("SD card") : file_system_get_name(fs), path, total, free, {} });
     return true;
 }
 
@@ -529,6 +532,8 @@ struct Context {
 
     UsageCardWidgets internalMemCard;
     UsageCardWidgets externalMemCard;
+    /** The mounted file systems and their capacity, read on the app's task before the window is created and never changed after that */
+    std::vector<StorageVolume> storage;
     /** The mounted file systems with a capacity, which have a card each while the widgets exist */
     std::vector<StorageVolume> volumes;
 
@@ -577,11 +582,7 @@ void updateAbout(Context* ctx) {
 
 void updateStorage(Context* ctx) {
     for (auto& volume : ctx->volumes) {
-        uint64_t total = 0;
-        uint64_t free = 0;
-        if (getStorageUsage(volume.path.c_str(), total, free)) {
-            updateUsageCard(volume.card, free, total, 0);
-        }
+        updateUsageCard(volume.card, volume.free, volume.total, 0);
     }
 }
 
@@ -944,7 +945,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // Storage tab content
     ctx->volumes.clear();
     ctx->uptimeLabel = nullptr;
-    file_system_for_each_mounted(&ctx->volumes, collectStorageVolume);
+    ctx->volumes = ctx->storage;
     for (auto& volume : ctx->volumes) {
         createUsageCard(storage_tab, volume.name.c_str(), volume.card);
     }
@@ -1010,12 +1011,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Initial updates
     updateMemory(ctx);
-    updateStorage(ctx);  // Storage: one-time update on show (doesn't change frequently)
+    updateStorage(ctx);  // Storage: from the snapshot of the app start
     updateAbout(ctx);
     updateTasks(ctx);
 }
 
-/** The widgets are deleted when the window is buried, and the timers keep running */
+/** The widgets are deleted when the window is buried. The pointers to them are cleared, and the timers keep running without updating them. */
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->internalMemCard = UsageCardWidgets {};
@@ -1033,6 +1034,7 @@ void destroyWidgets(void* userData) {
     ctx->taskSubtitle = nullptr;
     ctx->taskLegend = nullptr;
 #endif
+    ctx->uptimeLabel = nullptr;
     ctx->tabs = nullptr;
     for (auto*& pane : ctx->panes) {
         pane = nullptr;
@@ -1046,16 +1048,22 @@ int32_t appMain(int argc, char* argv[]) {
 
     // Run for this app instance's whole lifetime (mirrors GpsSettings) - both timers keep the
     // displayed values fresh regardless of whether the app is currently topmost.
+    // The timers can't be stopped when the widgets are destroyed, as stopping waits for a callback that waits for the LVGL lock.
+    // While the widgets don't exist, the callbacks only check for that.
     ctx.memoryTimer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(10000), [&ctx] {
         lvgl_lock();
-        updateMemory(&ctx);
-        updateAbout(&ctx);
+        if (ctx.tabs != nullptr) {
+            updateMemory(&ctx);
+            updateAbout(&ctx);
+        }
         lvgl_unlock();
     });
 
     ctx.tasksTimer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(15000), [&ctx] {
         lvgl_lock();
-        updateTasks(&ctx);
+        if (ctx.tabs != nullptr) {
+            updateTasks(&ctx);
+        }
         lvgl_unlock();
     });
 
@@ -1064,6 +1072,9 @@ int32_t appMain(int argc, char* argv[]) {
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
+
+    // Before the window exists, so the LVGL task never waits for the file systems
+    file_system_for_each_mounted(&ctx.storage, collectStorageVolume);
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
     ctx.memoryTimer->start();   // Memory: every 10s

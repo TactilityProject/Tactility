@@ -10,6 +10,8 @@
 #include <tactility/device.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/file_ops.h>
+#include <tactility/log.h>
 
 #include <algorithm>
 #include <map>
@@ -26,6 +28,17 @@ struct FileMutex {
 
 // The settings app and the auto-rotate service both save, and a save must not overlap a load or another save
 static FileMutex file_mutex;
+
+struct BacklightSaveState {
+    Mutex mutex {};
+    uint8_t duty = 0;
+    bool queued = false;
+
+    BacklightSaveState() { mutex_construct(&mutex); }
+    ~BacklightSaveState() { mutex_destruct(&mutex); }
+};
+
+static BacklightSaveState backlight_save_state;
 
 static std::string getSettingsFilePath() {
     char path[256];
@@ -189,21 +202,43 @@ bool save(const DisplaySettings& settings) {
     return saved;
 }
 
+/** Must be called with file_mutex held */
+static bool loadForPartialSaveUnlocked(DisplaySettings& settings) {
+    switch (loadUnlocked(settings)) {
+        case LoadResult::Loaded:
+            return true;
+        case LoadResult::Missing:
+            settings = getDefault();
+            return true;
+        case LoadResult::Failed:
+            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
+            return false;
+    }
+    return false;
+}
+
 bool saveOrientation(Orientation orientation) {
     mutex_lock(&file_mutex.mutex);
     DisplaySettings settings;
-    switch (loadUnlocked(settings)) {
-        case LoadResult::Loaded:
-            break;
-        case LoadResult::Missing:
-            settings = getDefault();
-            break;
-        case LoadResult::Failed:
-            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
-            mutex_unlock(&file_mutex.mutex);
-            return false;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
     }
     settings.orientation = orientation;
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
+}
+
+bool saveOrientationAndAutoRotate(Orientation orientation, bool autoRotateEnabled) {
+    mutex_lock(&file_mutex.mutex);
+    DisplaySettings settings;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
+    }
+    settings.orientation = orientation;
+    settings.autoRotateEnabled = autoRotateEnabled;
     const bool saved = saveUnlocked(settings);
     mutex_unlock(&file_mutex.mutex);
     return saved;
@@ -212,21 +247,51 @@ bool saveOrientation(Orientation orientation) {
 bool saveBacklightDuty(uint8_t duty) {
     mutex_lock(&file_mutex.mutex);
     DisplaySettings settings;
-    switch (loadUnlocked(settings)) {
-        case LoadResult::Loaded:
-            break;
-        case LoadResult::Missing:
-            settings = getDefault();
-            break;
-        case LoadResult::Failed:
-            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
-            mutex_unlock(&file_mutex.mutex);
-            return false;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
     }
     settings.backlightDuty = duty;
     const bool saved = saveUnlocked(settings);
     mutex_unlock(&file_mutex.mutex);
     return saved;
+}
+
+static void saveLatestBacklightDuty(void*) {
+    for (;;) {
+        mutex_lock(&backlight_save_state.mutex);
+        const uint8_t duty = backlight_save_state.duty;
+        mutex_unlock(&backlight_save_state.mutex);
+
+        if (!saveBacklightDuty(duty)) {
+            LOG_E("DisplaySettings", "Failed to save brightness");
+        }
+
+        mutex_lock(&backlight_save_state.mutex);
+        if (backlight_save_state.duty == duty) {
+            backlight_save_state.queued = false;
+            mutex_unlock(&backlight_save_state.mutex);
+            return;
+        }
+        mutex_unlock(&backlight_save_state.mutex);
+    }
+}
+
+bool queueSaveBacklightDuty(uint8_t duty) {
+    mutex_lock(&backlight_save_state.mutex);
+    backlight_save_state.duty = duty;
+    if (backlight_save_state.queued) {
+        mutex_unlock(&backlight_save_state.mutex);
+        return true;
+    }
+
+    backlight_save_state.queued = true;
+    const error_t result = file_ops_queue(saveLatestBacklightDuty, nullptr, nullptr);
+    if (result != ERROR_NONE) {
+        backlight_save_state.queued = false;
+    }
+    mutex_unlock(&backlight_save_state.mutex);
+    return result == ERROR_NONE;
 }
 
 Device* getBacklight() {

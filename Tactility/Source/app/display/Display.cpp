@@ -52,7 +52,7 @@ constexpr int32_t ORIENTATION_ICON_ROTATIONS[] = { 2700, 0, 900, 1800 };
 struct Context {
     uint32_t appInstanceId;
     settings::display::DisplaySettings displaySettings;
-    bool displaySettingsUpdated = false;
+    bool orientationSettingsUpdated = false;
     TaskEventGroup* eventGroup = nullptr;
     // Widgets, valid while the window is shown
     // Shown when auto-rotate is off or unavailable: the orientation label and chips
@@ -77,8 +77,10 @@ void onBacklightSliderEvent(lv_event_t* event) {
 
     const int32_t percent = lvgl_sliderbox_get_value(slider_box);
     ctx->displaySettings.backlightDuty = static_cast<uint8_t>(settings::display::backlightPercentToBrightness(backlight, percent));
-    ctx->displaySettingsUpdated = true;
     backlight_set_brightness(backlight, ctx->displaySettings.backlightDuty);
+    if (!settings::display::queueSaveBacklightDuty(ctx->displaySettings.backlightDuty)) {
+        LOG_E(TAG, "Failed to queue saving brightness");
+    }
     device_put(backlight);
 }
 
@@ -109,7 +111,7 @@ void onOrientationChipPressed(lv_event_t* event) {
     auto selected_orientation = static_cast<settings::display::Orientation>(selected_index);
     if (selected_orientation != ctx->displaySettings.orientation) {
         ctx->displaySettings.orientation = selected_orientation;
-        ctx->displaySettingsUpdated = true;
+        ctx->orientationSettingsUpdated = true;
         lv_display_set_rotation(lv_display_get_default(), settings::display::toLvglDisplayRotation(selected_orientation));
         setCheckedChip(ctx->orientationChips, selected_orientation);
     }
@@ -120,7 +122,7 @@ void onAutoRotateSwitch(lv_event_t* event) {
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     ctx->displaySettings.autoRotateEnabled = enabled;
-    ctx->displaySettingsUpdated = true;
+    ctx->orientationSettingsUpdated = true;
     updateOrientationVisibility(ctx);
 }
 
@@ -180,6 +182,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     auto* backlight = settings::display::getBacklight();
+    if (backlight != nullptr) {
+        uint8_t current_duty = 0;
+        if (backlight_get_brightness(backlight, &current_duty) == ERROR_NONE) {
+            ctx->displaySettings.backlightDuty = current_duty;
+        }
+    }
 
     auto* toolbar = lvgl_toolbar_create(parent, tr("Display"));
     // The global toolbar nav callback only knows how to stop old-model apps.
@@ -251,16 +259,16 @@ void destroyWidgets(void* userData) {
     ctx->autoRotateSwitch = nullptr;
 }
 
-// Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is
-// giving up its thread for a save/resume cycle, or closing for good) whenever they changed.
+// Persist the non-brightness settings after the window is removed and its widgets can no longer change them.
 struct SaveSettingsJob {
-    settings::display::DisplaySettings settings;
+    settings::display::Orientation orientation;
+    bool autoRotateEnabled;
 };
 
 /** File operation: it runs on the file operations task, which frees the job */
 void saveSettingsInBackground(void* context) {
     auto* job = static_cast<SaveSettingsJob*>(context);
-    settings::display::save(job->settings);
+    settings::display::saveOrientationAndAutoRotate(job->orientation, job->autoRotateEnabled);
     // Notify AutoRotate service to reload settings
     auto autoRotate = service::autorotate::findService();
     if (autoRotate) {
@@ -270,9 +278,9 @@ void saveSettingsInBackground(void* context) {
 }
 
 void persistIfUpdated(Context& ctx) {
-    if (ctx.displaySettingsUpdated) {
+    if (ctx.orientationSettingsUpdated) {
         // Queued, so file IO doesn't block the UI
-        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.displaySettings };
+        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.displaySettings.orientation, ctx.displaySettings.autoRotateEnabled };
         if (job == nullptr || file_ops_queue(saveSettingsInBackground, job, nullptr) != ERROR_NONE) {
             LOG_E(TAG, "Failed to queue saving display settings");
             delete job;
@@ -304,7 +312,6 @@ int32_t appMain(int argc, char* argv[]) {
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
             switch (event.type) {
                 case APP_EVENT_CLOSE:
-                    persistIfUpdated(ctx);
                     shouldClose = true;
                     break;
                 default:
@@ -315,6 +322,7 @@ int32_t appMain(int argc, char* argv[]) {
     }
 
     window_manager_remove(window);
+    persistIfUpdated(ctx);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
 

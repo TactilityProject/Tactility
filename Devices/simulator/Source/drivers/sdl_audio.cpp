@@ -22,6 +22,7 @@ constexpr uint8_t NATIVE_CHANNELS = 2;
 // How much audio may wait in SDL's queue. Writes block beyond it, like a hardware buffer, so apps are paced.
 constexpr uint32_t MAX_QUEUED_MS = 200;
 constexpr uint32_t POLL_MS = 5;
+constexpr uint32_t MAX_DRAIN_MS = 2000;
 
 struct SdlAudioInternal {
     SDL_AudioDeviceID device_id = 0;
@@ -69,6 +70,12 @@ error_t open(Device* device, const AudioCodecStreamConfig* config) {
 error_t close(Device* device) {
     auto* data = GET_DATA(device);
     if (data->device_id != 0) {
+        uint32_t waited_ms = 0;
+        while (SDL_GetQueuedAudioSize(data->device_id) > 0 && waited_ms < MAX_DRAIN_MS) {
+            // A FreeRTOS delay, as a plain sleep would keep the other tasks from running
+            delay_millis(POLL_MS);
+            waited_ms += POLL_MS;
+        }
         SDL_CloseAudioDevice(data->device_id);
         data->device_id = 0;
     }

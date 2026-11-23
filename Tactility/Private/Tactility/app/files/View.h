@@ -30,12 +30,17 @@ class View final {
     ::std::atomic<bool> navigationPending = false;
     /** Signalled on the event group when a dialog was closed, after its result was stored in dialogResult and dialogText */
     uint32_t dialogBit = 0;
-    /** What the dialog that is shown is for. Set before it is shown, and read on the app task after the dialog was closed. */
+    /**
+     * What the dialog that is shown is for. Set before it is shown, and reset on the app task when its result was read.
+     * The pending action and its paths belong to that dialog, so no other action is started meanwhile.
+     */
     enum class DialogOwner { None, Install, Action, Paste };
-    DialogOwner dialogOwner = DialogOwner::None;
+    ::std::atomic<DialogOwner> dialogOwner = DialogOwner::None;
     /** The pressed button, or 0 for OK and 1 for Cancel in a text dialog, or WINDOW_DIALOG_DISMISSED */
     int32_t dialogResult = WINDOW_DIALOG_DISMISSED;
     ::std::string dialogText;
+    /** The entry that the rename dialog is for, chosen when it was opened */
+    ::std::string renameTargetPath;
     /** Whether the overwrite confirmation waits for an answer. Only used on the app task. */
     bool pasteDialogShown = false;
 

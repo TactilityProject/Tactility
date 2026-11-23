@@ -5,7 +5,6 @@
 #include <Tactility/app/dialog/Dialog.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 
@@ -16,6 +15,8 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -25,8 +26,6 @@
 
 #include <atomic>
 #include <cstring>
-#include <string>
-#include <vector>
 
 namespace tt::app::softwaresettings {
 
@@ -44,7 +43,7 @@ enum class Request : int32_t {
 };
 
 struct RepositoryItem {
-    std::string url;
+    ::std::string url;
     bool enabled;
     bool official;
 };
@@ -54,15 +53,15 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t requestBit = 0;
     /** What the widgets show. Filled by the app's task, with the LVGL lock held while the widgets use it. */
-    std::vector<RepositoryItem> repositories;
+    ::std::vector<RepositoryItem> repositories;
     /** Set by the widgets, handled by the app's task because the repositories are stored in files */
-    std::atomic<Request> request { Request::None };
-    std::atomic<size_t> requestIndex { 0 };
-    std::atomic<bool> requestEnabled { false };
+    ::std::atomic<Request> request { Request::None };
+    ::std::atomic<size_t> requestIndex { 0 };
+    ::std::atomic<bool> requestEnabled { false };
     /** Signaled by the address dialog, which stores its result in addressConfirmed and addressText first */
     uint32_t addressBit = 0;
     bool addressConfirmed = false;
-    std::string addressText;
+    ::std::string addressText;
     /** nullptr while the widgets don't exist */
     lv_obj_t* list = nullptr;
 };
@@ -109,7 +108,7 @@ lv_obj_t* createRow(lv_obj_t* parent) {
 }
 
 /** @return "Tactility" for the official repository, otherwise the host name of the address */
-std::string getName(const RepositoryItem& repository) {
+::std::string getName(const RepositoryItem& repository) {
     if (repository.official) {
         return "Tactility";
     }
@@ -195,13 +194,13 @@ void destroyWidgets(void* userData) {
 
 /** Reads the repositories. It reads storage, so it is called without the LVGL lock. */
 void loadRepositories(Context* ctx) {
-    std::vector<RepositoryItem> repositories;
+    ::std::vector<RepositoryItem> repositories;
     app_hub_repository_for_each([](const AppHubRepository* repository, void* context) {
         static_cast<std::vector<RepositoryItem>*>(context)->push_back({ repository->url, repository->enabled, repository->official });
         return true;
     }, &repositories);
     lvgl_lock();
-    ctx->repositories = std::move(repositories);
+    ctx->repositories = ::std::move(repositories);
     if (ctx->list != nullptr) {
         populateList(ctx);
     }
@@ -285,7 +284,7 @@ void handleRequest(Context* ctx) {
             if (index >= ctx->repositories.size()) {
                 return;
             }
-            const std::string url = ctx->repositories[index].url;
+            const ::std::string url = ctx->repositories[index].url;
             const error_t error = request == Request::Remove ? app_hub_repository_remove(url.c_str()) : app_hub_repository_set_enabled(url.c_str(), ctx->requestEnabled);
             if (error != ERROR_NONE) {
                 LOG_E(TAG, "Failed to change %s: %s", url.c_str(), error_to_string(error));

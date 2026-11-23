@@ -13,6 +13,10 @@
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/list.h>
 
+#include <tactility/Memory.hpp>
+#include <tactility/std/vector.hpp>
+
+#include <tactility/check.h>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/thread.h>
 #include <tactility/delay.h>
@@ -74,17 +78,37 @@ struct DialogManager {
     Mutex mutex {};
     /** The dialog that is shown, which is guarded by the LVGL lock instead */
     Dialog* shown = nullptr;
-    /** The dialogs that have a task that hasn't finished */
-    std::vector<Dialog*> active;
+    /** Admitted dialogs whose startup or task has not finished */
+    tt::std::vector<Dialog*> active;
     /** Threads that have finished, as a thread can't free itself */
-    std::vector<Thread*> finishedThreads;
+    tt::std::vector<Thread*> finishedThreads;
+    /** Apps whose windows are being removed or have been removed */
+    tt::std::vector<AppInstanceId> canceledApps;
+    /** Active window removals, including removals temporarily waiting without lifecycle_mutex */
+    tt::std::vector<AppInstanceId> removingApps;
 
     DialogManager() { mutex_construct(&mutex); }
 };
 
 DialogManager& manager() {
-    static DialogManager instance;
-    return instance;
+    static DialogManager* instance = tt::newObject<DialogManager>();
+    check(instance != nullptr);
+    return *instance;
+}
+
+bool app_is_canceled_locked(const DialogManager& m, AppInstanceId app_instance_id) {
+    return std::find(m.canceledApps.begin(), m.canceledApps.end(), app_instance_id) != m.canceledApps.end();
+}
+
+bool app_is_removing_locked(const DialogManager& m, AppInstanceId app_instance_id) {
+    return std::find(m.removingApps.begin(), m.removingApps.end(), app_instance_id) != m.removingApps.end();
+}
+
+void allow_app_dialogs_locked(DialogManager& m, AppInstanceId app_instance_id) {
+    if (app_is_removing_locked(m, app_instance_id)) {
+        return;
+    }
+    m.canceledApps.erase(std::remove(m.canceledApps.begin(), m.canceledApps.end(), app_instance_id), m.canceledApps.end());
 }
 
 // region Closing
@@ -546,45 +570,47 @@ error_t start_dialog(Dialog* dialog) {
     }
 
     lvgl_lock();
+    mutex_lock(&m.mutex);
     const bool has_window = window_manager_get_app_widget_locked(dialog->appInstanceId) != nullptr;
     const bool overlay_shown = window_manager_get_active_layer() == WINDOW_LAYER_OVERLAY;
     // The slot is claimed here, so a second call is refused right away
     const bool busy = m.shown != nullptr;
-    if (has_window && !overlay_shown && !busy) {
+    const bool canceled = app_is_canceled_locked(m, dialog->appInstanceId);
+    if (has_window && !overlay_shown && !busy && !canceled) {
         m.shown = dialog;
+        // Cancellation uses the same mutex, so it cannot pass a validated but unregistered dialog
+        // even if the window is invalidated before removal takes the LVGL lock.
+        m.active.push_back(dialog);
     }
+    mutex_unlock(&m.mutex);
     lvgl_unlock();
-    if (!has_window || overlay_shown || busy) {
+    if (!has_window || overlay_shown || busy || canceled) {
         vSemaphoreDelete(dialog->closedSignal);
         delete dialog;
-        return has_window ? ERROR_RESOURCE_BUSY : ERROR_INVALID_STATE;
+        return has_window && !canceled ? ERROR_RESOURCE_BUSY : ERROR_INVALID_STATE;
     }
 
-    auto release_slot = [&m, dialog]() {
+    auto rollback_admission = [&m, dialog]() {
         lvgl_lock();
         if (m.shown == dialog) {
             m.shown = nullptr;
         }
         lvgl_unlock();
+        mutex_lock(&m.mutex);
+        m.active.erase(std::remove(m.active.begin(), m.active.end(), dialog), m.active.end());
+        mutex_unlock(&m.mutex);
     };
 
     dialog->thread = thread_alloc_full("dialog", DIALOG_TASK_STACK_SIZE, dialog_main, dialog, -1);
     if (dialog->thread == nullptr) {
-        release_slot();
+        rollback_admission();
         vSemaphoreDelete(dialog->closedSignal);
         delete dialog;
         return ERROR_OUT_OF_MEMORY;
     }
 
-    mutex_lock(&m.mutex);
-    m.active.push_back(dialog);
-    mutex_unlock(&m.mutex);
-
     if (thread_start(dialog->thread) != ERROR_NONE) {
-        mutex_lock(&m.mutex);
-        m.active.erase(std::remove(m.active.begin(), m.active.end(), dialog), m.active.end());
-        mutex_unlock(&m.mutex);
-        release_slot();
+        rollback_admission();
         vSemaphoreDelete(dialog->closedSignal);
         thread_free(dialog->thread);
         delete dialog;
@@ -598,18 +624,50 @@ error_t start_dialog(Dialog* dialog) {
 
 // region Internal
 
+void dialog_allow_for_app(AppInstanceId app_instance_id) {
+    auto& m = manager();
+    mutex_lock(&m.mutex);
+    allow_app_dialogs_locked(m, app_instance_id);
+    mutex_unlock(&m.mutex);
+}
+
 void dialog_cancel_for_app(AppInstanceId app_instance_id) {
     auto& m = manager();
     mutex_lock(&m.mutex);
+    if (!app_is_canceled_locked(m, app_instance_id)) {
+        m.canceledApps.push_back(app_instance_id);
+    }
+    m.removingApps.push_back(app_instance_id);
     for (Dialog* dialog : m.active) {
         if (dialog->appInstanceId == app_instance_id) {
             dialog->canceled.store(true);
         }
     }
     mutex_unlock(&m.mutex);
+
+    // A buried window has no widget deletion event to close its app's dialog.
+    lvgl_lock();
+    Dialog* shown = m.shown;
+    if (shown != nullptr && shown->appInstanceId == app_instance_id) {
+        close_dialog_locked(shown, WINDOW_DIALOG_DISMISSED, false);
+    }
+    lvgl_unlock();
 }
 
-void dialog_wait_for_app(AppInstanceId app_instance_id) {
+void dialog_finish_remove_for_app(AppInstanceId app_instance_id, bool app_has_window) {
+    auto& m = manager();
+    mutex_lock(&m.mutex);
+    auto removal = std::find(m.removingApps.begin(), m.removingApps.end(), app_instance_id);
+    if (removal != m.removingApps.end()) {
+        m.removingApps.erase(removal);
+    }
+    if (app_has_window && !app_is_removing_locked(m, app_instance_id)) {
+        m.canceledApps.erase(std::remove(m.canceledApps.begin(), m.canceledApps.end(), app_instance_id), m.canceledApps.end());
+    }
+    mutex_unlock(&m.mutex);
+}
+
+bool dialog_wait_for_app(AppInstanceId app_instance_id) {
     auto& m = manager();
     for (uint32_t waited_ms = 0; waited_ms < WAIT_FOR_APP_TIMEOUT_MS; waited_ms += 5) {
         bool found = false;
@@ -619,11 +677,12 @@ void dialog_wait_for_app(AppInstanceId app_instance_id) {
         }
         mutex_unlock(&m.mutex);
         if (!found) {
-            return;
+            return true;
         }
         delay_millis(5);
     }
     LOG_W(TAG, "A dialog of app %u is still running", static_cast<unsigned>(app_instance_id));
+    return false;
 }
 
 void dialog_reap_tasks() {

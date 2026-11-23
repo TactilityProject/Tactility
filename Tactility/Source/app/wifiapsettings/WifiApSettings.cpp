@@ -48,7 +48,7 @@ struct Context {
     lv_obj_t* autoConnectWrapper = nullptr;
 
     /** Set by the result of the forget dialog, which is followed by a signal of requestBit */
-    bool forgetConfirmed = false;
+    std::atomic<bool> forgetConfirmed = false;
     // Set once in appMain() before subscribing, left null if this device has no WiFi driver
     Device* wifiDevice = nullptr;
     WifiEventSubscription wifiEventSub {};
@@ -384,8 +384,7 @@ int32_t appMain(int argc, char* argv[]) {
 
         handleRequests(&ctx);
 
-        if (ctx.forgetConfirmed) {
-            ctx.forgetConfirmed = false;
+        if (ctx.forgetConfirmed.exchange(false)) {
             if (wifi_settings_remove(ctx.ssid.c_str()) != ERROR_NONE) {
                 LOG_E(TAG, "Failed to remove SSID");
             } else {

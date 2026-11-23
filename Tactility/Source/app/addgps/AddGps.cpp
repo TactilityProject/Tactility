@@ -22,6 +22,8 @@
 #include <gps/gps.h>
 #include <gps/gps_settings.h>
 
+#include "SelectionState.h"
+
 #include <array>
 #include <cstring>
 #include <lvgl.h>
@@ -42,10 +44,9 @@ struct Context {
     uint32_t selectUartBit = 0;
     uint32_t selectModelBit = 0;
     uint32_t selectBaudBit = 0;
-    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    /** Signaled after a selection dialog stores its result and originating kind. */
     uint32_t selectResultBit = 0;
-    enum class SelectKind { Uart, Model, Baud } selectKind = SelectKind::Uart;
-    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
+    SelectionState selectionState;
 
     // Committed state, which survives widget rebuilds
     std::string uartName;
@@ -234,12 +235,12 @@ void destroyWidgets(void* userData) {
     ctx->baudValueLabel = nullptr;
 }
 
-void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const std::vector<std::string>& items) {
-    ctx->selectKind = kind;
-    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+error_t startSelection(Context* ctx, const char* title, const std::vector<std::string>& items) {
+    return dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
-        ctx->selectResult = selected;
-        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+        if (ctx->selectionState.complete(selected)) {
+            task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+        }
     }, ctx);
 }
 
@@ -267,45 +268,87 @@ int32_t appMain(int argc, char* argv[]) {
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
+    bool retrySelectionStart = false;
     while (!shouldClose) {
         uint32_t flags = 0;
-        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+        task_event_group_wait_any(&event_group, &flags, retrySelectionStart ? pdMS_TO_TICKS(50) : portMAX_DELAY);
 
-        if (flags & ctx.selectUartBit) {
-            ctx.uartNames = getUartNames();
-            if (ctx.uartNames.empty()) {
-                dialog::alert(ctx.appInstanceId, tr("Error"), tr("No bus/uart found."));
-            } else {
-                startSelection(&ctx, Context::SelectKind::Uart, tr("Bus"), ctx.uartNames);
-            }
-        }
-        if (flags & ctx.selectModelBit) {
-            startSelection(&ctx, Context::SelectKind::Model, tr("Model"), getModelNames());
-        }
-        if (flags & ctx.selectBaudBit) {
-            startSelection(&ctx, Context::SelectKind::Baud, tr("Baud"), getBaudNames(&ctx));
-        }
+        // Consume a completed selection before adding or starting newer requests.
+        bool resultConsumed = false;
         if (flags & ctx.selectResultBit) {
-            switch (ctx.selectKind) {
-                case Context::SelectKind::Uart: {
-                    auto selected = getSelectionResult(ctx.selectResult, ctx.uartNames.size());
-                    if (selected >= 0) ctx.uartName = ctx.uartNames[selected];
-                    break;
-                }
-                case Context::SelectKind::Model: {
-                    auto selected = getSelectionResult(ctx.selectResult, getModelNames().size());
-                    if (selected >= 0) ctx.modelIndex = selected;
-                    break;
-                }
-                case Context::SelectKind::Baud: {
-                    auto selected = getSelectionResult(ctx.selectResult, ctx.baudRates.size());
-                    if (selected >= 0) ctx.baudIndex = selected;
-                    break;
+            SelectionState::Result result {};
+            if (ctx.selectionState.takeResult(result)) {
+                resultConsumed = true;
+                switch (result.kind) {
+                    case SelectionState::Kind::Uart: {
+                        auto selected = getSelectionResult(result.selected, ctx.uartNames.size());
+                        if (selected >= 0) ctx.uartName = ctx.uartNames[selected];
+                        break;
+                    }
+                    case SelectionState::Kind::Model: {
+                        auto selected = getSelectionResult(result.selected, getModelNames().size());
+                        if (selected >= 0) ctx.modelIndex = selected;
+                        break;
+                    }
+                    case SelectionState::Kind::Baud: {
+                        auto selected = getSelectionResult(result.selected, ctx.baudRates.size());
+                        if (selected >= 0) ctx.baudIndex = selected;
+                        break;
+                    }
                 }
             }
+        }
+
+        if (flags & ctx.selectUartBit) ctx.selectionState.request(SelectionState::Kind::Uart);
+        if (flags & ctx.selectModelBit) ctx.selectionState.request(SelectionState::Kind::Model);
+        if (flags & ctx.selectBaudBit) ctx.selectionState.request(SelectionState::Kind::Baud);
+
+        if (resultConsumed) {
             lvgl_lock();
             updateViews(&ctx);
             lvgl_unlock();
+        }
+
+        SelectionState::Kind kind;
+        while (ctx.selectionState.beginNext(kind)) {
+            const char* title = nullptr;
+            std::vector<std::string> items;
+            error_t error = ERROR_NONE;
+            switch (kind) {
+                case SelectionState::Kind::Uart:
+                    ctx.uartNames = getUartNames();
+                    if (ctx.uartNames.empty()) {
+                        ctx.selectionState.failStart();
+                        dialog::alert(ctx.appInstanceId, tr("Error"), tr("No bus/uart found."));
+                        continue;
+                    }
+                    title = tr("Bus");
+                    error = startSelection(&ctx, title, ctx.uartNames);
+                    break;
+                case SelectionState::Kind::Model:
+                    title = tr("Model");
+                    items = getModelNames();
+                    error = startSelection(&ctx, title, items);
+                    break;
+                case SelectionState::Kind::Baud:
+                    title = tr("Baud");
+                    items = getBaudNames(&ctx);
+                    error = startSelection(&ctx, title, items);
+                    break;
+            }
+            if (error != ERROR_NONE) {
+                ctx.selectionState.failStart();
+                if (error == ERROR_RESOURCE_BUSY) {
+                    ctx.selectionState.request(kind);
+                    retrySelectionStart = true;
+                    break;
+                }
+                retrySelectionStart = false;
+                LOG_E(TAG, "Failed to show selection dialog: %s", error_to_string(error));
+                continue;
+            }
+            retrySelectionStart = false;
+            break;
         }
 
         AppEvent event {};
