@@ -557,9 +557,6 @@ void window_manager_remove(WindowId id) {
     mutex_lock(&s.lifecycle_mutex);
 
     mutex_lock(&s.mutex);
-    const bool app_has_window = std::ranges::any_of(s.windows, [removed_app_instance_id](const WindowRecord& window) {
-        return window.app_instance_id == removed_app_instance_id;
-    });
     const bool rebuild_topmost = s.started && s.top_widget == nullptr && !s.windows.empty();
     lv_obj_t* content = s.started ? s.content_root_widget : nullptr;
     WindowId next_id = 0;
@@ -594,7 +591,7 @@ void window_manager_remove(WindowId id) {
         }
     }
 
-    dialog_finish_remove_for_app(removed_app_instance_id, app_has_window);
+    dialog_finish_remove_for_app(removed_app_instance_id);
 
     mutex_unlock(&s.lifecycle_mutex);
 }

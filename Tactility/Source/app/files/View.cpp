@@ -1199,10 +1199,11 @@ void View::onNavigate() {
 void View::onDialogResult() {
     const DialogOwner owner = dialogOwner;
     const int32_t result = dialogResult;
+    const ::std::string installPath = installAppPath;
     dialogOwner = DialogOwner::None;
     if (owner == DialogOwner::Install) {
         if (result == 0) {
-            app_install(installAppPath.c_str());
+            app_install(installPath.c_str());
         }
         return;
     }

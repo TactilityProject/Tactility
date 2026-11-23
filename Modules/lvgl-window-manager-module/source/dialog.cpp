@@ -82,7 +82,7 @@ struct DialogManager {
     tt::std::vector<Dialog*> active;
     /** Threads that have finished, as a thread can't free itself */
     tt::std::vector<Thread*> finishedThreads;
-    /** Apps whose windows are being removed or have been removed */
+    /** Apps whose dialogs are canceled during an active window removal */
     tt::std::vector<AppInstanceId> canceledApps;
     /** Active window removals, including removals temporarily waiting without lifecycle_mutex */
     tt::std::vector<AppInstanceId> removingApps;
@@ -576,6 +576,7 @@ error_t start_dialog(Dialog* dialog) {
     // The slot is claimed here, so a second call is refused right away
     const bool busy = m.shown != nullptr;
     const bool canceled = app_is_canceled_locked(m, dialog->appInstanceId);
+    // Keep rejecting windowless apps independently of cancellation bookkeeping.
     if (has_window && !overlay_shown && !busy && !canceled) {
         m.shown = dialog;
         // Cancellation uses the same mutex, so it cannot pass a validated but unregistered dialog
@@ -631,6 +632,14 @@ void dialog_allow_for_app(AppInstanceId app_instance_id) {
     mutex_unlock(&m.mutex);
 }
 
+bool dialog_is_app_canceled(AppInstanceId app_instance_id) {
+    auto& m = manager();
+    mutex_lock(&m.mutex);
+    const bool canceled = app_is_canceled_locked(m, app_instance_id);
+    mutex_unlock(&m.mutex);
+    return canceled;
+}
+
 void dialog_cancel_for_app(AppInstanceId app_instance_id) {
     auto& m = manager();
     mutex_lock(&m.mutex);
@@ -654,14 +663,14 @@ void dialog_cancel_for_app(AppInstanceId app_instance_id) {
     lvgl_unlock();
 }
 
-void dialog_finish_remove_for_app(AppInstanceId app_instance_id, bool app_has_window) {
+void dialog_finish_remove_for_app(AppInstanceId app_instance_id) {
     auto& m = manager();
     mutex_lock(&m.mutex);
     auto removal = std::find(m.removingApps.begin(), m.removingApps.end(), app_instance_id);
     if (removal != m.removingApps.end()) {
         m.removingApps.erase(removal);
     }
-    if (app_has_window && !app_is_removing_locked(m, app_instance_id)) {
+    if (!app_is_removing_locked(m, app_instance_id)) {
         m.canceledApps.erase(std::remove(m.canceledApps.begin(), m.canceledApps.end(), app_instance_id), m.canceledApps.end());
     }
     mutex_unlock(&m.mutex);

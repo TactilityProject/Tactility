@@ -6,10 +6,8 @@
 #include <Tactility/app/qrcode/QrCode.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-#include <app/stream.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -34,9 +32,10 @@
 #include <lvgl/widgets/tabs.h>
 #include <lvgl/widgets/toolbar.h>
 
+#include "SelectionState.h"
+
 #include <atomic>
 #include <cmath>
-#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -70,19 +69,18 @@ struct Context {
     ViewMode lastTab = ViewMode::Channels;
     /** Written by the LVGL thread before it signals openBit */
     ::std::atomic<int32_t> openIndex = 0;
-    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    /** Signaled after a selection dialog stores its result and originating kind. */
     uint32_t selectResultBit = 0;
-    enum class SelectKind { Menu, AddContact, AddType, PathContact } selectKind = SelectKind::Menu;
-    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
+    SelectionState selectionState;
     /** The kind of channel for each option of the open selection dialog */
-    ::std::vector<int> addTypes;
+    tt::std::vector<int> addTypes;
     /** Whether the mesh network supports any way to add a channel. Read by the app's task. */
     bool canAddChannel = false;
     /** Signaled by a text dialog, which stores what it was for in textKind, and its result in textConfirmed and text, first */
     uint32_t textResultBit = 0;
     enum class TextKind { JoinChannel, CreateChannel, PrivateName, PrivateKey, ContactName, ContactKey, Path } textKind = TextKind::JoinChannel;
     bool textConfirmed = false;
-    ::std::string text;
+    tt::std::string text;
     /** Whether the open path flow resets the path instead of setting it */
     bool pathReset = false;
     /** The contact that the path flow is about */
@@ -92,9 +90,9 @@ struct Context {
     /** The action of each option of the open menu */
     tt::std::vector<int> menuItems;
     /** The name that was entered while the key is asked */
-    ::std::string pendingChannelName;
+    tt::std::string pendingChannelName;
     /** The name that was entered while the key is asked */
-    ::std::string pendingContactName;
+    tt::std::string pendingContactName;
     tt::std::vector<MeshChannel> channels;
     tt::std::vector<MeshContact> contacts;
     /** The unread messages of each channel and contact, in the order of the lists */
@@ -391,7 +389,7 @@ void setMode(Context* ctx, ViewMode mode) {
     lvgl_unlock();
 }
 
-::std::string formatSignal(float rssi, float snr) {
+tt::std::string formatSignal(float rssi, float snr) {
     char text[40];
     if (::std::isnan(snr)) {
         snprintf(text, sizeof(text), "%.0f dBm", rssi);
@@ -416,16 +414,16 @@ const char* getDeliveryName(MeshDeliveryState delivery) {
 }
 
 /** Queries the service, so it's called without the LVGL lock */
-::std::string formatMessage(const Context* ctx, uint32_t seq) {
+tt::std::string formatMessage(const Context* ctx, uint32_t seq) {
     auto* message = tt::newObject<MeshMessage>();
     if (message == nullptr) {
         return "";
     }
-    ::std::string line;
+    tt::std::string line;
     if (mesh_message_get(seq, message) == ERROR_NONE) {
-        ::std::string target = addressToHex(message->peer).substr(0, 8);
+        tt::std::string target = addressToHex(message->peer).substr(0, 8).c_str();
         if (message->peer.length == 0) {
-            target = "channel " + ::std::to_string(message->channel);
+            target = tt::std::string("channel ") + ::std::to_string(message->channel).c_str();
             for (const auto& channel : ctx->channels) {
                 if (channel.index == message->channel) {
                     target = channel.name;
@@ -435,7 +433,7 @@ const char* getDeliveryName(MeshDeliveryState delivery) {
         if (message->outgoing) {
             line = "> " + target + ": " + message->text;
         } else {
-            line = ::std::string("< ") + (message->sender_name[0] != '\0' ? message->sender_name : "?") + " (" + target + ", " +
+            line = tt::std::string("< ") + (message->sender_name[0] != '\0' ? message->sender_name : "?") + " (" + target + ", " +
                 formatSignal(message->rssi, message->snr) + "): " + message->text;
         }
     }
@@ -444,28 +442,28 @@ const char* getDeliveryName(MeshDeliveryState delivery) {
 }
 
 /** Frames that couldn't be read are encrypted for a key that this node doesn't have */
-::std::string formatEvent(const Context* ctx, const MeshEvent& event) {
+tt::std::string formatEvent(const Context* ctx, const MeshEvent& event) {
     switch (event.type) {
         case MESH_EVENT_MESSAGE:
             return formatMessage(ctx, event.seq);
         case MESH_EVENT_FRAME:
             if (event.frame.kind == MESH_FRAME_ADVERT) {
-                return "< advert " + addressToHex(event.frame.from).substr(0, 8) + " (" + formatSignal(event.frame.rssi, event.frame.snr) + "): " +
+                return tt::std::string("< advert ") + addressToHex(event.frame.from).substr(0, 8).c_str() + " (" + formatSignal(event.frame.rssi, event.frame.snr) + "): " +
                     (event.frame.name[0] != '\0' ? event.frame.name : "[no name]");
             }
-            return "< (" + formatSignal(event.frame.rssi, event.frame.snr) + "): [encrypted: " + ::std::to_string(event.frame.length) + " bytes]";
+            return tt::std::string("< (") + formatSignal(event.frame.rssi, event.frame.snr) + "): [encrypted: " + ::std::to_string(event.frame.length).c_str() + " bytes]";
         case MESH_EVENT_DELIVERY:
-            return "#" + ::std::to_string(event.seq) + " " + getDeliveryName(event.delivery);
+            return tt::std::string("#") + ::std::to_string(event.seq).c_str() + " " + getDeliveryName(event.delivery);
         case MESH_EVENT_STATE:
-            return ::std::string("state: ") + mesh_state_to_string(event.state);
+            return tt::std::string("state: ") + mesh_state_to_string(event.state);
         default:
             return "";
     }
 }
 
-void addInspectLine(Context* ctx, ::std::string&& line) {
+void addInspectLine(Context* ctx, tt::std::string&& line) {
     lvgl_lock();
-    ctx->inspectLines.push_back(tt::std::string(line.c_str()));
+    ctx->inspectLines.push_back(::std::move(line));
     const bool trimmed = ctx->inspectLines.size() > INSPECT_LINE_LIMIT;
     if (trimmed) {
         ctx->inspectLines.pop_front();
@@ -483,11 +481,11 @@ void addInspectLine(Context* ctx, ::std::string&& line) {
 void startConversation(Context* ctx) {
     const auto index = (size_t)ctx->openIndex.load();
     if (ctx->mode == ViewMode::Channels && index < ctx->channels.size()) {
-        const ::std::string channelIndex = ::std::to_string(ctx->channels[index].index);
+        const tt::std::string channelIndex = ::std::to_string(ctx->channels[index].index).c_str();
         const char* argv[] = { KIND_CHANNEL, channelIndex.c_str(), ctx->channels[index].name };
         startApp(CONVERSATION_APP_ID, 3, argv);
     } else if (ctx->mode == ViewMode::Contacts && index < ctx->contacts.size()) {
-        const ::std::string address = addressToHex(ctx->contacts[index].address);
+        const tt::std::string address = addressToHex(ctx->contacts[index].address).c_str();
         const char* argv[] = { KIND_CONTACT, address.c_str(), ctx->contacts[index].name };
         startApp(CONVERSATION_APP_ID, 3, argv);
     }
@@ -512,18 +510,25 @@ void startTextDialog(Context* ctx, Context::TextKind kind, const char* title, co
 enum class AddType { JoinPublic, JoinPrivate, CreatePrivate };
 
 /** Only offers what the mesh network supports */
-void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const ::std::vector<::std::string>& items) {
+void startSelection(Context* ctx, SelectionState::Kind kind, const char* title, const ::std::vector<::std::string>& items) {
+    if (!ctx->selectionState.begin(kind)) {
+        return;
+    }
     const error_t error = dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
-        ctx->selectResult = selected;
-        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+        if (ctx->selectionState.complete(selected)) {
+            task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+        }
     }, ctx);
-    if (error == ERROR_NONE) {
-        ctx->selectKind = kind;
+    if (error != ERROR_NONE) {
+        ctx->selectionState.failStart();
     }
 }
 
 void startAddChannel(Context* ctx) {
+    if (ctx->selectionState.isPending()) {
+        return;
+    }
     ctx->addTypes.clear();
     ::std::vector<::std::string> items;
     if (mesh_supports(MESH_FEATURE_NAMED_CHANNELS)) {
@@ -539,14 +544,14 @@ void startAddChannel(Context* ctx) {
     if (items.empty()) {
         return;
     }
-    startSelection(ctx, Context::SelectKind::AddType, tr("Add channel"), items);
+    startSelection(ctx, SelectionState::Kind::AddType, tr("Add channel"), items);
 }
 
 /** The order of these matches the options of the selection dialog */
 enum class AddContactType { ByKey, Seen };
 
 void startAddContactMenu(Context* ctx) {
-    startSelection(ctx, Context::SelectKind::AddContact, tr("Add contact"), { tr("Add by key"), tr("Add seen") });
+    startSelection(ctx, SelectionState::Kind::AddContact, tr("Add contact"), { tr("Add by key"), tr("Add seen") });
 }
 
 void startJoinChannel(Context* ctx);
@@ -609,7 +614,7 @@ void startJoinPrivateChannel(Context* ctx) {
 }
 
 void onPrivateNameResult(Context* ctx) {
-    ctx->pendingChannelName = ctx->textConfirmed ? ctx->text : ::std::string();
+    ctx->pendingChannelName = ctx->textConfirmed ? ctx->text.c_str() : "";
     if (ctx->pendingChannelName.empty()) {
         return;
     }
@@ -657,7 +662,7 @@ void startContactNameDialog(Context* ctx) {
 }
 
 void onContactNameResult(Context* ctx) {
-    ctx->pendingContactName = ctx->textConfirmed ? ctx->text : ::std::string();
+    ctx->pendingContactName = ctx->textConfirmed ? ctx->text.c_str() : "";
     if (ctx->pendingContactName.empty()) {
         return;
     }
@@ -686,6 +691,9 @@ enum class MenuItem { SetPath, ResetPath, MarkAllRead, AdvertZeroHop, AdvertFloo
 
 /** The contacts tab also has the path actions for contacts */
 void startMenu(Context* ctx) {
+    if (ctx->selectionState.isPending()) {
+        return;
+    }
     ctx->menuItems.clear();
     ::std::vector<::std::string> items;
     const auto add = [ctx, &items](MenuItem item, const char* text) {
@@ -702,11 +710,11 @@ void startMenu(Context* ctx) {
     add(MenuItem::ShowQr, tr("Show QR"));
     add(MenuItem::Info, tr("Info"));
     add(MenuItem::Inspect, tr("Inspect"));
-    startSelection(ctx, Context::SelectKind::Menu, tr("Mesh"), items);
+    startSelection(ctx, SelectionState::Kind::Menu, tr("Mesh"), items);
 }
 
 /** The hashes of the repeaters as hexadecimal tokens of one length, separated by commas or spaces, e.g. "a1,b2,c3" */
-bool parsePath(const char* text, ::std::vector<uint8_t>& hops, size_t* hashSize) {
+bool parsePath(const char* text, tt::std::vector<uint8_t>& hops, size_t* hashSize) {
     hops.clear();
     *hashSize = 0;
     const char* position = text;
@@ -744,6 +752,9 @@ bool parsePath(const char* text, ::std::vector<uint8_t>& hops, size_t* hashSize)
 }
 
 void startPathContactSelection(Context* ctx, bool reset) {
+    if (ctx->selectionState.isPending()) {
+        return;
+    }
     if (ctx->contacts.empty()) {
         showMessage(ctx, tr("No contacts"), tr("Add a contact first."));
         return;
@@ -755,7 +766,7 @@ void startPathContactSelection(Context* ctx, bool reset) {
         names.emplace_back(contact.name);
         ctx->pathContactChoices.push_back(contact.address);
     }
-    startSelection(ctx, Context::SelectKind::PathContact, reset ? tr("Reset path") : tr("Set path"), names);
+    startSelection(ctx, SelectionState::Kind::PathContact, reset ? tr("Reset path") : tr("Set path"), names);
 }
 
 void showPathError(Context* ctx, error_t error) {
@@ -781,7 +792,7 @@ void onPathContactSelected(Context* ctx, int32_t selected) {
 
 void onPathInputResult(Context* ctx) {
     if (ctx->textConfirmed) {
-        ::std::vector<uint8_t> hops;
+        tt::std::vector<uint8_t> hops;
         size_t hashSize = 0;
         if (!parsePath(ctx->text.c_str(), hops, &hashSize)) {
             showMessage(ctx, tr("Invalid path"), tr("Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."));
@@ -877,6 +888,35 @@ int32_t appMain(int argc, char* argv[]) {
         uint32_t flags = 0;
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
+        bool changed = false;
+        if (flags & ctx.selectResultBit) {
+            SelectionState::Result result {};
+            if (ctx.selectionState.takeResult(result)) {
+                switch (result.kind) {
+                    case SelectionState::Kind::Menu:
+                        if (result.selected >= 0) {
+                            onMenuSelected(&ctx, result.selected);
+                        }
+                        break;
+                    case SelectionState::Kind::AddContact:
+                        if (result.selected >= 0) {
+                            onAddContactSelected(&ctx, result.selected);
+                        }
+                        break;
+                    case SelectionState::Kind::AddType:
+                        if (result.selected >= 0) {
+                            onAddTypeSelected(&ctx, result.selected);
+                        }
+                        break;
+                    case SelectionState::Kind::PathContact:
+                        onPathContactSelected(&ctx, result.selected);
+                        break;
+                }
+                // The channels and contacts may have changed, and the window may have been rebuilt
+                changed = true;
+            }
+        }
+
         if (flags & ctx.openBit) {
             startConversation(&ctx);
         }
@@ -900,32 +940,6 @@ int32_t appMain(int argc, char* argv[]) {
             }
         }
 
-        bool changed = false;
-        if (flags & ctx.selectResultBit) {
-            const int32_t selected = ctx.selectResult;
-            switch (ctx.selectKind) {
-                case Context::SelectKind::Menu:
-                    if (selected >= 0) {
-                        onMenuSelected(&ctx, selected);
-                    }
-                    break;
-                case Context::SelectKind::AddContact:
-                    if (selected >= 0) {
-                        onAddContactSelected(&ctx, selected);
-                    }
-                    break;
-                case Context::SelectKind::AddType:
-                    if (selected >= 0) {
-                        onAddTypeSelected(&ctx, selected);
-                    }
-                    break;
-                case Context::SelectKind::PathContact:
-                    onPathContactSelected(&ctx, selected);
-                    break;
-            }
-            // The channels and contacts may have changed, and the window may have been rebuilt
-            changed = true;
-        }
         if (flags & ctx.textResultBit) {
             switch (ctx.textKind) {
                 case Context::TextKind::JoinChannel:
@@ -957,7 +971,7 @@ int32_t appMain(int argc, char* argv[]) {
         while (mesh_event_poll(&meshEvents, &meshEvent) == ERROR_NONE) {
             changed |= meshEvent.type == MESH_EVENT_STATE || meshEvent.type == MESH_EVENT_CHANNEL || meshEvent.type == MESH_EVENT_CONTACT ||
                 meshEvent.type == MESH_EVENT_MESSAGE || meshEvent.type == MESH_EVENT_UNREAD;
-            ::std::string line = formatEvent(&ctx, meshEvent);
+            tt::std::string line = formatEvent(&ctx, meshEvent);
             if (!line.empty()) {
                 addInspectLine(&ctx, ::std::move(line));
             }

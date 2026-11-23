@@ -7,6 +7,7 @@ add_executable(LvglWindowManagerModuleTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
 
 target_include_directories(LvglWindowManagerModuleTests PRIVATE
     ${DOCTESTINC}
+    ${CMAKE_CURRENT_LIST_DIR}/../source
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

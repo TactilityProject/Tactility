@@ -29,11 +29,13 @@ void dialog_cancel_for_app(AppInstanceId app_instance_id);
  */
 void dialog_allow_for_app(AppInstanceId app_instance_id);
 
+/** Returns whether the app's dialogs are currently canceled. */
+bool dialog_is_app_canceled(AppInstanceId app_instance_id);
+
 /**
- * Finishes one removal and re-enables dialogs when the app still has a window and no other
- * removal is active.
+ * Finishes one removal and re-enables dialogs when no other removal is active.
  */
-void dialog_finish_remove_for_app(AppInstanceId app_instance_id, bool app_has_window);
+void dialog_finish_remove_for_app(AppInstanceId app_instance_id);
 
 /**
  * Waits up to the drain timeout for the app's dialog tasks to finish. Returns false on timeout;

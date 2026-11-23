@@ -7,6 +7,7 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/delay.h>
 #include <tactility/module.h>
+#include "window_manager_internal.h"
 
 #include <atomic>
 #include <cstdint>
@@ -286,6 +287,40 @@ TEST_CASE("removal rejects new dialogs until an app's callbacks drain") {
     REQUIRE_EQ(fixture.join_removal(), ERROR_NONE);
     CHECK_EQ(window_manager_alert_dialog(251, "Test", "Ready", labels, 1, nullptr, nullptr), ERROR_NONE);
     window_manager_dialog_dismiss();
+}
+
+TEST_CASE("final window removal releases the app cancellation record") {
+    Fixture fixture;
+    REQUIRE(fixture.start());
+
+    const WindowId window_id = fixture.create_window(261);
+    REQUIRE_NE(window_id, 0);
+    window_manager_remove(window_id);
+
+    CHECK_FALSE(dialog_is_app_canceled(261));
+    const char* labels[] = { "OK" };
+    CHECK_EQ(window_manager_alert_dialog(261, "Test", "No window", labels, 1, nullptr, nullptr), ERROR_INVALID_STATE);
+}
+
+TEST_CASE("cancellation records survive overlapping removals and are isolated by app") {
+    Fixture fixture;
+    REQUIRE(fixture.start());
+    REQUIRE_NE(fixture.create_window(271), 0);
+    REQUIRE_NE(fixture.create_window(272), 0);
+
+    dialog_cancel_for_app(271);
+    dialog_cancel_for_app(271);
+    dialog_cancel_for_app(272);
+
+    CHECK(dialog_is_app_canceled(271));
+    CHECK(dialog_is_app_canceled(272));
+    dialog_finish_remove_for_app(271);
+    CHECK(dialog_is_app_canceled(271));
+    dialog_finish_remove_for_app(272);
+    CHECK_FALSE(dialog_is_app_canceled(272));
+    CHECK(dialog_is_app_canceled(271));
+    dialog_finish_remove_for_app(271);
+    CHECK_FALSE(dialog_is_app_canceled(271));
 }
 
 #ifdef DIALOG_START_WRAPPING

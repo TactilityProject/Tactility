@@ -8,8 +8,8 @@
 
 ## Medium Priority
 
+- Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.
 - SDL display dimming: T-Deck Plus Display settings allow to dim to 0 setting but display keeps minimum lighting. We have a hack in SDL display dimming to avoid dimming to a point that it shows no light. Fix discrepancy.
-- Use `tt::std::` in `MeshSettings`, `MeshApp`, `SystemInfo`
 - Files app: Re-usable lvgl_files view with click/long click callbacks. Built-in swipe handling for pages.
 - Sound settings: need API and UI for default playback and recording device selection
 - saveBacklightDuty() and similar settings should be bound to a device

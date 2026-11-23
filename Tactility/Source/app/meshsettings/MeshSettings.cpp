@@ -12,7 +12,6 @@
 #include <Tactility/settings/RadioSettings.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 
@@ -23,6 +22,8 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -53,7 +54,7 @@ constexpr auto* MESHTASTIC_ID = "meshtastic";
 enum class RadioSetting { Frequency, Bandwidth, SpreadingFactor, CodingRate, Power, PathHashSize, RegionScope };
 constexpr size_t RADIO_SETTING_COUNT = 7;
 
-constexpr std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { tr_noop("Frequency (MHz)"), tr_noop("Bandwidth"), tr_noop("Spreading factor"), tr_noop("Coding rate"), tr_noop("Transmit power"), tr_noop("Path hash size"), tr_noop("Region scope") };
+constexpr ::std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { tr_noop("Frequency (MHz)"), tr_noop("Bandwidth"), tr_noop("Spreading factor"), tr_noop("Coding rate"), tr_noop("Transmit power"), tr_noop("Path hash size"), tr_noop("Region scope") };
 
 struct Context {
     uint32_t appInstanceId;
@@ -74,7 +75,7 @@ struct Context {
      * Set while a dialog is shown or its result isn't read yet, which the app's task does and then clears it.
      * A request for another dialog meanwhile is ignored, as it would replace what the shown dialog is for.
      */
-    std::atomic<bool> dialogOpen { false };
+    ::std::atomic<bool> dialogOpen { false };
     /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
     uint32_t selectResultBit = 0;
     enum class SelectKind { Service, Region, Preset, Radio, RadioSetting } selectKind = SelectKind::Service;
@@ -84,18 +85,18 @@ struct Context {
     uint32_t textResultBit = 0;
     enum class TextKind { Name, Frequency, Scope } textKind = TextKind::Name;
     bool textConfirmed = false;
-    std::string text;
+    tt::std::string text;
     /** Values that the items of the open radio setting dialog stand for */
-    std::vector<int32_t> radioSettingValues;
+    tt::std::vector<int32_t> radioSettingValues;
     // Shown by updateLabels(), which can run on another app's thread and so must not query the services.
     // The app's own thread fills these with loadState().
-    std::string serviceText;
-    std::string nameText;
-    std::string radioText = "-";
+    tt::std::string serviceText;
+    tt::std::string nameText;
+    tt::std::string radioText = "-";
     bool radioChoice = false;
-    std::string regionText;
-    std::string presetText;
-    std::string modemPresetText;
+    tt::std::string regionText;
+    tt::std::string presetText;
+    tt::std::string modemPresetText;
     /** Whether the selected backend has presets, which is when the radio does LoRa */
     bool hasPresets = false;
     /** The backend that the open preset dialog is for */
@@ -109,13 +110,13 @@ struct Context {
     ::std::atomic<bool> rxBoostedGainRequest { false };
     bool hasMeshCore = false;
     bool hasMeshtastic = false;
-    std::string radioSettingTexts[RADIO_SETTING_COUNT];
-    std::string statusText;
+    tt::std::string radioSettingTexts[RADIO_SETTING_COUNT];
+    tt::std::string statusText;
     /** Index 0 is tr("Disabled"), the rest are backend ids */
-    std::vector<std::string> serviceIds;
-    std::vector<std::string> presetNames;
+    tt::std::vector<tt::std::string> serviceIds;
+    tt::std::vector<tt::std::string> presetNames;
     /** Device names of the radios, in the order of the selection dialog */
-    std::vector<std::string> radioNames;
+    tt::std::vector<tt::std::string> radioNames;
     // Valid while the window is shown
     lv_obj_t* serviceLabel = nullptr;
     lv_obj_t* nameLabel = nullptr;
@@ -136,13 +137,13 @@ struct Context {
     lv_obj_t* statusLabel = nullptr;
 };
 
-std::string getServiceLabel(const std::string& id) {
-    if (id == "meshcore") return "MeshCore";
-    if (id == "meshtastic") return "Meshtastic";
+tt::std::string getServiceLabel(const char* id) {
+    if (::strcmp(id, MESHCORE_ID) == 0) return "MeshCore";
+    if (::strcmp(id, MESHTASTIC_ID) == 0) return "Meshtastic";
     return id;
 }
 
-std::string getCurrentService() {
+tt::std::string getCurrentService() {
     if (!mesh_is_enabled()) {
         return tr("Disabled");
     }
@@ -151,13 +152,13 @@ std::string getCurrentService() {
 }
 
 /** @param[in] lora whether the radio does LoRa, which is bound to the region */
-std::string getStatus(bool lora) {
+tt::std::string getStatus(bool lora) {
     const auto state = mesh_get_state();
     if (state == MESH_STATE_NO_REGION) {
         return tr("Select a region to turn on the radio");
     }
     if (state == MESH_STATE_ERROR && lora) {
-        return i18n::format(tr("Settings not allowed in {}"), { settings::radio::getRegionLabel(settings::radio::loadRegion()) });
+        return i18n::format(tr("Settings not allowed in {}"), { settings::radio::getRegionLabel(settings::radio::loadRegion()) }).c_str();
     }
     return mesh_state_to_string(state);
 }
@@ -196,10 +197,10 @@ void updateLabels(Context* ctx) {
 }
 
 /** The device names of the radios, and the names to show for them: the kind of radio, plus the device name when there are several of a kind */
-void loadRadios(std::vector<std::string>& names, std::vector<std::string>& labels) {
+void loadRadios(tt::std::vector<tt::std::string>& names, tt::std::vector<tt::std::string>& labels) {
     names.clear();
     labels.clear();
-    std::vector<MeshRadioKind> kinds;
+    tt::std::vector<MeshRadioKind> kinds;
     const size_t count = mesh_get_radio_count();
     for (size_t i = 0; i < count; i++) {
         char name[MESH_NAME_MAX_LENGTH + 1];
@@ -211,12 +212,12 @@ void loadRadios(std::vector<std::string>& names, std::vector<std::string>& label
     }
     for (size_t i = 0; i < names.size(); i++) {
         const char* kindText = (kinds[i] == MESH_RADIO_LORA) ? "LoRa" : "ESP-NOW";
-        const auto sameKind = std::count(kinds.begin(), kinds.end(), kinds[i]);
-        labels.push_back(sameKind > 1 ? std::string(kindText) + " " + names[i] : std::string(kindText));
+        const auto sameKind = ::std::count(kinds.begin(), kinds.end(), kinds[i]);
+        labels.push_back(sameKind > 1 ? tt::std::string(kindText) + " " + names[i] : tt::std::string(kindText));
     }
 }
 
-std::string formatRadioSetting(RadioSetting kind, int32_t value) {
+tt::std::string formatRadioSetting(RadioSetting kind, int32_t value) {
     if (value == 0) {
         return "-";
     }
@@ -238,7 +239,7 @@ std::string formatRadioSetting(RadioSetting kind, int32_t value) {
             snprintf(text, sizeof(text), "%d dBm", (int)value);
             break;
         case RadioSetting::PathHashSize:
-            return i18n::format(value == 1 ? tr("{} byte") : tr("{} bytes"), { std::to_string(value) });
+            return i18n::format(value == 1 ? tr("{} byte") : tr("{} bytes"), { ::std::to_string(value) }).c_str();
             break;
         case RadioSetting::RegionScope:
             break;
@@ -255,8 +256,8 @@ void loadState(Context* ctx) {
     // A choice is only possible when there is more than one radio
     char radio[MESH_NAME_MAX_LENGTH + 1] = "-";
     mesh_get_radio(radio, sizeof(radio));
-    std::vector<std::string> radioNames;
-    std::vector<std::string> radioLabels;
+    tt::std::vector<tt::std::string> radioNames;
+    tt::std::vector<tt::std::string> radioLabels;
     loadRadios(radioNames, radioLabels);
     ctx->radioText = radio;
     for (size_t i = 0; i < radioNames.size(); i++) {
@@ -401,10 +402,15 @@ void onSelectPresetPressed(lv_event_t* event) {
     task_event_group_signal(ctx->eventGroup, ctx->selectPresetBit);
 }
 
-void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const std::vector<std::string>& items) {
+void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const tt::std::vector<tt::std::string>& items) {
     ctx->selectKind = kind;
     ctx->dialogOpen = true;
-    const error_t error = dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+    ::std::vector<::std::string> dialogItems;
+    dialogItems.reserve(items.size());
+    for (const auto& item : items) {
+        dialogItems.emplace_back(item.c_str());
+    }
+    const error_t error = dialog::selection(ctx->appInstanceId, title, dialogItems, [](int32_t selected, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
         ctx->selectResult = selected;
         task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
@@ -416,7 +422,7 @@ void startSelection(Context* ctx, Context::SelectKind kind, const char* title, c
 
 void startServiceSelection(Context* ctx) {
     ctx->serviceIds = { "" };
-    std::vector<std::string> items = { tr("Disabled") };
+    tt::std::vector<tt::std::string> items = { tr("Disabled") };
     const size_t count = mesh_get_backend_count();
     for (size_t i = 0; i < count; i++) {
         char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
@@ -441,7 +447,7 @@ void onServiceSelected(Context* ctx, int32_t selected) {
 }
 
 void startRadioSelection(Context* ctx) {
-    std::vector<std::string> labels;
+    tt::std::vector<tt::std::string> labels;
     loadRadios(ctx->radioNames, labels);
     if (ctx->radioNames.size() > 1) {
         startSelection(ctx, Context::SelectKind::Radio, tr("Radio"), labels);
@@ -459,7 +465,7 @@ void onRadioSelected(Context* ctx, int32_t selected) {
 
 void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
     if (kind == RadioSetting::Frequency) {
-        const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
+        const tt::std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
         startTextDialog(
             ctx,
             Context::TextKind::Frequency,
@@ -470,7 +476,7 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
         return;
     }
     if (kind == RadioSetting::RegionScope) {
-        const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
+        const tt::std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
         startTextDialog(
             ctx,
             Context::TextKind::Scope,
@@ -480,7 +486,7 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
         );
         return;
     }
-    std::vector<int32_t> values;
+    tt::std::vector<int32_t> values;
     switch (kind) {
         case RadioSetting::RegionScope:
         case RadioSetting::Frequency:
@@ -506,7 +512,7 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
     // Item 0 uses the profile value
     ctx->radioSettingValues = { 0 };
     ctx->radioSettingValues.insert(ctx->radioSettingValues.end(), values.begin(), values.end());
-    std::vector<std::string> items = { tr("Profile value") };
+    tt::std::vector<tt::std::string> items = { tr("Profile value") };
     for (const int32_t value : values) {
         items.push_back(formatRadioSetting(kind, value));
     }
@@ -615,7 +621,7 @@ void onRadioSettingSelected(Context* ctx, int32_t selected) {
 }
 
 void startRegionSelection(Context* ctx) {
-    std::vector<std::string> items;
+    tt::std::vector<tt::std::string> items;
     for (int region = RADIO_REGION_UNSET + 1; region < RADIO_REGION_COUNT; region++) {
         items.emplace_back(settings::radio::getRegionLabel(static_cast<RadioRegion>(region)));
     }
@@ -983,7 +989,7 @@ static error_t findChannelIndex(const char* name, uint8_t* index) {
             return ERROR_NONE;
         }
         primaryTaken |= channels[i].index == 0;
-        *index = std::max<uint8_t>(*index, channels[i].index + 1);
+        *index = ::std::max<uint8_t>(*index, channels[i].index + 1);
     }
     // The Public channel of MeshCore takes the primary index again when it was removed
     if (!primaryTaken && strcmp(name, "Public") == 0) {
@@ -1029,7 +1035,7 @@ error_t createPrivateChannel(const char* name) {
 #ifdef ESP_PLATFORM
     esp_fill_random(key, sizeof(key));
 #else
-    std::random_device device;
+    ::std::random_device device;
     for (auto& byte : key) {
         byte = static_cast<uint8_t>(device());
     }

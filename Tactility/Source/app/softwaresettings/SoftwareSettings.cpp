@@ -196,7 +196,7 @@ void destroyWidgets(void* userData) {
 void loadRepositories(Context* ctx) {
     ::std::vector<RepositoryItem> repositories;
     app_hub_repository_for_each([](const AppHubRepository* repository, void* context) {
-        static_cast<std::vector<RepositoryItem>*>(context)->push_back({ repository->url, repository->enabled, repository->official });
+        static_cast<::std::vector<RepositoryItem>*>(context)->push_back({ repository->url, repository->enabled, repository->official });
         return true;
     }, &repositories);
     lvgl_lock();

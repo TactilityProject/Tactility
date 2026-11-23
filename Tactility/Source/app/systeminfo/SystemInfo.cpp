@@ -19,10 +19,9 @@
 #include <algorithm>
 #include <strings.h>
 #include <format>
+#include <memory>
 #include <utility>
-#include <vector>
 #include <cctype>
-#include <string>
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -36,6 +35,9 @@
 #include <lvgl/widgets/tabs.h>
 
 #include <lvgl_window_manager/window_manager.h>
+
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #ifdef ESP_PLATFORM
 #include <esp_vfs_fat.h>
@@ -107,7 +109,7 @@ StorageUnit getStorageUnit(uint64_t value) {
     }
 }
 
-std::string getStorageUnitString(StorageUnit unit) {
+tt::std::string getStorageUnitString(StorageUnit unit) {
     using enum StorageUnit;
     switch (unit) {
         case Bytes:
@@ -119,23 +121,23 @@ std::string getStorageUnitString(StorageUnit unit) {
         case Gigabytes:
             return "GB";
         default:
-            std::unreachable();
+            ::std::unreachable();
     }
 }
 
-std::string getStorageValue(StorageUnit unit, uint64_t bytes) {
+tt::std::string getStorageValue(StorageUnit unit, uint64_t bytes) {
     using enum StorageUnit;
     switch (unit) {
         case Bytes:
-            return std::to_string(bytes);
+            return ::std::to_string(bytes).c_str();
         case Kilobytes:
-            return std::to_string(bytes / 1024);
+            return ::std::to_string(bytes / 1024).c_str();
         case Megabytes:
-            return std::format("{:.1f}", static_cast<float>(bytes) / 1024.f / 1024.f);
+            return ::std::format("{:.1f}", static_cast<float>(bytes) / 1024.f / 1024.f).c_str();
         case Gigabytes:
-            return std::format("{:.1f}", static_cast<float>(bytes) / 1024.f / 1024.f / 1024.f);
+            return ::std::format("{:.1f}", static_cast<float>(bytes) / 1024.f / 1024.f / 1024.f).c_str();
         default:
-            std::unreachable();
+            ::std::unreachable();
     }
 }
 
@@ -148,11 +150,11 @@ struct UsageCardWidgets {
     lv_obj_t* arc = nullptr;
     lv_obj_t* detail = nullptr;
     /** The detail line consists of these two, and the second one (empty for storage) is left out when they don't fit together */
-    std::string freeText;
-    std::string largestBlockText;
+    tt::std::string freeText;
+    tt::std::string largestBlockText;
 };
 
-int32_t getTextWidth(lv_obj_t* label, const std::string& text) {
+int32_t getTextWidth(lv_obj_t* label, const tt::std::string& text) {
     lv_point_t size;
     lv_text_get_size(&size, text.c_str(), lv_obj_get_style_text_font(label, LV_PART_MAIN), lv_obj_get_style_text_letter_space(label, LV_PART_MAIN), 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     return size.x;
@@ -160,7 +162,7 @@ int32_t getTextWidth(lv_obj_t* label, const std::string& text) {
 
 /** Leaves out the largest block when the line doesn't fit, and ends in an ellipsis when the free memory doesn't fit either */
 void fitUsageCardDetail(UsageCardWidgets& widgets) {
-    const std::string full = widgets.freeText + widgets.largestBlockText;
+    const tt::std::string full = widgets.freeText + widgets.largestBlockText;
     const bool fits = getTextWidth(widgets.detail, full) <= lv_obj_get_content_width(widgets.texts);
     lv_label_set_text(widgets.detail, fits ? full.c_str() : widgets.freeText.c_str());
 }
@@ -240,7 +242,7 @@ void createUsageCard(lv_obj_t* parent, const char* name, UsageCardWidgets& widge
     lv_obj_add_event_cb(widgets.card, onUsageCardSizeChanged, LV_EVENT_SIZE_CHANGED, &widgets);
 }
 
-std::string formatSize(uint64_t bytes) {
+tt::std::string formatSize(uint64_t bytes) {
     const auto unit = getStorageUnit(bytes);
     return getStorageValue(unit, bytes) + " " + getStorageUnitString(unit);
 }
@@ -272,7 +274,7 @@ constexpr size_t TASK_CHIP_COUNT = 1 + 4;
 constexpr uint32_t LOW_STACK_BYTES = 512;
 
 struct TaskInfo {
-    std::string name;
+    tt::std::string name;
     TaskGroup group;
     UBaseType_t priority;
     /** The least stack that the task has had left */
@@ -366,8 +368,8 @@ const char* getTaskName(const TaskStatus_t& task) {
 }
 
 /** The tasks with a low stack first, then the paused ones, then the rest by name */
-std::vector<TaskInfo> collectTasks() {
-    std::vector<TaskInfo> result;
+tt::std::vector<TaskInfo> collectTasks() {
+    tt::std::vector<TaskInfo> result;
     const UBaseType_t count = uxTaskGetNumberOfTasks();
     auto* tasks = static_cast<TaskStatus_t*>(malloc(sizeof(TaskStatus_t) * count));
     if (tasks == nullptr) {
@@ -388,7 +390,7 @@ std::vector<TaskInfo> collectTasks() {
         });
     }
     free(tasks);
-    std::sort(result.begin(), result.end(), [](const TaskInfo& a, const TaskInfo& b) {
+    ::std::sort(result.begin(), result.end(), [](const TaskInfo& a, const TaskInfo& b) {
         const bool lowA = a.stackFree < LOW_STACK_BYTES;
         const bool lowB = b.stackFree < LOW_STACK_BYTES;
         if (lowA != lowB) {
@@ -420,8 +422,8 @@ lv_obj_t* createPane(lv_obj_t* parent) {
 /** In the order of the tabs */
 /** A mounted file system, which gets a card in the storage tab */
 struct StorageVolume {
-    std::string name;
-    std::string path;
+    tt::std::string name;
+    tt::std::string path;
     /** The capacity when the app started */
     uint64_t total = 0;
     uint64_t free = 0;
@@ -452,15 +454,15 @@ bool collectStorageVolume(FileSystem* fs, void* context) {
     }
     auto* owner = file_system_get_owner(fs);
     const bool sdcard = owner != nullptr && device_get_type(owner) == &SDCARD_TYPE;
-    static_cast<std::vector<StorageVolume>*>(context)->push_back({ sdcard ? tr("SD card") : file_system_get_name(fs), path, total, free, {} });
+    static_cast<tt::std::vector<StorageVolume>*>(context)->push_back({ sdcard ? tr("SD card") : file_system_get_name(fs), path, total, free, {} });
     return true;
 }
 
 #ifdef ESP_PLATFORM
 /** "ESP32S3" as "ESP32-S3" */
-std::string getChipName() {
-    std::string name = CONFIG_IDF_TARGET;
-    std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+tt::std::string getChipName() {
+    tt::std::string name = CONFIG_IDF_TARGET;
+    ::std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(::std::toupper(c)); });
     if (name.size() > 5 && name.starts_with("ESP32")) {
         name.insert(5, "-");
     }
@@ -468,17 +470,17 @@ std::string getChipName() {
 }
 #endif
 
-std::string formatUptime(uint64_t seconds) {
+tt::std::string formatUptime(uint64_t seconds) {
     const uint64_t minutes = seconds / 60;
     const uint64_t hours = minutes / 60;
     const uint64_t days = hours / 24;
     if (days > 0) {
-        return i18n::format(tr("{} d {} h"), { std::to_string(days), std::to_string(hours % 24) });
+        return i18n::format(tr("{} d {} h"), { ::std::to_string(days), ::std::to_string(hours % 24) }).c_str();
     }
     if (hours > 0) {
-        return i18n::format(tr("{} h {} min"), { std::to_string(hours), std::to_string(minutes % 60) });
+        return i18n::format(tr("{} h {} min"), { ::std::to_string(hours), ::std::to_string(minutes % 60) }).c_str();
     }
-    return i18n::format(tr("{} min"), { std::to_string(minutes) });
+    return i18n::format(tr("{} min"), { ::std::to_string(minutes) }).c_str();
 }
 
 /** A card of rows with a name on the left and the value on the right. It can be selected, so the keys can scroll to it on small displays. */
@@ -527,20 +529,20 @@ constexpr size_t TAB_COUNT = 4;
 struct Context {
     uint32_t appInstanceId;
 
-    std::unique_ptr<Timer> memoryTimer;
-    std::unique_ptr<Timer> tasksTimer;
+    ::std::unique_ptr<Timer> memoryTimer;
+    ::std::unique_ptr<Timer> tasksTimer;
 
     UsageCardWidgets internalMemCard;
     UsageCardWidgets externalMemCard;
     /** The mounted file systems and their capacity, read on the app's task before the window is created and never changed after that */
-    std::vector<StorageVolume> storage;
+    tt::std::vector<StorageVolume> storage;
     /** The mounted file systems with a capacity, which have a card each while the widgets exist */
-    std::vector<StorageVolume> volumes;
+    tt::std::vector<StorageVolume> volumes;
 
     /** The list of tasks */
     lv_obj_t* tasksContainer = nullptr;
     /** The task name of each row in tasksContainer */
-    std::vector<std::string> taskNames;
+    tt::std::vector<tt::std::string> taskNames;
 #if configUSE_TRACE_FACILITY
     lv_obj_t* taskChipRow = nullptr;
     lv_obj_t* taskChips[TASK_CHIP_COUNT] = {};
@@ -551,7 +553,7 @@ struct Context {
     /** 0 shows all tasks, and otherwise a TaskGroup + 1 */
     size_t taskFilter = 0;
     /** The task of which the details are shown */
-    std::string expandedTask;
+    tt::std::string expandedTask;
 #endif
     lv_obj_t* psramContainer = nullptr;
     lv_obj_t* tabs = nullptr;
@@ -752,11 +754,11 @@ void updateTaskChipWords(Context* ctx) {
 }
 
 /** Updates the rows in place, so the list keeps its scroll position, and the selected task stays selected */
-void updateTaskRows(Context* ctx, const std::vector<const TaskInfo*>& shown) {
+void updateTaskRows(Context* ctx, const tt::std::vector<const TaskInfo*>& shown) {
     auto* list = ctx->tasksContainer;
     lv_obj_t* selected = lvgl_grid_navigation_get_focused(list);
     const int32_t selected_index = selected != nullptr ? lv_obj_get_index(selected) : -1;
-    const std::string selected_name = selected_index >= 0 && selected_index < static_cast<int32_t>(ctx->taskNames.size()) ? ctx->taskNames[selected_index] : "";
+    const tt::std::string selected_name = selected_index >= 0 && selected_index < static_cast<int32_t>(ctx->taskNames.size()) ? ctx->taskNames[selected_index] : "";
     const bool show_selection = selected != nullptr && lv_obj_has_state(selected, LV_STATE_FOCUS_KEY);
 
     ctx->taskNames.clear();
@@ -779,8 +781,8 @@ void updateTaskRows(Context* ctx, const std::vector<const TaskInfo*>& shown) {
         return;
     }
     // Follows the task, or keeps the position when the task is gone
-    auto it = std::ranges::find(ctx->taskNames, selected_name);
-    const auto index = it != ctx->taskNames.end() ? static_cast<int32_t>(it - ctx->taskNames.begin()) : std::min(selected_index, static_cast<int32_t>(ctx->taskNames.size()) - 1);
+    auto it = ::std::ranges::find(ctx->taskNames, selected_name);
+    const auto index = it != ctx->taskNames.end() ? static_cast<int32_t>(it - ctx->taskNames.begin()) : ::std::min(selected_index, static_cast<int32_t>(ctx->taskNames.size()) - 1);
     // Also re-applied when the row didn't change: deleting rows resets grid navigation's selection
     auto* row = lv_obj_get_child(list, index);
     lv_gridnav_set_focused(list, row, LV_ANIM_OFF);
@@ -807,7 +809,7 @@ void updateTasks(Context* ctx) {
     for (const auto& task : tasks) {
         counts[static_cast<size_t>(task.group) + 1]++;
     }
-    std::vector<const TaskInfo*> shown;
+    tt::std::vector<const TaskInfo*> shown;
     for (const auto& task : tasks) {
         if (ctx->taskFilter == 0 || static_cast<size_t>(task.group) + 1 == ctx->taskFilter) {
             shown.push_back(&task);
@@ -991,7 +993,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     addInfoRow(device_card, tr("Vendor"), CONFIG_TT_DEVICE_VENDOR);
     addInfoRow(device_card, tr("Model"), CONFIG_TT_DEVICE_NAME_SIMPLE);
 #ifdef ESP_PLATFORM
-    addInfoRow(device_card, tr("Chip"), i18n::format(tr("{} · {} cores"), { getChipName(), std::to_string(SOC_CPU_CORES_NUM) }).c_str());
+    addInfoRow(device_card, tr("Chip"), i18n::format(tr("{} · {} cores"), { getChipName().c_str(), ::std::to_string(SOC_CPU_CORES_NUM) }).c_str());
     addInfoRow(device_card, tr("Flash"), CONFIG_ESPTOOLPY_FLASHSIZE);
 #endif
     if (ctx->hasExternalMem) {
@@ -999,13 +1001,21 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     }
     Device* display = nullptr;
     if (device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {
-        addInfoRow(device_card, tr("Display"), (std::to_string(display_get_resolution_x(display)) + " × " + std::to_string(display_get_resolution_y(display))).c_str());
+        tt::std::string resolution = ::std::to_string(display_get_resolution_x(display)).c_str();
+        resolution += " × ";
+        resolution += ::std::to_string(display_get_resolution_y(display)).c_str();
+        addInfoRow(device_card, tr("Display"), resolution.c_str());
         device_put(display);
     }
 
     auto* software_card = createInfoCard(about_tab, tr("Software"));
 #ifdef ESP_PLATFORM
-    addInfoRow(software_card, "ESP-IDF", (std::to_string(ESP_IDF_VERSION_MAJOR) + "." + std::to_string(ESP_IDF_VERSION_MINOR) + "." + std::to_string(ESP_IDF_VERSION_PATCH)).c_str());
+    tt::std::string idfVersion = ::std::to_string(ESP_IDF_VERSION_MAJOR).c_str();
+    idfVersion += ".";
+    idfVersion += ::std::to_string(ESP_IDF_VERSION_MINOR).c_str();
+    idfVersion += ".";
+    idfVersion += ::std::to_string(ESP_IDF_VERSION_PATCH).c_str();
+    addInfoRow(software_card, "ESP-IDF", idfVersion.c_str());
 #endif
     ctx->uptimeLabel = addInfoRow(software_card, tr("Uptime"), "");
 
@@ -1050,7 +1060,7 @@ int32_t appMain(int argc, char* argv[]) {
     // displayed values fresh regardless of whether the app is currently topmost.
     // The timers can't be stopped when the widgets are destroyed, as stopping waits for a callback that waits for the LVGL lock.
     // While the widgets don't exist, the callbacks only check for that.
-    ctx.memoryTimer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(10000), [&ctx] {
+    ctx.memoryTimer = ::std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(10000), [&ctx] {
         lvgl_lock();
         if (ctx.tabs != nullptr) {
             updateMemory(&ctx);
@@ -1059,7 +1069,7 @@ int32_t appMain(int argc, char* argv[]) {
         lvgl_unlock();
     });
 
-    ctx.tasksTimer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(15000), [&ctx] {
+    ctx.tasksTimer = ::std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(15000), [&ctx] {
         lvgl_lock();
         if (ctx.tabs != nullptr) {
             updateTasks(&ctx);
