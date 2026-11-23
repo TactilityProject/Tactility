@@ -18,8 +18,6 @@
 #include <app/manifest.h>
 #include <app/start.h>
 
-#include <Tactility/DeprecatedPaths.h>
-#include <Tactility/MountPoints.h>
 #include <Tactility/PanicHandler.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>

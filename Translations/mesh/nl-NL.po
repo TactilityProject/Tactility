@@ -3,9 +3,6 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: nl-NL\n"
 
-msgid " via "
-msgstr " via "
-
 msgid "Add by key"
 msgstr "Toevoegen met sleutel"
 
@@ -81,11 +78,11 @@ msgstr "Sleutel van het kanaal in hexadecimaal"
 msgid "Leave channel"
 msgstr "Kanaal verlaten"
 
-msgid "Mesh Contacts"
-msgstr "Mesh-contacten"
+msgid "Load more"
+msgstr "Meer laden"
 
-msgid "Mesh is "
-msgstr "Mesh is "
+msgid "Mesh is off"
+msgstr "Mesh staat uit"
 
 msgid "Mesh: {}"
 msgstr "Mesh: {}"
@@ -108,9 +105,6 @@ msgstr "Niet beschikbaar"
 msgid "Not delivered"
 msgstr "Niet afgeleverd"
 
-msgid "OFF"
-msgstr "UIT"
-
 msgid "Public key"
 msgstr "Publieke sleutel"
 
@@ -131,9 +125,6 @@ msgstr "Verzenden..."
 
 msgid "Sent"
 msgstr "Verzonden"
-
-msgid "Show my QR"
-msgstr "Mijn QR tonen"
 
 msgid "The key isn't available."
 msgstr "De sleutel is niet beschikbaar."
@@ -167,9 +158,6 @@ msgstr "Typ een bericht..."
 
 msgid "Use a channel name that starts with # or Public. This mesh network can't join a channel by name."
 msgstr "Gebruik een kanaalnaam die begint met # of Public. Dit mesh-netwerk kan niet op naam deelnemen aan een kanaal."
-
-msgid "Using "
-msgstr "Gebruikt "
 
 msgid "Waiting"
 msgstr "Wachten"

@@ -310,7 +310,8 @@ TEST_CASE("mesh service sends and receives through the active backend") {
             CHECK_EQ(std::string(messages[i].backend), "loopback");
         }
         MeshContact contacts[4];
-        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
+        // The contacts load after the backend is on
+        REQUIRE(waitFor([&] { return mesh_get_contacts(contacts, 4, &count) == ERROR_NONE; }));
         REQUIRE_EQ(count, 1);
         CHECK_EQ(std::string(contacts[0].name), "loopback");
 
@@ -322,9 +323,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         REQUIRE_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
         CHECK_EQ(count, 1);
         CHECK_EQ(std::string(messages[0].text), "spare");
-        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
-        REQUIRE_EQ(count, 1);
-        CHECK_EQ(std::string(contacts[0].name), "spare");
+        REQUIRE(waitFor([&] { return mesh_get_contacts(contacts, 4, &count) == ERROR_NONE && count == 1 && std::string(contacts[0].name) == "spare"; }));
 
         REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
         REQUIRE(waitFor([] {
@@ -473,15 +472,20 @@ TEST_CASE("mesh service sends and receives through the active backend") {
             char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
             return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "spare";
         }));
-        // Selecting a backend tells consumers that the contacts and channels changed
+        // Selecting a backend tells consumers that the contacts and channels changed.
+        // The backend reads as selected before the switch is done, so wait for the new backend's empty contacts and for the events.
+        REQUIRE(waitFor([&] { return countContacts() == 0; }));
         bool contactsChanged = false;
         bool channelsChanged = false;
         bool stateReported = false;
-        while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {
-            stateReported |= storageEvent.type == MESH_EVENT_STATE;
-            contactsChanged |= storageEvent.type == MESH_EVENT_CONTACT;
-            channelsChanged |= storageEvent.type == MESH_EVENT_CHANNEL;
-        }
+        waitFor([&] {
+            while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {
+                stateReported |= storageEvent.type == MESH_EVENT_STATE;
+                contactsChanged |= storageEvent.type == MESH_EVENT_CONTACT;
+                channelsChanged |= storageEvent.type == MESH_EVENT_CHANNEL;
+            }
+            return contactsChanged && channelsChanged && stateReported;
+        });
         CHECK(contactsChanged);
         CHECK(channelsChanged);
         // The active backend changed while the state stayed on
@@ -503,10 +507,11 @@ TEST_CASE("mesh service sends and receives through the active backend") {
             char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
             return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "loopback";
         }));
+        // The backend reads as selected before the switch is done, so wait for its contacts
+        REQUIRE(waitFor([&] { return countContacts() == 1; }));
         CHECK_EQ(countHistory(), 1);
         REQUIRE_EQ(mesh_history_get(0, &message, 1, &count), ERROR_NONE);
         CHECK_EQ(std::string(message.text), "from loopback");
-        CHECK_EQ(countContacts(), 1);
 
         REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
     }

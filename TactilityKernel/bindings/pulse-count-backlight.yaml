@@ -1,0 +1,20 @@
+description: >
+  Backlight driver IC with one-wire pulse dimming on its enable pin, such as the AW9364.
+  The IC can't be dimmed with PWM: every low pulse lowers its brightness level by one, so PWM leaves it at a random level.
+  Brightness 0 turns the backlight off, 1 to levels are the brightness levels.
+
+compatible: "pulse-count-backlight"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: The enable pin of the backlight driver IC
+  levels:
+    type: int
+    default: 16
+    description: The number of brightness levels of the IC
+  brightness-default:
+    type: int
+    default: 16
+    description: Default brightness level, applied by set_brightness_default()

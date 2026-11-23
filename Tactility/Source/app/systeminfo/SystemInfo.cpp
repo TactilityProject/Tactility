@@ -1,22 +1,16 @@
 #define L10N_APP "systeminfo"
 #include <Tactility/i18n/AppDomain.h>
-#include "lvgl/icons/shared.h"
-#include "lvgl/theme.h"
-
 
 #include "tactility/time.h"
 #include <tactility/check.h>
+#include <tactility/memory.h>
 
 #include <Tactility/DeprecatedPaths.h>
-#include <Tactility/TactilityConfig.h>
 #include <Tactility/Timer.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-
-#include <lvgl_window_manager/window_manager.h>
 
 #include <algorithm>
 #include <strings.h>
@@ -27,13 +21,18 @@
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
+#include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
-#include <lvgl/widgets/toolbar.h>
+#include <lvgl/theme.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/icon_button.h>
+#include <lvgl/widgets/tabs.h>
+
+#include <lvgl_window_manager/window_manager.h>
 
 #ifdef ESP_PLATFORM
 #include <esp_vfs_fat.h>
 #include <esp_heap_caps.h>
-#include <Tactility/MountPoints.h>
 #endif
 
 namespace tt::app::systeminfo {
@@ -45,35 +44,37 @@ extern const ::AppManifest manifest;
 namespace {
 
 size_t getHeapFree() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#else
-    return 4096 * 1024;
-#endif
+    return memory_heap_free();
 }
 
 size_t getHeapTotal() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
-#else
-    return 8192 * 1024;
-#endif
+    return memory_heap_total();
 }
 
 size_t getSpiFree() {
+    return memory_external_free();
+}
+
+size_t getHeapLargestBlock() {
 #ifdef ESP_PLATFORM
-    return heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
 #else
-    return 4096 * 1024;
+    // Not known on the simulator, so the card leaves it out
+    return 0;
+#endif
+}
+
+size_t getSpiLargestBlock() {
+#ifdef ESP_PLATFORM
+    return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+#else
+    // Not known on the simulator, so the card leaves it out
+    return 0;
 #endif
 }
 
 size_t getSpiTotal() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-#else
-    return 8192 * 1024;
-#endif
+    return memory_external_total();
 }
 
 enum class StorageUnit {
@@ -128,60 +129,126 @@ std::string getStorageValue(StorageUnit unit, uint64_t bytes) {
     }
 }
 
-struct MemoryBarWidgets {
-    lv_obj_t* bar = nullptr;
-    lv_obj_t* label = nullptr;
+
+/** A card for a memory pool or a storage volume: its name, the share in use, a bar and a line with the free space */
+struct UsageCardWidgets {
+    lv_obj_t* card = nullptr;
+    lv_obj_t* texts = nullptr;
+    /** A ring that shows the share in use, like the memory gauges of the system menu */
+    lv_obj_t* arc = nullptr;
+    lv_obj_t* detail = nullptr;
+    /** The detail line consists of these two, and the second one (empty for storage) is left out when they don't fit together */
+    std::string freeText;
+    std::string largestBlockText;
 };
 
-MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
-    auto* container = lv_obj_create(parent);
-    lv_obj_set_size(container, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_bg_opa(container, 0, LV_STATE_DEFAULT);
-
-    auto* left_label = lv_label_create(container);
-    lv_label_set_text(left_label, label);
-    auto label_width = 6 * lvgl_get_text_font_height(FONT_SIZE_DEFAULT);
-    lv_obj_set_width(left_label, label_width);
-
-    auto* bar = lv_bar_create(container);
-    lv_obj_set_flex_grow(bar, 1);
-
-    auto* bottom_label = lv_label_create(parent);
-    lv_obj_set_width(bottom_label, LV_PCT(100));
-    lv_obj_set_style_text_align(bottom_label, LV_TEXT_ALIGN_RIGHT, 0);
-
-    return {bar, bottom_label};
+int32_t getTextWidth(lv_obj_t* label, const std::string& text) {
+    lv_point_t size;
+    lv_text_get_size(&size, text.c_str(), lv_obj_get_style_text_font(label, LV_PART_MAIN), lv_obj_get_style_text_letter_space(label, LV_PART_MAIN), 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return size.x;
 }
 
-void updateMemoryBar(const MemoryBarWidgets& widgets, uint64_t free, uint64_t total) {
-    uint64_t used = total - free;
+/** Leaves out the largest block when the line doesn't fit, and ends in an ellipsis when the free memory doesn't fit either */
+void fitUsageCardDetail(UsageCardWidgets& widgets) {
+    const std::string full = widgets.freeText + widgets.largestBlockText;
+    const bool fits = getTextWidth(widgets.detail, full) <= lv_obj_get_content_width(widgets.texts);
+    lv_label_set_text(widgets.detail, fits ? full.c_str() : widgets.freeText.c_str());
+}
 
-    // Scale down the uint64_t until it fits int32_t for the lv_bar
-    uint64_t free_scaled = free;
-    uint64_t total_scaled = total;
-    while (total_scaled > static_cast<uint64_t>(INT32_MAX)) {
-        free_scaled /= 1024;
-        total_scaled /= 1024;
+void onUsageCardSizeChanged(lv_event_t* event) {
+    fitUsageCardDetail(*static_cast<UsageCardWidgets*>(lv_event_get_user_data(event)));
+}
+
+/** @param[in] widgets keeps the card's widgets, and must outlive the card */
+void createUsageCard(lv_obj_t* parent, const char* name, UsageCardWidgets& widgets) {
+    widgets.card = lvgl_card_create(parent);
+    lv_obj_set_size(widgets.card, LV_PCT(100), LV_SIZE_CONTENT);
+    // The name and the free space left of the ring
+    lv_obj_set_flex_flow(widgets.card, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(widgets.card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(widgets.card, LV_DPX(6), LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(widgets.card, false);
+    // Selectable, so the keys can scroll to it on small displays
+    lv_obj_add_flag(widgets.card, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+
+    widgets.texts = lv_obj_create(widgets.card);
+    lv_obj_remove_style_all(widgets.texts);
+    lv_obj_set_size(widgets.texts, 0, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(widgets.texts, 1);
+    lv_obj_set_flex_flow(widgets.texts, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scrollable(widgets.texts, false);
+
+    auto* nameLabel = lv_label_create(widgets.texts);
+    lv_label_set_text(nameLabel, name);
+    // One line that ends in an ellipsis, as it would wrap otherwise
+    lv_label_set_long_mode(nameLabel, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_size(nameLabel, LV_PCT(100), lv_font_get_line_height(lv_obj_get_style_text_font(nameLabel, LV_PART_MAIN)));
+
+    widgets.detail = lv_label_create(widgets.texts);
+    const lv_font_t* smallFont = lvgl_get_text_font(FONT_SIZE_SMALL);
+    lv_obj_set_style_text_font(widgets.detail, smallFont, LV_STATE_DEFAULT);
+    lv_label_set_long_mode(widgets.detail, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_size(widgets.detail, LV_PCT(100), lv_font_get_line_height(smallFont));
+
+    // The same ring as the memory gauges of the system menu, as tall as the two lines of text
+    const int32_t size = lv_font_get_line_height(smallFont) * 2 + LV_DPX(10);
+    widgets.arc = lv_arc_create(widgets.card);
+    lv_obj_set_size(widgets.arc, size, size);
+    lv_arc_set_rotation(widgets.arc, 270);
+    lv_arc_set_bg_angles(widgets.arc, 0, 360);
+    lv_arc_set_range(widgets.arc, 0, 100);
+    lv_obj_remove_style(widgets.arc, nullptr, LV_PART_KNOB);
+    lv_obj_set_style_arc_width(widgets.arc, LV_DPX(5), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(widgets.arc, LV_DPX(5), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(widgets.arc, false, LV_PART_INDICATOR);
+    lv_obj_set_style_pad_all(widgets.arc, 0, LV_STATE_DEFAULT);
+    if (lvgl_theme_is_mono()) {
+        // A thin ring over the outer edge of the arc, drawn after it
+        lv_obj_set_style_bg_opa(widgets.arc, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_radius(widgets.arc, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_border_width(widgets.arc, LV_DPX(1), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(widgets.arc, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_post(widgets.arc, true, LV_PART_MAIN);
     }
-
-    if (total > 0) {
-        lv_bar_set_range(widgets.bar, 0, total_scaled);
+    lv_obj_set_clickable(widgets.arc, false);
+    // The colours of the system menu's gauges: the unfilled part is the card's background, a little towards the text colour
+    const lv_color_t textColor = lv_obj_get_style_text_color(widgets.card, LV_PART_MAIN);
+    const lv_color_t cardColor = lv_obj_get_style_bg_color(widgets.card, LV_PART_MAIN);
+    if (lvgl_theme_is_mono()) {
+        // Only the ring marks the unfilled part, as a gray can't be shown
+        lv_obj_set_style_arc_color(widgets.arc, textColor, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(widgets.arc, cardColor, LV_PART_MAIN);
+        lv_obj_set_style_border_color(widgets.arc, textColor, LV_PART_MAIN);
     } else {
-        lv_bar_set_range(widgets.bar, 0, 1);
+        LvglThemeSettings theme {};
+        lvgl_theme_get_settings(&theme);
+        lv_obj_set_style_arc_color(widgets.arc, lv_color_mix(textColor, cardColor, 40), LV_PART_MAIN);
+        lv_obj_set_style_arc_color(widgets.arc, theme.color_secondary, LV_PART_INDICATOR);
     }
 
-    lv_bar_set_value(widgets.bar, (total_scaled - free_scaled), LV_ANIM_OFF);
-
-    const auto unit = getStorageUnit(total);
-    const auto unit_label = getStorageUnitString(unit);
-    const auto free_converted = getStorageValue(unit, free);
-    const auto total_converted = getStorageValue(unit, total);
-    lv_label_set_text(widgets.label, i18n::format(tr("{} / {} {} free ({} / {} bytes)"), { free_converted, total_converted, unit_label, std::to_string(free), std::to_string(total) }).c_str());
+    lv_obj_add_event_cb(widgets.card, onUsageCardSizeChanged, LV_EVENT_SIZE_CHANGED, &widgets);
 }
+
+std::string formatSize(uint64_t bytes) {
+    const auto unit = getStorageUnit(bytes);
+    return getStorageValue(unit, bytes) + " " + getStorageUnitString(unit);
+}
+
+/** @param[in] largestBlock the largest free block of a memory pool, or 0 for storage */
+void updateUsageCard(UsageCardWidgets& widgets, uint64_t free, uint64_t total, uint64_t largestBlock) {
+    // Not created, e.g. an SD card that was inserted after the widgets were created
+    if (widgets.card == nullptr) {
+        return;
+    }
+    // The ring shows the free share, like the memory gauges of the system menu
+    const int32_t percent = (total > 0) ? static_cast<int32_t>((free * 100 + total / 2) / total) : 0;
+    lv_arc_set_value(widgets.arc, percent);
+    widgets.freeText = i18n::format(tr("{} free of {}"), { formatSize(free), formatSize(total) });
+    widgets.largestBlockText = (largestBlock > 0) ? i18n::format(tr(" · largest block {}"), { formatSize(largestBlock) }) : "";
+    fitUsageCardDetail(widgets);
+}
+
+
 
 #if configUSE_TRACE_FACILITY
 
@@ -268,21 +335,20 @@ void updateRtosTasks(lv_obj_t* parent, std::vector<std::string>& taskNames) {
 
 #endif
 
-lv_obj_t* createTab(lv_obj_t* tabview, const char* name) {
-    auto* tab = lv_tabview_add_tab(tabview, name);
-    auto* tab_bar = lv_tabview_get_tab_bar(tabview);
-    auto* tab_button = lv_obj_get_child(tab_bar, static_cast<int32_t>(lv_obj_get_child_count(tab_bar)) - 1);
-    auto* shared_icon_font = lvgl_theme_get_size() < 50 ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font();
-    lv_obj_set_style_text_font(tab_button, shared_icon_font, LV_STATE_DEFAULT);
-    // Square buttons, so the theme's round selection indicator fits the icon
-    const int32_t button_size = lv_font_get_line_height(shared_icon_font) + 2 * lv_obj_get_style_pad_top(tab_button, LV_PART_MAIN);
-    lv_obj_set_flex_grow(tab_button, 0);
-    lv_obj_set_size(tab_button, button_size, button_size);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(tab, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(tab, 0, LV_STATE_DEFAULT);
-    return tab;
+/** The content of a tab: a scrollable column that fills the content area, shown while its tab is selected */
+lv_obj_t* createPane(lv_obj_t* parent) {
+    auto* pane = lv_obj_create(parent);
+    lv_obj_set_size(pane, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(pane, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(pane, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(pane, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(pane, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    return pane;
 }
+
+/** In the order of the tabs */
+enum class Tab { Memory, Storage, Tasks, About };
+constexpr size_t TAB_COUNT = 4;
 
 struct Context {
     uint32_t appInstanceId;
@@ -290,15 +356,19 @@ struct Context {
     std::unique_ptr<Timer> memoryTimer;
     std::unique_ptr<Timer> tasksTimer;
 
-    MemoryBarWidgets internalMemBar;
-    MemoryBarWidgets externalMemBar;
-    MemoryBarWidgets dataStorageBar;
-    MemoryBarWidgets sdcardStorageBar;
+    UsageCardWidgets internalMemCard;
+    UsageCardWidgets externalMemCard;
+    UsageCardWidgets dataStorageCard;
+    UsageCardWidgets sdcardStorageCard;
 
     lv_obj_t* tasksContainer = nullptr;
     /** The task name of each row in tasksContainer */
     std::vector<std::string> taskNames;
     lv_obj_t* psramContainer = nullptr;
+    lv_obj_t* tabs = nullptr;
+    lv_obj_t* panes[TAB_COUNT] = {};
+    /** Survives a rebuild of the widgets */
+    uint32_t selectedTab = 0;
 
     bool hasExternalMem = false;
     bool hasDataStorage = false;
@@ -306,10 +376,10 @@ struct Context {
 
 
 void updateMemory(Context* ctx) {
-    updateMemoryBar(ctx->internalMemBar, getHeapFree(), getHeapTotal());
+    updateUsageCard(ctx->internalMemCard, getHeapFree(), getHeapTotal(), getHeapLargestBlock());
 
     if (ctx->hasExternalMem) {
-        updateMemoryBar(ctx->externalMemBar, getSpiFree(), getSpiTotal());
+        updateUsageCard(ctx->externalMemCard, getSpiFree(), getSpiTotal(), getSpiLargestBlock());
     }
 }
 
@@ -319,14 +389,14 @@ void updateStorage(Context* ctx) {
     uint64_t storage_free = 0;
 
     if (ctx->hasDataStorage) {
-        if (esp_vfs_fat_info(file::MOUNT_POINT_DATA, &storage_total, &storage_free) == ESP_OK) {
-            updateMemoryBar(ctx->dataStorageBar, storage_free, storage_total);
+        if (esp_vfs_fat_info("/data", &storage_total, &storage_free) == ESP_OK) {
+            updateUsageCard(ctx->dataStorageCard, storage_free, storage_total, 0);
         }
     }
 
     std::string sdcard_path;
     if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
-        updateMemoryBar(ctx->sdcardStorageBar, storage_free, storage_total);
+        updateUsageCard(ctx->sdcardStorageCard, storage_free, storage_total, 0);
     }
 
 #endif
@@ -345,23 +415,40 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-#if configUSE_TRACE_FACILITY
-void onTabChanged(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* tabview = lv_event_get_target_obj(event);
-    auto* active_tab = lv_obj_get_child(lv_tabview_get_content(tabview), static_cast<int32_t>(lv_tabview_get_tab_active(tabview)));
-    const bool tasks_shown = active_tab == lv_obj_get_parent(ctx->tasksContainer);
+/** Only the focusable content of the shown tab is in the focus group */
+void setFocusable(lv_group_t* group, lv_obj_t* container, bool shown) {
+    if (container == nullptr) {
+        return;
+    }
+    if (shown && lv_obj_get_group(container) == nullptr) {
+        lv_group_add_obj(group, container);
+    } else if (!shown && lv_obj_get_group(container) != nullptr) {
+        lv_group_remove_obj(container);
+    }
+}
+
+/** Shows the content of the selected tab. Only the shown tab's cards or task list can be focused. */
+void showSelectedTab(Context* ctx) {
+    for (size_t i = 0; i < TAB_COUNT; i++) {
+        lv_obj_set_hidden(ctx->panes[i], i != ctx->selectedTab);
+    }
     auto* group = lv_group_get_default();
     if (group == nullptr) {
         return;
     }
-    if (tasks_shown && lv_obj_get_group(ctx->tasksContainer) == nullptr) {
-        lv_group_add_obj(group, ctx->tasksContainer);
-    } else if (!tasks_shown && lv_obj_get_group(ctx->tasksContainer) != nullptr) {
-        lv_group_remove_obj(ctx->tasksContainer);
+    for (const Tab tab : { Tab::Memory, Tab::Storage }) {
+        setFocusable(group, ctx->panes[static_cast<size_t>(tab)], ctx->selectedTab == static_cast<uint32_t>(tab));
     }
-}
+#if configUSE_TRACE_FACILITY
+    setFocusable(group, ctx->tasksContainer, ctx->selectedTab == static_cast<uint32_t>(Tab::Tasks));
 #endif
+}
+
+void onTabChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->selectedTab = lvgl_tabs_get_selected(ctx->tabs);
+    showSelectedTab(ctx);
+}
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
@@ -369,42 +456,66 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, tr("System Info"));
-    // The global toolbar nav callback only knows how to stop old-model apps.
-    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
+    // Replaces the toolbar: the close button and the tabs next to it.
+    // The close button and the tabs are grid navigation groups of their own, as grid navigation can't be nested.
+    auto* header = lv_obj_create(parent);
+    lv_obj_remove_style_all(header);
+    lv_obj_set_size(header, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    const auto spacing = lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing());
+    lv_obj_set_style_pad_hor(header, spacing, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(header, spacing, LV_STATE_DEFAULT);
 
-    auto* wrapper = lv_obj_create(parent);
-    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_width(wrapper, LV_PCT(100));
-    lv_obj_set_flex_grow(wrapper, 1);
-    lv_obj_set_style_pad_all(wrapper, 0, LV_STATE_DEFAULT);
-    // Space between the screen edges and the rounded tab bar and content
-    const int32_t edge_space = lvgl_theme_lerp(2, LV_DPX(8), lvgl_theme_get_spacing());
-    lv_obj_set_style_pad_hor(wrapper, edge_space, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(wrapper, edge_space, LV_STATE_DEFAULT);
+    // A plain button ignores left and right, so it's a grid navigation group of its own to reach the tabs with the keys
+    auto* close = lv_obj_create(header);
+    lv_obj_remove_style_all(close);
+    lv_obj_set_size(close, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(close, LV_FLEX_FLOW_ROW);
+    auto* closeButton = lvgl_icon_button_create(close);
+    lv_obj_add_event_cb(closeButton, onBackPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    auto* closeIcon = lv_label_create(closeButton);
+    lv_obj_set_style_text_font(closeIcon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(closeIcon, LVGL_ICON_SHARED_CLOSE);
+    lvgl_grid_navigation_add(close);
+    lvgl_grid_navigation_focus_without_touch(close, closeButton);
 
-    auto* tabview = lv_tabview_create(wrapper);
-    lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
+    // Tabs that don't fit show only their icon
+    ctx->tabs = lvgl_tabs_create(header);
+    lvgl_tabs_set_mode(ctx->tabs, LVGL_TABS_MODE_WRAP);
+    lvgl_tabs_add_tab_with_icon(ctx->tabs, LVGL_ICON_SHARED_MEMORY, tr("Memory"));
+    lvgl_tabs_add_tab_with_icon(ctx->tabs, LVGL_ICON_SHARED_HARD_DISK, tr("Storage"));
+    lvgl_tabs_add_tab_with_icon(ctx->tabs, LVGL_ICON_SHARED_SELECT_WINDOW_2, tr("Tasks"));
+    lvgl_tabs_add_tab_with_icon(ctx->tabs, LVGL_ICON_SHARED_INFO, tr("About"));
+    lvgl_tabs_set_selected(ctx->tabs, ctx->selectedTab);
+    lv_obj_add_event_cb(ctx->tabs, onTabChanged, LV_EVENT_VALUE_CHANGED, ctx);
 
-    // Create tabs
-    auto* memory_tab = createTab(tabview, LVGL_ICON_SHARED_MEMORY);
-    auto* storage_tab = createTab(tabview, LVGL_ICON_SHARED_HARD_DISK);
-    auto* tasks_tab = createTab(tabview, LVGL_ICON_SHARED_SELECT_WINDOW_2);
-    auto* about_tab = createTab(tabview, LVGL_ICON_SHARED_INFO);
-
-    // As wide as the buttons, which are spread over the bar's height
-    auto* tab_bar = lv_tabview_get_tab_bar(tabview);
-    lv_obj_set_width(tab_bar, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(tab_bar, lvgl_theme_lerp(2, LV_DPX(12), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
-    lv_obj_set_flex_align(tab_bar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    auto* content = lv_obj_create(parent);
+    lv_obj_set_style_border_width(content, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(content, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_width(content, LV_PCT(100));
+    lv_obj_set_flex_grow(content, 1);
+    lv_obj_set_style_pad_all(content, 0, LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(content, false);
+    for (auto*& pane : ctx->panes) {
+        pane = createPane(content);
+    }
+    auto* memory_tab = ctx->panes[static_cast<size_t>(Tab::Memory)];
+    auto* storage_tab = ctx->panes[static_cast<size_t>(Tab::Storage)];
+    auto* tasks_tab = ctx->panes[static_cast<size_t>(Tab::Tasks)];
+    auto* about_tab = ctx->panes[static_cast<size_t>(Tab::About)];
+    // Space between the cards
+    for (auto* pane : { memory_tab, storage_tab }) {
+        lv_obj_set_style_pad_row(pane, lvgl_theme_lerp(LV_DPX(4), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
+        lvgl_grid_navigation_add(pane);
+    }
 
     // Memory tab content
-    ctx->internalMemBar = createMemoryBar(memory_tab, tr("Internal"));
+    createUsageCard(memory_tab, tr("Internal RAM"), ctx->internalMemCard);
 
     ctx->hasExternalMem = getSpiTotal() > 0;
     if (ctx->hasExternalMem) {
-        ctx->externalMemBar = createMemoryBar(memory_tab, tr("External"));
+        createUsageCard(memory_tab, tr("PSRAM"), ctx->externalMemCard);
     }
 
 #ifdef ESP_PLATFORM
@@ -412,14 +523,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     uint64_t storage_total = 0;
     uint64_t storage_free = 0;
 
-    ctx->hasDataStorage = (esp_vfs_fat_info(file::MOUNT_POINT_DATA, &storage_total, &storage_free) == ESP_OK);
+    ctx->hasDataStorage = (esp_vfs_fat_info("/data", &storage_total, &storage_free) == ESP_OK);
     if (ctx->hasDataStorage) {
-        ctx->dataStorageBar = createMemoryBar(storage_tab, file::MOUNT_POINT_DATA);
+        createUsageCard(storage_tab, tr("Internal storage"), ctx->dataStorageCard);
     }
 
     std::string sdcard_path;
     if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
-        ctx->sdcardStorageBar = createMemoryBar(storage_tab, sdcard_path.c_str());
+        createUsageCard(storage_tab, tr("SD card"), ctx->sdcardStorageCard);
     }
 #endif
 
@@ -432,10 +543,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(ctx->tasksContainer, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_bg_opa(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
     lvgl_grid_navigation_add(ctx->tasksContainer);
-    // Only the shown tab's list can be focused, as focusing another tab's content would scroll to it
-    lv_group_remove_obj(ctx->tasksContainer);
-    lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, ctx);
 #endif
+    showSelectedTab(ctx);
 
     // Build info
     auto* tactility_version = lv_label_create(about_tab);
@@ -454,6 +563,21 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     updateMemory(ctx);
     updateStorage(ctx);  // Storage: one-time update on show (doesn't change frequently)
     updateTasks(ctx);
+}
+
+/** The widgets are deleted when the window is buried, and the timers keep running */
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->internalMemCard = UsageCardWidgets {};
+    ctx->externalMemCard = UsageCardWidgets {};
+    ctx->dataStorageCard = UsageCardWidgets {};
+    ctx->sdcardStorageCard = UsageCardWidgets {};
+    ctx->tasksContainer = nullptr;
+    ctx->taskNames.clear();
+    ctx->tabs = nullptr;
+    for (auto*& pane : ctx->panes) {
+        pane = nullptr;
+    }
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -481,7 +605,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
     ctx.memoryTimer->start();   // Memory: every 10s
     ctx.tasksTimer->start();    // Tasks/CPU: every 15s
 
@@ -517,9 +641,9 @@ extern const ::AppManifest manifest = {
     .id = "tactility.systeminfo",
     .name = "System Info",
     .category = APP_CATEGORY_SYSTEM,
-    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
+    .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = 0,
-    .stack = {}
+    .stack = {},
 };
 
 } // namespace

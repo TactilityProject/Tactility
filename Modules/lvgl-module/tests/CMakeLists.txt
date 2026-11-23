@@ -7,6 +7,11 @@ add_executable(LvglModuleTests EXCLUDE_FROM_ALL
     ${TEST_SOURCES}
     ${PROJECT_SOURCE_DIR}/../source/insets_math.cpp
     ${PROJECT_SOURCE_DIR}/../source/widgets/qr.cpp
+    ${PROJECT_SOURCE_DIR}/../source/widgets/tabs.cpp
+    ${PROJECT_SOURCE_DIR}/../source/widgets/badge.cpp
+    ${PROJECT_SOURCE_DIR}/../source/widgets/statusline.cpp
+    ${PROJECT_SOURCE_DIR}/../source/grid_navigation.cpp
+    ${PROJECT_SOURCE_DIR}/../source/fonts.c
     ${PROJECT_SOURCE_DIR}/../source/svg.c
     # LVGL allocates through the kernel
     ${PROJECT_SOURCE_DIR}/../source/lv_mem_custom.c

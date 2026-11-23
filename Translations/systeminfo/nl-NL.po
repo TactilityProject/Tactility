@@ -3,11 +3,14 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: nl-NL\n"
 
+msgid " · largest block {}"
+msgstr " · grootste blok {}"
+
 msgid "(unnamed)"
 msgstr "(naamloos)"
 
-msgid "External"
-msgstr "Extern"
+msgid "About"
+msgstr "Over"
 
 msgid "Failed to allocate memory for task list"
 msgstr "Geheugen reserveren voor de takenlijst mislukt"
@@ -18,11 +21,26 @@ msgstr "Hardwaremodel: {}"
 msgid "Hardware vendor: {}"
 msgstr "Hardwarefabrikant: {}"
 
-msgid "Internal"
-msgstr "Intern"
+msgid "Internal RAM"
+msgstr "Intern RAM"
 
-msgid "System Info"
-msgstr "Systeeminfo"
+msgid "Internal storage"
+msgstr "Interne opslag"
+
+msgid "Memory"
+msgstr "Geheugen"
+
+msgid "PSRAM"
+msgstr "PSRAM"
+
+msgid "SD card"
+msgstr "SD-kaart"
+
+msgid "Storage"
+msgstr "Opslag"
+
+msgid "Tasks"
+msgstr "Taken"
 
 msgid "blocked"
 msgstr "geblokkeerd"
@@ -42,5 +60,5 @@ msgstr "actief"
 msgid "suspended"
 msgstr "onderbroken"
 
-msgid "{} / {} {} free ({} / {} bytes)"
-msgstr "{} / {} {} vrij ({} / {} bytes)"
+msgid "{} free of {}"
+msgstr "{} vrij van {}"

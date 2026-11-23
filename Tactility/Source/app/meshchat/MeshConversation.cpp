@@ -26,6 +26,7 @@
 #include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
+#include <lvgl/widgets/text_button.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstring>
@@ -40,7 +41,8 @@ extern const ::AppManifest conversationManifest;
 namespace {
 
 constexpr auto* TAG = "MeshConversation";
-constexpr size_t MESSAGE_LIMIT = 30;
+/** The messages that are loaded at once: the newest ones when the conversation opens, and older ones on request */
+constexpr size_t PAGE_SIZE = 50;
 
 /** The counts of a message that is retried or repeated. They are only known while this app listens. */
 struct DeliveryDetail {
@@ -53,6 +55,7 @@ struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
     uint32_t menuBit = 0;
+    uint32_t loadOlderBit = 0;
     uint32_t menuDialogId = 0;
     uint32_t notificationsDialogId = 0;
     /** The action of each option of the open menu */
@@ -68,11 +71,17 @@ struct Context {
     ::std::string title;
     /** Oldest first */
     tt::std::deque<MeshMessage> messages;
+    /** The most messages that are kept, which grows with every page of older messages */
+    size_t messageLimit = PAGE_SIZE;
+    /** Whether the conversation has messages that are older than the ones that are loaded */
+    bool hasOlder = false;
     /** By seq of the message. Changed with the LVGL lock held, as the widgets are rebuilt from it. */
     tt::std::map<uint32_t, DeliveryDetail> details;
     // Valid while the window is shown
     lv_obj_t* statusLabel = nullptr;
     lv_obj_t* list = nullptr;
+    /** The first child of the list while there are older messages */
+    lv_obj_t* loadOlderButton = nullptr;
     lv_obj_t* input = nullptr;
 };
 
@@ -178,7 +187,7 @@ lv_color_t getBarColor(lv_obj_t* obj, const MeshMessage& message, lv_color_t sen
 }
 
 /** Requires the LVGL lock. Messages of the user are right-aligned. */
-void createMessageItem(Context* ctx, const MeshMessage& message) {
+lv_obj_t* createMessageItem(Context* ctx, const MeshMessage& message) {
     const bool right = message.outgoing;
     const auto color = getSenderColor(ctx->list, message);
 
@@ -243,12 +252,42 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
         lv_obj_set_style_text_color(status, getMutedTextColor(status), LV_STATE_DEFAULT);
         lv_label_set_text(status, getStatusText(ctx, message).c_str());
     }
+    return item;
 }
 
 /** Requires the LVGL lock */
 void scrollToNewest(Context* ctx) {
     lv_obj_update_layout(ctx->list);
     lv_obj_scroll_to_y(ctx->list, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
+void onLoadOlderPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    task_event_group_signal(ctx->eventGroup, ctx->loadOlderBit);
+}
+
+/** Requires the LVGL lock. The button is at the scroll limit of the list, above the oldest message. */
+void createLoadOlderButton(Context* ctx) {
+    ctx->loadOlderButton = lvgl_text_button_create(ctx->list);
+    lv_obj_set_width(ctx->loadOlderButton, LV_PCT(100));
+    lv_obj_add_event_cb(ctx->loadOlderButton, onLoadOlderPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    auto* label = lv_label_create(ctx->loadOlderButton);
+    lv_label_set_text(label, tr("Load more"));
+    lv_obj_center(label);
+    lv_obj_move_to_index(ctx->loadOlderButton, 0);
+}
+
+/** Requires the LVGL lock */
+void showMessages(Context* ctx) {
+    lv_obj_clean(ctx->list);
+    ctx->loadOlderButton = nullptr;
+    if (ctx->hasOlder) {
+        createLoadOlderButton(ctx);
+    }
+    for (const auto& message : ctx->messages) {
+        createMessageItem(ctx, message);
+    }
+    scrollToNewest(ctx);
 }
 
 /** Requires the LVGL lock */
@@ -318,10 +357,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (auto* group = lv_group_get_default()) {
         lv_group_add_obj(group, ctx->list);
     }
-    for (const auto& message : ctx->messages) {
-        createMessageItem(ctx, message);
-    }
-    scrollToNewest(ctx);
+    showMessages(ctx);
 
     auto* inputBar = lv_obj_create(parent);
     lv_obj_set_size(inputBar, LV_PCT(100), LV_SIZE_CONTENT);
@@ -349,20 +385,81 @@ void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->statusLabel = nullptr;
     ctx->list = nullptr;
+    ctx->loadOlderButton = nullptr;
     ctx->input = nullptr;
+}
+
+/**
+ * Reads a page of the messages before @a beforeSeq, or of the newest messages for 0. Queries the service, so it's called without the LVGL lock.
+ * @param[out] page the messages, newest first
+ * @param[out] hasOlder whether there are messages before the page
+ * @return false when the messages couldn't be read
+ */
+bool readPage(const Context* ctx, uint32_t beforeSeq, tt::std::vector<MeshMessage>& page, bool& hasOlder) {
+    // One more than a page tells whether there are older messages
+    page.resize(PAGE_SIZE + 1);
+    size_t count = 0;
+    if (mesh_conversation_get(getPeer(ctx), ctx->channel, beforeSeq, page.data(), page.size(), &count) != ERROR_NONE) {
+        page.clear();
+        return false;
+    }
+    hasOlder = count > PAGE_SIZE;
+    page.resize(hasOlder ? PAGE_SIZE : count);
+    return true;
 }
 
 /** Queries the service, so it's called without the LVGL lock */
 void loadMessages(Context* ctx) {
-    tt::std::vector<MeshMessage> history(MESSAGE_LIMIT);
-    size_t count = 0;
-    if (mesh_conversation_get(getPeer(ctx), ctx->channel, 0, history.data(), MESSAGE_LIMIT, &count) != ERROR_NONE) {
+    tt::std::vector<MeshMessage> page;
+    bool hasOlder = false;
+    if (!readPage(ctx, 0, page, hasOlder)) {
         return;
     }
-    // History is newest first
-    for (size_t i = count; i > 0; i--) {
-        ctx->messages.push_back(history[i - 1]);
+    lvgl_lock();
+    ctx->hasOlder = hasOlder;
+    for (auto iterator = page.rbegin(); iterator != page.rend(); ++iterator) {
+        ctx->messages.push_back(*iterator);
     }
+    lvgl_unlock();
+}
+
+/** Adds the page of messages before the oldest one that is shown, and keeps the shown messages in place */
+void loadOlderMessages(Context* ctx) {
+    if (!ctx->hasOlder || ctx->messages.empty()) {
+        return;
+    }
+    tt::std::vector<MeshMessage> page;
+    bool hasOlder = false;
+    if (!readPage(ctx, ctx->messages.front().seq, page, hasOlder)) {
+        return;
+    }
+    lvgl_lock();
+    ctx->hasOlder = hasOlder;
+    ctx->messageLimit += page.size();
+    for (const auto& message : page) {
+        ctx->messages.push_front(message);
+    }
+    if (ctx->list != nullptr) {
+        // The message that was the oldest one stays where it is on the screen
+        auto* anchor = lv_obj_get_child(ctx->list, ctx->loadOlderButton != nullptr ? 1 : 0);
+        lv_obj_update_layout(ctx->list);
+        const int32_t anchorY = (anchor != nullptr) ? lv_obj_get_y(anchor) : 0;
+        const int32_t scrollY = lv_obj_get_scroll_y(ctx->list);
+        if (!hasOlder && ctx->loadOlderButton != nullptr) {
+            lv_obj_delete(ctx->loadOlderButton);
+            ctx->loadOlderButton = nullptr;
+        }
+        const int32_t firstIndex = ctx->loadOlderButton != nullptr ? 1 : 0;
+        // The page is newest first, so every item goes above the previous one
+        for (const auto& message : page) {
+            lv_obj_move_to_index(createMessageItem(ctx, message), firstIndex);
+        }
+        if (anchor != nullptr) {
+            lv_obj_update_layout(ctx->list);
+            lv_obj_scroll_to_y(ctx->list, scrollY + lv_obj_get_y(anchor) - anchorY, LV_ANIM_OFF);
+        }
+    }
+    lvgl_unlock();
 }
 
 void onMessage(Context* ctx, uint32_t seq) {
@@ -375,22 +472,26 @@ void onMessage(Context* ctx, uint32_t seq) {
     if (mesh_message_get(seq, &message) != ERROR_NONE || !belongsToConversation(ctx, message)) {
         return;
     }
+    lvgl_lock();
     ctx->messages.push_back(message);
+    lvgl_unlock();
     // It is shown right away, so it isn't unread
     if (!message.outgoing) {
         mesh_mark_read(getPeer(ctx), ctx->channel);
     }
-    const bool trimmed = ctx->messages.size() > MESSAGE_LIMIT;
-    const uint32_t trimmedSeq = trimmed ? ctx->messages.front().seq : 0;
-    if (trimmed) {
-        ctx->messages.pop_front();
-    }
-
     lvgl_lock();
-    ctx->details.erase(trimmedSeq);
+    const bool trimmed = ctx->messages.size() > ctx->messageLimit;
+    if (trimmed) {
+        ctx->details.erase(ctx->messages.front().seq);
+        ctx->messages.pop_front();
+        ctx->hasOlder = true;
+    }
     if (ctx->list != nullptr) {
         if (trimmed) {
-            lv_obj_delete(lv_obj_get_child(ctx->list, 0));
+            lv_obj_delete(lv_obj_get_child(ctx->list, ctx->loadOlderButton != nullptr ? 1 : 0));
+            if (ctx->loadOlderButton == nullptr) {
+                createLoadOlderButton(ctx);
+            }
         }
         createMessageItem(ctx, message);
         scrollToNewest(ctx);
@@ -492,8 +593,10 @@ void onDeleteHistoryResult(Context* ctx, int32_t result) {
     lvgl_lock();
     ctx->messages.clear();
     ctx->details.clear();
+    ctx->hasOlder = false;
+    ctx->messageLimit = PAGE_SIZE;
     if (ctx->list != nullptr) {
-        lv_obj_clean(ctx->list);
+        showMessages(ctx);
     }
     lvgl_unlock();
 }
@@ -594,6 +697,7 @@ int32_t appMain(int argc, char* argv[]) {
     task_event_group_construct(&eventGroup);
     ctx.eventGroup = &eventGroup;
     check(task_event_group_claim_bit(&eventGroup, &ctx.menuBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.loadOlderBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -607,11 +711,7 @@ int32_t appMain(int argc, char* argv[]) {
     lvgl_lock();
     if (ctx.list != nullptr) {
         // The window may have been rebuilt from the messages meanwhile
-        lv_obj_clean(ctx.list);
-        for (const auto& message : ctx.messages) {
-            createMessageItem(&ctx, message);
-        }
-        scrollToNewest(&ctx);
+        showMessages(&ctx);
     }
     lvgl_unlock();
 
@@ -622,6 +722,9 @@ int32_t appMain(int argc, char* argv[]) {
 
         if (flags & ctx.menuBit) {
             startMenu(&ctx);
+        }
+        if (flags & ctx.loadOlderBit) {
+            loadOlderMessages(&ctx);
         }
 
         MeshEvent meshEvent {};

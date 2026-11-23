@@ -41,6 +41,10 @@
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
 @widget pathbar_button: lvgl_pathbar_button_class;
+@widget tabs: lvgl_tabs_class;
+@widget tabs_tab: lvgl_tabs_tab_class;
+@widget statusline: lvgl_statusline_class;
+@widget statusline_dot: lvgl_statusline_dot_class;
 
 // ============================================================
 // 1. Base tokens
@@ -169,7 +173,7 @@
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
 @badge-color: @color-on-surface;
-@badge-size: ((4) + ((6dp) - (4)) * $size / 100);
+@badge-size: ((6) + ((8dp) - (6)) * $size / 100);
 
 // Scrollbar
 @scrollbar-color: @color-on-surface;
@@ -287,12 +291,25 @@
 @list-item-gap: ((3) + ((@space-4) - (3)) * $spacing / 100);
 @list-divider-color: @color-outline;
 
-// Tabs: the tab bar is a navigation bar, the selected tab is an inverted pill
+// Tabs: the tabs are a navigation bar, the selected tab is an inverted pill
 @tabs-pad: ((2) + ((@space-1) - (2)) * $spacing / 100);
 @tabs-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
 @tab-pad: ((2) + ((@space-1) - (2)) * $spacing / 100);
 @tab-shape: @shape-control;
 @tab-page-pad: @density-container-pad;
+
+// Statusline (lvgl_statusline_create): the levels are shapes, as there are no colours.
+// OK is a filled circle, a warning an outlined circle and an error a filled square.
+@statusline-dot-size: ((5) + ((7dp) - (5)) * $size / 100);
+@statusline-pad-hor: ((4) + ((@space-3) - (4)) * $spacing / 100);
+@statusline-pad-ver: 4dp + ((1) + ((@space-1) - (1)) * $spacing / 100);
+@statusline-gap: ((3) + ((6dp) - (3)) * $spacing / 100);
+
+// Tabs (lvgl_tabs_create): Material 3 primary tabs, the selected tab has an indicator above the divider
+@tabs-indicator-width: @line-thick;
+@tabs-pad-hor: ((3) + ((@space-4) - (3)) * $spacing / 100);
+@tabs-pad-ver: ((2) + ((@space-3) - (2)) * $spacing / 100);
+@tabs-icon-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
 
 // Dialog
 @dialog-color: @color-surface;
@@ -813,14 +830,14 @@ list_subheader {
     padBottom: @list-pad;
 }
 
-tabs {
+tabview_tabs {
     bgOpa: transp;
     borderWidth: 0;
     padAll: @tabs-pad;
     padGap: @tabs-gap;
 }
 
-tab {
+tabview_tab {
     bgOpa: transp;
     textColor: @color-on-surface;
     borderWidth: 0;
@@ -828,8 +845,65 @@ tab {
     padAll: @tab-pad;
 }
 
-tab_page {
+tabview_page {
     padAll: @tab-page-pad;
+}
+
+statusline {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    padHor: @statusline-pad-hor;
+    padVer: @statusline-pad-ver;
+    padGap: @statusline-gap;
+}
+
+statusline_dot {
+    width: @statusline-dot-size;
+    height: @statusline-dot-size;
+    radius: circle;
+    bgColor: @color-on-surface;
+    bgOpa: cover;
+    borderColor: @color-on-surface;
+    borderWidth: 0;
+    borderOpa: cover;
+}
+
+statusline_dot_warning {
+    bgOpa: transp;
+    borderWidth: @border;
+}
+
+statusline_dot_error {
+    radius: 0;
+}
+
+tabs {
+    bgOpa: transp;
+    borderSide: bottom;
+    borderWidth: @border;
+    borderColor: @color-outline;
+    radius: 0;
+    padAll: 0;
+    padGap: 0;
+}
+
+// Every tab has the indicator's border, so the label doesn't move when the tab is selected
+tabs_tab {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    radius: 0;
+    padHor: @tabs-pad-hor;
+    padVer: @tabs-pad-ver;
+    // Between the icon and the label
+    padGap: @tabs-icon-gap;
+    borderSide: bottom;
+    borderWidth: @tabs-indicator-width;
+    borderOpa: transp;
+}
+
+tabs_tab_selected {
+    borderColor: @color-primary;
+    borderOpa: cover;
 }
 
 dialog {
@@ -1034,11 +1108,11 @@ apply(tabview > obj[1]) {
 }
 
 apply(tabview > obj[0]) {
-    tabs: default;
+    tabview_tabs: default;
 }
 
 apply(tabview > * > obj) {
-    tab_page: default;
+    tabview_page: default;
     scrollbar: part.scrollbar;
 }
 
@@ -1063,7 +1137,7 @@ apply(obj) {
 // Buttons
 
 apply(tabview > *[0] > button) {
-    tab: default;
+    tabview_tab: default;
     inverted: state.pressed;
     inverted: state.checked;
     focus_ring: state.focusKey;
@@ -1216,6 +1290,29 @@ apply(step_indicator_segment) {
 
 apply(badge) {
     badge: default;
+}
+
+apply(statusline) {
+    statusline: default;
+}
+
+apply(statusline_dot) {
+    statusline_dot: default;
+    statusline_dot_warning: state.user1;
+    statusline_dot_error: state.user2;
+}
+
+apply(tabs) {
+    tabs: default;
+}
+
+apply(tabs_tab) {
+    tabs_tab: default;
+    tabs_tab_selected: state.checked;
+    inverted: state.pressed;
+    focus_ring_inset: state.focusKey;
+    edit_ring_inset: state.edited;
+    disabled: state.disabled;
 }
 
 apply(chip) {

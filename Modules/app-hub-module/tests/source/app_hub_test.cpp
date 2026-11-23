@@ -113,8 +113,8 @@ TEST_CASE("app_hub_get_details and app_hub_get_icon fail for apps that aren't in
     ensureFixture();
     char buffer[64];
     AppHubAppDetails details {};
-    CHECK_EQ(app_hub_get_details("missing", buffer, sizeof(buffer), &details), ERROR_NOT_FOUND);
-    CHECK_EQ(app_hub_get_icon("missing", false, buffer, sizeof(buffer)), ERROR_NOT_FOUND);
+    CHECK_EQ(app_hub_get_details("missing", buffer, sizeof(buffer), &details, nullptr), ERROR_NOT_FOUND);
+    CHECK_EQ(app_hub_get_icon("missing", false, buffer, sizeof(buffer), nullptr), ERROR_NOT_FOUND);
 }
 
 TEST_CASE("app_hub merges installed packages with the catalog") {

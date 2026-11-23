@@ -1,5 +1,7 @@
 #pragma once
 
+#include <app_hub/app_hub.h>
+
 #include <lvgl.h>
 
 #include <cstdint>
@@ -12,9 +14,11 @@ namespace tt::app::apphub {
  * @param[in] appId the id of a catalog app
  * @param[in] size width and height in pixels
  * @param[out] recolor true for a mono icon, which is tinted with the theme's icon colour
- * @return the image, to be freed with lv_draw_buf_destroy(), or nullptr when the app has no icon
+ * @param[in] interrupt nullptr, or the bits that cancel the download
+ * @param[out] interrupted true when @a interrupt cancelled the download
+ * @return the image, to be freed with lv_draw_buf_destroy(), or nullptr when the app has no icon or it was interrupted
  */
-lv_draw_buf_t* loadIcon(const char* appId, uint32_t size, bool* recolor);
+lv_draw_buf_t* loadIcon(const char* appId, uint32_t size, bool* recolor, const AppHubInterrupt* interrupt, bool* interrupted);
 
 /**
  * Rasterizes the icon that shows for an app that has no icon (yet): a single colour glyph without a background.

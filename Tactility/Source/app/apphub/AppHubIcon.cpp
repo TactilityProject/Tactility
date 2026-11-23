@@ -18,12 +18,18 @@ namespace tt::app::apphub {
 constexpr uint32_t ICON_SIZE = 96;
 constexpr uint32_t ICON_CORNER_RADIUS = 22;
 
-lv_draw_buf_t* loadIcon(const char* appId, uint32_t size, bool* recolor) {
+lv_draw_buf_t* loadIcon(const char* appId, uint32_t size, bool* recolor, const AppHubInterrupt* interrupt, bool* interrupted) {
+    *interrupted = false;
     const bool preferMono = lvgl_theme_is_mono();
     // Only the preferred variant is downloaded, the other one is a fallback
     for (const bool mono : { preferMono, !preferMono }) {
         char path[FILE_MAX_PATH_STRING_LENGTH];
-        if (app_hub_get_icon(appId, mono, path, sizeof(path)) != ERROR_NONE) {
+        const error_t error = app_hub_get_icon(appId, mono, path, sizeof(path), interrupt);
+        if (error == ERROR_INVALID_STATE) {
+            *interrupted = true;
+            return nullptr;
+        }
+        if (error != ERROR_NONE) {
             continue;
         }
         auto* image = lvgl_svg_rasterize_file_variants(mono ? nullptr : path, mono ? path : nullptr, preferMono, size, recolor);

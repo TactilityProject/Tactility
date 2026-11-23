@@ -18,6 +18,7 @@
 #include <app/manifest.h>
 #include <app/scheduler.h>
 
+#include <algorithm>
 #include <new>
 
 #include <lvgl_window_manager/window_manager.h>
@@ -81,19 +82,29 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-// The slider shows a percentage of the backlight's brightness range
-int32_t brightnessToPercent(Device* backlight, int32_t brightness) {
-    const int32_t min = backlight_get_min_brightness(backlight);
-    const int32_t range = backlight_get_max_brightness(backlight) - min;
-    return range > 0 ? ((brightness - min) * 100 + range / 2) / range : 100;
-}
+constexpr int32_t BRIGHTNESS_STEP = 10;
 
+// The slider shows a percentage of the backlight's brightness range
 int32_t percentToBrightness(Device* backlight, int32_t percent) {
     const int32_t min = backlight_get_min_brightness(backlight);
     const int32_t range = backlight_get_max_brightness(backlight) - min;
     const int32_t brightness = min + (percent * range + 50) / 100;
     // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
     return brightness < 1 ? 1 : brightness;
+}
+
+int32_t brightnessToPercent(Device* backlight, int32_t brightness) {
+    // A backlight with few levels can't map a level back to the exact percentage, so the slider step of the level is used
+    for (int32_t percent = 0; percent <= 100; percent += BRIGHTNESS_STEP) {
+        if (percentToBrightness(backlight, percent) == brightness) {
+            return percent;
+        }
+    }
+    const int32_t min = backlight_get_min_brightness(backlight);
+    const int32_t range = backlight_get_max_brightness(backlight) - min;
+    // A saved brightness can be out of range, e.g. when it was saved for another backlight driver
+    const int32_t clamped = ::std::clamp(brightness, min, min + range);
+    return range > 0 ? ((clamped - min) * 100 + range / 2) / range : 100;
 }
 
 void onBacklightSliderEvent(lv_event_t* event) {
@@ -232,7 +243,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
 
             const int32_t percent = brightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
-            auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, 10, percent);
+            auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, BRIGHTNESS_STEP, percent);
             lv_obj_set_width(brightness_slider, LV_PCT(100));
             lvgl_sliderbox_add_value_changed_cb(brightness_slider, onBacklightSliderEvent, ctx);
         }

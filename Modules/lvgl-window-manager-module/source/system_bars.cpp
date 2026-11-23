@@ -75,6 +75,67 @@ bool isInside(lv_obj_t* obj, lv_obj_t* ancestor) {
     return false;
 }
 
+// The distance from the display's edge along its curved corner where the curve has moved inward by at most the given amount
+int32_t cornerClearance(int32_t maxInset, int32_t radius) {
+    for (int32_t y = 0; y <= radius; y++) {
+        if (lvgl_display_get_row_inset(state->display, y) <= maxInset) {
+            return y;
+        }
+    }
+    return radius;
+}
+
+// On rounded displays the bars are made thick enough to cover the corners, so the apps get a rectangular area:
+// the top and page bar in the split layout, and the strip and a margin on the opposite side in the side layout.
+void applyRoundedInsets() {
+    DisplayShape shape;
+    lvgl_display_get_shape(state->display, &shape);
+    int32_t radius = 0;
+    if (shape.shape == DISPLAY_SHAPE_ROUNDED) {
+        radius = std::min<int32_t>(shape.corner_radius, std::min(lv_display_get_horizontal_resolution(state->display), lv_display_get_vertical_resolution(state->display)) / 2);
+    }
+
+    lv_obj_remove_local_style_prop(state->statusbar, LV_STYLE_MIN_WIDTH, LV_PART_MAIN);
+    lv_obj_remove_local_style_prop(state->statusbar, LV_STYLE_MIN_HEIGHT, LV_PART_MAIN);
+    lv_obj_set_height(state->pageBar, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_left(state->container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(state->container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(state->container, 0, LV_STATE_DEFAULT);
+    lvgl_statusbar_set_side_insets(state->statusbar, 0, 0);
+    if (radius == 0) {
+        return;
+    }
+
+    if (state->layout == SYSTEM_BARS_LAYOUT_SIDE) {
+        lv_obj_set_style_min_width(state->statusbar, radius, LV_STATE_DEFAULT);
+        // The corners on the strip's side cut off the top and bottom of its content,
+        // so it starts where the curve has moved in as far as the strip's own padding
+        const int32_t clearance = cornerClearance(LV_DPX(2), radius);
+        lvgl_statusbar_set_side_insets(state->statusbar, clearance, clearance);
+        LvglInsets insets;
+        lvgl_display_get_insets(state->display, &insets);
+        // The apps keep the diagonal inset from the opposite edge, which is enough to keep their corners inside the curve
+        if (state->alignment == SYSTEM_BARS_ALIGNMENT_RIGHT) {
+            lv_obj_set_style_pad_left(state->container, insets.top, LV_STATE_DEFAULT);
+        } else {
+            lv_obj_set_style_pad_right(state->container, insets.top, LV_STATE_DEFAULT);
+        }
+    } else {
+        // The apps' corners may stay slightly inside the curve, which keeps the bars thinner than the radius
+        const int32_t thickness = cornerClearance(LV_DPX(8), radius);
+        lv_obj_set_style_min_height(state->statusbar, thickness, LV_STATE_DEFAULT);
+        // Keeps the clock and the icons clear of the curve along the whole bar. The spacer in the bar absorbs the width.
+        lv_obj_set_style_pad_hor(state->statusbar, LV_DPX(2) + radius, LV_STATE_DEFAULT);
+        if (lv_obj_is_hidden(state->pageBar)) {
+            lv_obj_set_style_pad_bottom(state->container, thickness, LV_STATE_DEFAULT);
+        } else {
+            // A fixed height keeps the buttons vertically centered in the bar
+            lv_obj_update_layout(state->pageBar);
+            lv_obj_set_height(state->pageBar, std::max(thickness, lv_obj_get_height(state->pageBar)));
+        }
+    }
+}
+
 // The page bar is only shown when it has a button to show
 void updatePageBarVisibility() {
     if (state->pageBar == nullptr) {
@@ -87,6 +148,7 @@ void updatePageBarVisibility() {
         hasButton = !lv_obj_is_hidden(child) && lv_obj_is_clickable(child);
     }
     lv_obj_set_hidden(state->pageBar, !hasButton);
+    applyRoundedInsets();
 }
 
 void onMainPressed(lv_event_t* /*event*/) {

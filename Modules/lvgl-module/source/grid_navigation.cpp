@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl/grid_navigation.h>
 
+#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
+
 static void remove_from_group(lv_obj_t* child) {
     if (lv_obj_get_group(child) != nullptr) {
         lv_group_remove_obj(child);
@@ -209,6 +212,15 @@ void lvgl_grid_navigation_remove(lv_obj_t* container) {
     if (container_focused && focused_child != nullptr) {
         lv_group_focus_obj(focused_child);
     }
+}
+
+void lvgl_grid_navigation_focus_without_touch(lv_obj_t* container, lv_obj_t* child) {
+    if (device_has_active_by_type(&POINTER_TYPE) || device_has_active_by_type(&TOUCH_TYPE)) {
+        return;
+    }
+    lv_obj_update_layout(container);
+    lv_group_focus_obj(container);
+    lv_gridnav_set_focused(container, child, LV_ANIM_OFF);
 }
 
 void lvgl_grid_navigation_step(lv_group_t* group, bool next) {

@@ -4,9 +4,13 @@
 #include <esp_crt_bundle.h>
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
+#include <sdkconfig.h>
 
 #include <tactility/freertos/task.h>
 #include <tactility/log.h>
+#include <tactility/memory.h>
+
+#include <memory>
 
 namespace {
 
@@ -67,9 +71,9 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
         config.cert_pem = certPem.c_str();
         config.cert_len = certPem.size() + 1;
     }
-    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2;
+    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_ANY;
     config.method = HTTP_METHOD_GET;
-    config.timeout_ms = 5000;
+    config.timeout_ms = 10000;
     config.transport_type = HTTP_TRANSPORT_OVER_SSL;
     config.addr_type = HTTP_ADDR_TYPE_INET;
 
@@ -112,29 +116,54 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
     auto content_length = client.getContentLength();
     bool length_known = content_length >= 0;
     auto bytes_left = content_length;
-    char buffer[512];
-    while (!length_known || bytes_left > 0) {
+#ifdef CONFIG_SPIRAM
+    constexpr size_t buffer_size = 16384;
+#else
+    constexpr size_t buffer_size = 512;
+#endif
+    constexpr MemoryPolicy buffer_policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    std::unique_ptr<char, decltype(&memory_free)> buffer_holder(static_cast<char*>(memory_alloc_with_policy(buffer_size, &buffer_policy)), &memory_free);
+    if (buffer_holder == nullptr) {
+        fclose(file);
+        remove(tempPath.c_str());
+        return http_download_make_error_event("Failed to allocate download buffer", status_code);
+    }
+    auto* buffer = buffer_holder.get();
+    // Reads are small so cancellation is seen quickly, and written to the file in batches
+    constexpr size_t read_size = 1024;
+    size_t buffered = 0;
+    bool body_done = false;
+    while (!body_done) {
         if (http_download_is_cancelled(link)) {
             fclose(file);
             remove(tempPath.c_str());
             return http_download_make_cancelled_event(status_code);
         }
-        int data_read = client.read(buffer, sizeof(buffer));
-        if (data_read < 0) {
-            fclose(file);
-            remove(tempPath.c_str());
-            return http_download_make_error_event("Failed to read response data", status_code);
+        if (length_known && bytes_left <= 0) {
+            body_done = true;
+        } else {
+            int data_read = client.read(buffer + buffered, read_size < buffer_size - buffered ? read_size : buffer_size - buffered);
+            if (data_read < 0) {
+                fclose(file);
+                remove(tempPath.c_str());
+                return http_download_make_error_event("Failed to read response data", status_code);
+            }
+            if (data_read == 0) {
+                body_done = true;
+            } else {
+                buffered += static_cast<size_t>(data_read);
+                if (length_known) {
+                    bytes_left -= data_read;
+                }
+            }
         }
-        if (data_read == 0) {
-            break;
-        }
-        if (length_known) {
-            bytes_left -= data_read;
-        }
-        if (fwrite(buffer, 1, static_cast<size_t>(data_read), file) != static_cast<size_t>(data_read)) {
-            fclose(file);
-            remove(tempPath.c_str());
-            return http_download_make_error_event("Failed to write downloaded data", status_code);
+        if (buffered > 0 && (body_done || buffered >= buffer_size)) {
+            if (fwrite(buffer, 1, buffered, file) != buffered) {
+                fclose(file);
+                remove(tempPath.c_str());
+                return http_download_make_error_event("Failed to write downloaded data", status_code);
+            }
+            buffered = 0;
         }
         taskYIELD();
     }

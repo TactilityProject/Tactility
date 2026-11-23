@@ -27,6 +27,8 @@
 #include <lvgl/ui_assets.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/statusbar.h>
+#include <lvgl/widgets/statusline.h>
+#include <lvgl/widgets/tabs.h>
 #include <lvgl/widgets/text_button.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -104,6 +106,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_grid_navigation
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_add),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_remove),
+    DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_focus_without_touch),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_step),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_get_focused),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_is_container),
@@ -143,6 +146,20 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_card_create),
     // lvgl_chip
     DEFINE_MODULE_SYMBOL(lvgl_chip_create),
+    // lvgl_statusline
+    DEFINE_MODULE_SYMBOL(lvgl_statusline_create),
+    DEFINE_MODULE_SYMBOL(lvgl_statusline_set_text),
+    DEFINE_MODULE_SYMBOL(lvgl_statusline_set_level),
+    // lvgl_tabs
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_create),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_add_tab),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_add_tab_with_icon),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_set_tab_text),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_set_tab_hidden),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_set_tab_badge),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_set_mode),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_set_selected),
+    DEFINE_MODULE_SYMBOL(lvgl_tabs_get_selected),
     // lvgl_icon_button
     DEFINE_MODULE_SYMBOL(lvgl_icon_button_create),
     DEFINE_MODULE_SYMBOL(lvgl_icon_button_create_variant),

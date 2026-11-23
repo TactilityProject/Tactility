@@ -28,6 +28,15 @@ A file read can block the whole UI, and `create_widgets` can run on another app'
 - Put groups of related focusable widgets (pills/chips, rows of buttons, toggle tiles) in a grid navigation container with `lvgl_grid_navigation_add()` (`lvgl/grid_navigation.h`). Only the container joins the input group: left/right moves within the group and up/down moves between groups.
 - Never make checkable widgets (switches, checkable buttons) direct input group members: LVGL toggles them on arrow keys. Grid navigation forwards only Enter to them.
 
+## Headers with a close button
+
+Apps that replace the toolbar with a custom header (close button, tabs, actions) must make every group of the header reachable with the arrow keys:
+
+- A plain button ignores left and right. Put the close button in its own container with `lvgl_grid_navigation_add()`, next to the tabs and the actions, which are grid navigation groups too. Moving past the edge of a group moves the focus to the previous or next group.
+- Call `lvgl_grid_navigation_focus_without_touch(container, closeButton)` after that. Without a touchscreen the close button is selected when the app starts, as `lvgl_toolbar_create()` does, so the user doesn't have to move the focus there first.
+- Cards and other content that don't take input but are taller than the display (e.g. the usage cards of System Info) must be focusable (clickable and click-focusable, in a grid navigation container), so the keys can scroll to them on small displays.
+- The focus group only holds the content of the shown tab: remove the containers of hidden tabs from the group.
+
 ## Theming (LSS)
 
 The themes in `Modules/lvgl-module/source/themes/lv_theme_material*.c/.h` are generated: never edit them directly. They're compiled from the LVGL Style Sheets in `Modules/lvgl-module/themes/*.lss` by the LSS tool, a git submodule at `Modules/lvgl-module/lss/` (see its `README.md` for the syntax).

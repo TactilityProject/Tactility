@@ -2,8 +2,6 @@
 
 #include <app/manifest.h>
 
-#include <Tactility/MountPoints.h>
-
 #include <format>
 #include <tactility/check.h>
 #include <tactility/device.h>

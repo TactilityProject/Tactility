@@ -382,23 +382,46 @@ TEST_CASE("MeshStore doesn't reuse a sequence number after retention removed the
     store.close();
 }
 
-TEST_CASE("MeshStore doesn't store a deletion when a message of the conversation can't be read") {
+TEST_CASE("MeshStore deletes a conversation without reading its messages") {
     const std::string directory = makeTempDirectory();
     const MeshAddress alice = { .length = 4, .bytes = { 1, 2, 3, 4 } };
 
-    MeshStore store;
-    REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
-    auto message = makeMessage("alice", false, MESH_DELIVERY_RECEIVED);
-    message.peer = alice;
-    REQUIRE_EQ(store.add(&message), ERROR_NONE);
-    REQUIRE_EQ(store.flush(), ERROR_NONE);
+    {
+        MeshStore store;
+        REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+        auto message = makeMessage("alice", false, MESH_DELIVERY_RECEIVED);
+        message.peer = alice;
+        REQUIRE_EQ(store.add(&message), ERROR_NONE);
+        REQUIRE_EQ(store.flush(), ERROR_NONE);
 
-    // The message is on storage now, and its segment goes away
-    const std::string segment = directory + "/seg-00000000.log";
-    REQUIRE_EQ(remove(segment.c_str()), 0);
+        // The message can't be read anymore, as its segment goes away
+        const std::string segment = directory + "/seg-00000000.log";
+        REQUIRE_EQ(remove(segment.c_str()), 0);
 
-    CHECK_EQ(store.removeConversation("test", &alice, 0), ERROR_RESOURCE);
-    // Nothing was removed or stored, so the message is still listed
-    CHECK_EQ(store.getMessageCount(), 1);
-    store.close();
+        CHECK_EQ(store.removeConversation("test", &alice, 0), ERROR_NONE);
+        CHECK_EQ(store.getMessageCount(), 0);
+        store.close();
+    }
+}
+
+TEST_CASE("MeshStore deletes only the conversation of the backend that was asked") {
+    // These backend ids have the same 32-bit FNV-1a hash
+    const std::string directory = makeTempDirectory();
+    for (int round = 0; round < 2; round++) {
+        MeshStore store;
+        REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+        if (round == 0) {
+            for (const char* backend : { "costarring", "liquid" }) {
+                auto message = makeMessage("channel", false, MESH_DELIVERY_RECEIVED);
+                strcpy(message.backend, backend);
+                message.peer = MeshAddress {};
+                REQUIRE_EQ(store.add(&message), ERROR_NONE);
+            }
+            REQUIRE_EQ(store.removeConversation("costarring", nullptr, 2), ERROR_NONE);
+        }
+        MeshMessage messages[4];
+        CHECK_EQ(store.getConversation("costarring", nullptr, 2, 0, messages, 4), 0);
+        CHECK_EQ(store.getConversation("liquid", nullptr, 2, 0, messages, 4), 1);
+        store.close();
+    }
 }
