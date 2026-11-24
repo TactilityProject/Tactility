@@ -8,6 +8,8 @@ dependencies:
   - Drivers/sy6970-module
   - Drivers/bq27220-module
   - Drivers/drv2605-module
+  - Drivers/es8311-module
+  - Drivers/audio-stream-module
   - Drivers/gps-generic-module
 dts: lilygo,tdeck-max.dts
 dts-only: true
