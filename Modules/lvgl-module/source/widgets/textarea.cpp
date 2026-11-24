@@ -1,3 +1,4 @@
+#define LV_USE_PRIVATE_API 1
 #include <lvgl.h>
 
 extern "C" {
@@ -9,11 +10,16 @@ bool lvgl_textarea_is_cursor_on_first_line(lv_obj_t* textarea) {
     }
 
     uint32_t cursor = lv_textarea_get_cursor_pos(textarea);
+    uint32_t char_index = 0;
+    uint32_t byte_index = 0;
 
-    for (uint32_t i = 0; i < cursor; i++) {
-        if (text[i] == '\n') {
+    while (text[byte_index] != '\0' && char_index < cursor) {
+        if (text[byte_index] == '\n') {
             return false;
         }
+
+        byte_index += lv_text_encoded_size(&text[byte_index]);
+        char_index++;
     }
 
     return true;
@@ -26,11 +32,22 @@ bool lvgl_textarea_is_cursor_on_last_line(lv_obj_t* textarea) {
     }
 
     uint32_t cursor = lv_textarea_get_cursor_pos(textarea);
+    uint32_t char_index = 0;
+    uint32_t byte_index = 0;
 
-    for (uint32_t i = cursor; text[i] != '\0'; i++) {
-        if (text[i] == '\n') {
+    // Advance to the cursor position.
+    while (text[byte_index] != '\0' && char_index < cursor) {
+        byte_index += lv_text_encoded_size(&text[byte_index]);
+        char_index++;
+    }
+
+    // Check for newlines after the cursor.
+    while (text[byte_index] != '\0') {
+        if (text[byte_index] == '\n') {
             return false;
         }
+
+        byte_index += lv_text_encoded_size(&text[byte_index]);
     }
 
     return true;

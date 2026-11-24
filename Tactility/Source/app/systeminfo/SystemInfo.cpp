@@ -400,7 +400,7 @@ bool collectStorageVolume(FileSystem* fs, void* context) {
         file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE ||
         file_system_get_usage(fs, &total, &free) != ERROR_NONE
     ) {
-        return false;
+        return true;
     }
     auto* owner = file_system_get_owner(fs);
     const bool sdcard = owner != nullptr && device_get_type(owner) == &SDCARD_TYPE;

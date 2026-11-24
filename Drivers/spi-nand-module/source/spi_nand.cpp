@@ -6,6 +6,7 @@
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/sdcard.h>
 #include <tactility/error.h>
+#include <tactility/error_esp32.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 

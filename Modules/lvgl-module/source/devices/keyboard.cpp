@@ -88,8 +88,8 @@ lv_group_t* lvgl_keyboard_get_app_group() {
 static uint32_t codepoint_to_lv_key(const struct KeyboardKeyData* key_data) {
     switch (key_data->key) {
         case CODEPOINT_ENTER: return LV_KEY_ENTER;
-        case CODEPOINT_ARROW_UP: return LV_KEY_UP;
-        case CODEPOINT_ARROW_DOWN: return LV_KEY_DOWN;
+        case CODEPOINT_ARROW_UP: return LV_KEY_PREV;
+        case CODEPOINT_ARROW_DOWN: return LV_KEY_NEXT;
         case CODEPOINT_ARROW_LEFT: return LV_KEY_LEFT;
         case CODEPOINT_ARROW_RIGHT: return LV_KEY_RIGHT;
         case CODEPOINT_TAB: {
@@ -125,7 +125,7 @@ uint32_t lvgl_keyboard_translate_key(lv_indev_t* indev, const struct KeyboardKey
     if (lvgl_container_is_textarea(focused)) {
         auto pos = lv_textarea_get_cursor_pos(focused);
         auto text = lv_textarea_get_text(focused);
-        auto max_pos = strlen(text);
+        auto max_pos = lv_text_get_encoded_length(text);
 
         // Cursor at start and pressing up selects the previous widget.
         // This allows a keyboard-only user to escape the textarea with a keyboard in case they don't have a tab key.
@@ -142,17 +142,33 @@ uint32_t lvgl_keyboard_translate_key(lv_indev_t* indev, const struct KeyboardKey
         // Cursor at first line (not index 0) and pressing up arrow makes the cursor go to index 0.
         // This makes quick navigation possible without having home/end keys.
         if (key_data->key == CODEPOINT_ARROW_UP && lvgl_textarea_is_cursor_on_first_line(focused)) {
-            lv_textarea_set_cursor_pos(focused, 0);
-            // Swallow key event
-            return 0;
+            return LV_KEY_HOME;
         }
 
         // Cursor at last line (not max index) and pressing down arrow makes the cursor go to max index.
         // This makes quick navigation possible without having home/end keys.
         if (key_data->key == CODEPOINT_ARROW_DOWN && lvgl_textarea_is_cursor_on_last_line(focused)) {
-            lv_textarea_set_cursor_pos(focused, max_pos);
-            // Swallow key event
-            return 0;
+            return LV_KEY_END;
+        }
+
+        // Arrow Up is translated as LV_KEY_PREV by default, so we override it to navigate within the textarea
+        if (key_data->key == CODEPOINT_ARROW_UP) {
+            return LV_KEY_UP;
+        }
+
+        // Arrow down is translated as LV_KEY_NEXT by default, so we override it to navigate within the textarea
+        if (key_data->key == CODEPOINT_ARROW_DOWN) {
+            return LV_KEY_DOWN;
+        }
+    }
+
+    if (lvgl_grid_navigation_is_container(focused)) {
+        // Grid navigation moves the focus in two dimensions with the arrow keys
+        // The default maps to prev/next, so we must override it
+        if (key_data->key == CODEPOINT_ARROW_UP) {
+            return LV_KEY_UP;
+        } else if (key_data->key == CODEPOINT_ARROW_DOWN) {
+            return LV_KEY_DOWN;
         }
     }
 
