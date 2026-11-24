@@ -37,7 +37,8 @@ bool lvgl_textarea_is_cursor_on_last_line(lv_obj_t* textarea) {
 
     // Advance to the cursor position.
     while (text[byte_index] != '\0' && char_index < cursor) {
-        byte_index += lv_text_encoded_size(&text[byte_index]);
+        uint32_t size = lv_text_encoded_size(&text[byte_index]);
+        byte_index += (size > 0) ? size : 1;
         char_index++;
     }
 
@@ -47,7 +48,8 @@ bool lvgl_textarea_is_cursor_on_last_line(lv_obj_t* textarea) {
             return false;
         }
 
-        byte_index += lv_text_encoded_size(&text[byte_index]);
+        uint32_t size = lv_text_encoded_size(&text[byte_index]);
+        byte_index += (size > 0) ? size : 1;
     }
 
     return true;
