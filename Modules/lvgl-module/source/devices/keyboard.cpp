@@ -6,6 +6,12 @@
 #include <lvgl/lvgl.h>
 
 #include <tactility/drivers/keyboard.h>
+
+#include <lvgl/widgets/textarea.h>
+
+#define LV_USE_PRIVATE_API 1
+#include <lvgl.h>
+
 #include <tactility/log.h>
 
 #include <vector>
@@ -79,33 +85,78 @@ lv_group_t* lvgl_keyboard_get_app_group() {
 // so those are translated here rather than each driver having to know about LVGL's internals.
 // CODEPOINT_BACKSPACE/TAB/ESCAPE/DELETE already equal their LV_KEY_* counterpart numerically, so
 // they need no case below - they fall through `default` unchanged.
-static uint32_t codepoint_to_lv_key(uint32_t key) {
-    switch (key) {
+static uint32_t codepoint_to_lv_key(const struct KeyboardKeyData* key_data) {
+    switch (key_data->key) {
         case CODEPOINT_ENTER: return LV_KEY_ENTER;
+        case CODEPOINT_ARROW_UP: return LV_KEY_UP;
+        case CODEPOINT_ARROW_DOWN: return LV_KEY_DOWN;
         case CODEPOINT_ARROW_LEFT: return LV_KEY_LEFT;
-        case CODEPOINT_ARROW_UP: return LV_KEY_PREV;
         case CODEPOINT_ARROW_RIGHT: return LV_KEY_RIGHT;
-        case CODEPOINT_ARROW_DOWN: return LV_KEY_NEXT;
+        case CODEPOINT_TAB: {
+            // TODO: Shift-tab for previous
+            return LV_KEY_NEXT;
+        }
+        // case CODEPOINT_ARROW_UP: return LV_KEY_PREV;
         case CODEPOINT_HOME: return LV_KEY_HOME;
         case CODEPOINT_END: return LV_KEY_END;
         case CODEPOINT_YES: return LV_KEY_ENTER;
         case CODEPOINT_NO: return LV_KEY_ESC;
-        default: return key;
+        default: return key_data->key;
     }
 }
 
-uint32_t lvgl_keyboard_translate_key(lv_indev_t* indev, uint32_t codepoint) {
+bool lvgl_container_is_textarea(const lv_obj_t* obj) {
+    if (obj == nullptr) {
+        return false;
+    }
+    // Grid navigation containers are the objects with this module's focus handler
+    auto* container = const_cast<lv_obj_t*>(obj);
+    if (container->class_p == nullptr || container->class_p->name == nullptr) {
+        return false;
+    }
+    return strcmp(container->class_p->name, "lv_textarea") == 0;
+}
+
+uint32_t lvgl_keyboard_translate_key(lv_indev_t* indev, const struct KeyboardKeyData* key_data) {
     lv_group_t* group = lv_indev_get_group(indev);
     lv_obj_t* focused = group != nullptr ? lv_group_get_focused(group) : nullptr;
-    if (lvgl_grid_navigation_is_container(focused)) {
-        // Grid navigation moves the focus in two dimensions with the arrow keys
-        if (codepoint == CODEPOINT_ARROW_UP) {
-            return LV_KEY_UP;
-        } else if (codepoint == CODEPOINT_ARROW_DOWN) {
-            return LV_KEY_DOWN;
+    // The bounds of an lv_textarea ensure that up/down arrow keys can jump out and focus the prev/next widget.
+    // This way, devices don't get stuck if they navigate with only a keyboard and lack a tab key.
+    if (lvgl_container_is_textarea(focused)) {
+        auto pos = lv_textarea_get_cursor_pos(focused);
+        auto text = lv_textarea_get_text(focused);
+        auto max_pos = strlen(text);
+
+        // Cursor at start and pressing up selects the previous widget.
+        // This allows a keyboard-only user to escape the textarea with a keyboard in case they don't have a tab key.
+        if (pos == 0 && key_data->key == CODEPOINT_ARROW_UP) {
+            return LV_KEY_PREV;
+        }
+
+        // Cursor at end and pressing down selects the next widget.
+        // This allows a keyboard-only user to escape the textarea with a keyboard in case they don't have a tab key.
+        if (pos == max_pos && key_data->key == CODEPOINT_ARROW_DOWN) {
+            return LV_KEY_NEXT;
+        }
+
+        // Cursor at first line (not index 0) and pressing up arrow makes the cursor go to index 0.
+        // This makes quick navigation possible without having home/end keys.
+        if (key_data->key == CODEPOINT_ARROW_UP && lvgl_textarea_is_cursor_on_first_line(focused)) {
+            lv_textarea_set_cursor_pos(focused, 0);
+            // Swallow key event
+            return 0;
+        }
+
+        // Cursor at last line (not max index) and pressing down arrow makes the cursor go to max index.
+        // This makes quick navigation possible without having home/end keys.
+        if (key_data->key == CODEPOINT_ARROW_DOWN && lvgl_textarea_is_cursor_on_last_line(focused)) {
+            lv_textarea_set_cursor_pos(focused, max_pos);
+            // Swallow key event
+            return 0;
         }
     }
-    return codepoint_to_lv_key(codepoint);
+
+    return codepoint_to_lv_key(key_data);
 }
 
 static void lvgl_keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
@@ -130,7 +181,7 @@ static void lvgl_keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         return;
     }
 
-    data->key = lvgl_keyboard_translate_key(indev, key_data.key);
+    data->key = key_data.key != 0 ? lvgl_keyboard_translate_key(indev, &key_data) : 0;
     data->state = key_data.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     data->continue_reading = key_data.continue_reading;
 }

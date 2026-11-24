@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#define LV_USE_PRIVATE_API 1
+#include <lvgl.h>
 #include <lvgl/grid_navigation.h>
 
 #include <tactility/drivers/pointer.h>

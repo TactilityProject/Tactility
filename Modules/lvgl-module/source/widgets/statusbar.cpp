@@ -229,33 +229,26 @@ static void onIconRowClicked(lv_event_t* /*event*/) {
     show_menu(-1);
 }
 
-static bool is_inside(lv_obj_t* obj, lv_obj_t* ancestor) {
-    for (lv_obj_t* current = obj; current != nullptr; current = lv_obj_get_parent(current)) {
-        if (current == ancestor) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// In the side strip, the key towards the app moves the focus to the first widget outside of the strip
 static void onIconRowKey(lv_event_t* event) {
     auto* statusbar = static_cast<Statusbar*>(lv_event_get_user_data(event));
     if (!statusbar->side) {
-        return;
-    }
-    if (lv_event_get_key(event) != (statusbar->side_right ? LV_KEY_LEFT : LV_KEY_RIGHT)) {
         return;
     }
     lv_group_t* group = lv_obj_get_group(statusbar->icon_row);
     if (group == nullptr) {
         return;
     }
-    const uint32_t count = lv_group_get_obj_count(group);
-    for (uint32_t i = 0; i < count; i++) {
+    if (lv_event_get_key(event) == LV_KEY_DOWN) {
         lv_group_focus_next(group);
-        if (!is_inside(lv_group_get_focused(group), &statusbar->obj)) {
-            return;
+    } else if (lv_event_get_key(event) == LV_KEY_UP) {
+        lv_group_focus_prev(group);
+    } else if (lv_event_get_key(event) == LV_KEY_LEFT) {
+        if (statusbar->side_right) {
+            lv_group_focus_prev(group);
+        }
+    } else if (lv_event_get_key(event) == LV_KEY_RIGHT) {
+        if (!statusbar->side_right) {
+            lv_group_focus_prev(group);
         }
     }
 }
