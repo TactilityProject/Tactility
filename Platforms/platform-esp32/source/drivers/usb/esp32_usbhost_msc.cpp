@@ -8,6 +8,7 @@
 #include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/filesystem/file_system.h>
+#include <tactility/error_esp32.h>
 #include <tactility/log.h>
 
 #include <atomic>
@@ -23,10 +24,13 @@
 #include <usb/msc_host_vfs.h>
 #include <esp_vfs_fat.h>
 
-#define TAG "esp32_usbhost_msc"
+namespace {
+auto constexpr TAG = "esp32_usbhost_msc";
+}
 
 #define USB_MSC_MOUNT_PATH_PREFIX "/usb"
 
+struct Esp32FlashFatfsData;
 constexpr auto MAX_MSC_DEVICES      = 2;
 constexpr auto MSC_EVENT_QUEUE_SIZE = 8;
 constexpr auto MSC_PROC_TASK_STACK  = 4096;
@@ -88,11 +92,18 @@ static error_t usb_fs_get_path(void* data, char* out_path, size_t out_path_size)
     return ERROR_NONE;
 }
 
+static error_t usb_fs_get_usage(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    const char* mount_path = static_cast<msc_dev_entry_t*>(data)->mount_path;
+    auto error = esp_vfs_fat_info(mount_path, out_total_bytes, out_free_bytes);
+    return esp_err_to_error(error);
+}
+
 static const FileSystemApi usb_fs_api = {
     .mount      = usb_fs_mount,
     .unmount    = usb_fs_unmount,
     .is_mounted = usb_fs_is_mounted,
     .get_path   = usb_fs_get_path,
+    .get_usage   = usb_fs_get_usage,
 };
 
 static int find_free_slot(UsbMscContext* ctx) {

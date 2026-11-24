@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <tactility/error.h>
 
 #ifdef __cplusplus
@@ -46,6 +47,13 @@ struct FileSystemApi {
      * @return ERROR_NONE on success, or an error code
      */
     error_t (*get_path)(void* data, char* out_path, size_t out_path_size);
+
+    /**
+     * @brief Get the total and available bytes of this file system.
+     * @warning Can be NULL if not supported
+     * @return ERROR_NONE on success or an error code
+     */
+    error_t (*get_usage)(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes);
 };
 
 /**
@@ -137,6 +145,13 @@ void file_system_set_owner(struct FileSystem* fs, struct Device* owner);
  * @return the owning device, or NULL if not set
  */
 struct Device* file_system_get_owner(struct FileSystem* fs);
+
+/**
+ * @brief Get the total and available bytes of this file system.
+ * @warning Can be NULL if not supported
+ * @return ERROR_NONE on success, ERROR_NOT_SUPPORTED when it's not implemented, or an error code.
+ */
+error_t file_system_get_usage(struct FileSystem* fs, uint64_t* out_total_bytes, uint64_t* out_free_bytes);
 
 #ifdef __cplusplus
 }

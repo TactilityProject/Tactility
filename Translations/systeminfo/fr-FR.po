@@ -27,8 +27,14 @@ msgstr "Écran"
 msgid "Flash"
 msgstr "Flash"
 
-msgid "Internal RAM"
-msgstr "RAM interne"
+msgid "Internal"
+msgstr "Interne"
+
+msgid "External"
+msgstr "Externe"
+
+msgid "RAM"
+msgstr "RAM"
 
 msgid "Low stack first"
 msgstr "Pile faible d'abord"
@@ -38,9 +44,6 @@ msgstr "Mémoire"
 
 msgid "Model"
 msgstr "Modèle"
-
-msgid "PSRAM"
-msgstr "PSRAM"
 
 msgid "Paused"
 msgstr "En pause"

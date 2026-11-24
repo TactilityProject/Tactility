@@ -8,6 +8,7 @@
 
 ## Medium Priority
 
+- Shift-TAB for selecting previous widget in lvgl-module's keyboard.cpp: Must implement this at KeyboardApi level in KeyboardKeyData
 - Check if main mesh task stack (8kB) can move to external RAM when available. Shift file IO to file_ops?
 - SystemInfo is causing stack overflow when clicking on task to see its details
 - Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.

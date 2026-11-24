@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_flash_fatfs.h>
+
+#include <tactility/error_esp32.h>
+
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 #include <tactility/partitions_esp32.h>
@@ -102,11 +105,18 @@ static error_t fs_get_path(void* data, char* out_path, size_t out_path_size) {
     return ERROR_NONE;
 }
 
+error_t fs_get_usage(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    const char* mount_path = static_cast<Esp32FlashFatfsData*>(data)->config->mount_path;
+    auto error = esp_vfs_fat_info(mount_path, out_total_bytes, out_free_bytes);
+    return esp_err_to_error(error);
+}
+
 static const FileSystemApi fs_api = {
     .mount = fs_mount,
     .unmount = fs_unmount,
     .is_mounted = fs_is_mounted,
     .get_path = fs_get_path,
+    .get_usage = fs_get_usage,
 };
 
 static error_t start(Device* device) {

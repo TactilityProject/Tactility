@@ -18,7 +18,7 @@ constexpr auto* TAG = "memory";
 
 extern "C" {
 
-const struct MemoryPolicy MEMORY_POLICY_DEFAULT = {
+const MemoryPolicy MEMORY_POLICY_DEFAULT = {
     .required = 0,
     .desired = 0,
     .alignment = 0,
@@ -56,9 +56,25 @@ size_t memory_heap_total() {
 #endif
 }
 
+size_t memory_heap_largest_block() {
+#ifdef ESP_PLATFORM
+    return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+#else
+    return 0;
+#endif
+}
+
 size_t memory_external_total() {
 #ifdef ESP_PLATFORM
     return heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+#else
+    return 0;
+#endif
+}
+
+size_t memory_external_largest_block() {
+#ifdef ESP_PLATFORM
+    return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
 #else
     return 0;
 #endif

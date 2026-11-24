@@ -28,6 +28,8 @@ static const ModuleSymbol SYMBOLS[] = {
     // ESP-IDF FreeRTOS extension (memory-capability-aware alloc); not in vanilla FreeRTOS-Kernel.
     DEFINE_MODULE_SYMBOL(vTaskDeleteWithCaps),
 #endif
+    DEFINE_MODULE_SYMBOL(uxTaskGetSystemState),
+    DEFINE_MODULE_SYMBOL(uxTaskGetNumberOfTasks),
     DEFINE_MODULE_SYMBOL(vTaskSetTimeOutState),
     DEFINE_MODULE_SYMBOL(vTaskPrioritySet),
     DEFINE_MODULE_SYMBOL(vTaskSetTaskNumber),

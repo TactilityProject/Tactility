@@ -68,6 +68,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(expf),
     DEFINE_MODULE_SYMBOL(ldexpf),
     DEFINE_MODULE_SYMBOL(logf),
+    DEFINE_MODULE_SYMBOL(log2f),
     DEFINE_MODULE_SYMBOL(log10f),
     DEFINE_MODULE_SYMBOL(powf),
     DEFINE_MODULE_SYMBOL(sqrtf),
@@ -121,6 +122,9 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(fgets),
     DEFINE_MODULE_SYMBOL(fopen),
     DEFINE_MODULE_SYMBOL(freopen),
+    DEFINE_MODULE_SYMBOL(tmpfile),
+    DEFINE_MODULE_SYMBOL(tmpnam),
+    DEFINE_MODULE_SYMBOL(ungetc),
     DEFINE_MODULE_SYMBOL(setvbuf),
     DEFINE_MODULE_SYMBOL(fputc),
     DEFINE_MODULE_SYMBOL(fputs),
@@ -164,6 +168,7 @@ static const ModuleSymbol SYMBOLS[] = {
 #endif
     DEFINE_MODULE_SYMBOL(strerror),
     DEFINE_MODULE_SYMBOL(strtod),
+    DEFINE_MODULE_SYMBOL(strtof),
     DEFINE_MODULE_SYMBOL(strtol),
     DEFINE_MODULE_SYMBOL(strtoul),
     DEFINE_MODULE_SYMBOL(strcspn),
@@ -196,11 +201,12 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(toupper),
     // locale.h
     DEFINE_MODULE_SYMBOL(localeconv),
+    DEFINE_MODULE_SYMBOL(setlocale),
     // regex.h
     DEFINE_MODULE_SYMBOL(regcomp),
     DEFINE_MODULE_SYMBOL(regexec),
     DEFINE_MODULE_SYMBOL(regfree),
-    MODULE_SYMBOL_TERMINATOR
+    MODULE_SYMBOL_TERMINATOR,
 };
 
 Module c_symbols_module = {

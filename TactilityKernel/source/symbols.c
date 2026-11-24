@@ -198,6 +198,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(file_system_unmount),
     DEFINE_MODULE_SYMBOL(file_system_is_mounted),
     DEFINE_MODULE_SYMBOL(file_system_get_path),
+    DEFINE_MODULE_SYMBOL(file_system_get_usage),
     DEFINE_MODULE_SYMBOL(file_system_for_each),
     DEFINE_MODULE_SYMBOL(file_system_for_each_mounted),
     // filesystem/file.h
@@ -227,8 +228,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(memory_free),
     DEFINE_MODULE_SYMBOL(memory_heap_free),
     DEFINE_MODULE_SYMBOL(memory_heap_total),
+    DEFINE_MODULE_SYMBOL(memory_heap_largest_block),
     DEFINE_MODULE_SYMBOL(memory_external_total),
     DEFINE_MODULE_SYMBOL(memory_external_free),
+    DEFINE_MODULE_SYMBOL(memory_external_largest_block),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),
@@ -236,6 +239,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_level),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_set_flags),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_flags),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_has_flags),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_native_pin_number),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_pin_number),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_owner_type),
