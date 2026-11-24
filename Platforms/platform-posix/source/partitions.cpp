@@ -9,6 +9,7 @@
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <sys/statvfs.h>
 
 namespace {
 
@@ -47,11 +48,23 @@ error_t get_path(void* data, char* out_path, size_t out_path_size) {
     return ERROR_NONE;
 }
 
+error_t get_usage(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    auto* fs_data = static_cast<DirectoryFsData*>(data);
+    struct statvfs stats {};
+    if (statvfs(fs_data->path, &stats) != 0) {
+        return ERROR_UNDEFINED;
+    }
+    *out_total_bytes = static_cast<uint64_t>(stats.f_blocks) * stats.f_frsize;
+    *out_free_bytes = static_cast<uint64_t>(stats.f_bavail) * stats.f_frsize;
+    return ERROR_NONE;
+}
+
 const FileSystemApi directory_fs_api = {
     .mount = mount,
     .unmount = unmount,
     .is_mounted = is_mounted,
     .get_path = get_path,
+    .get_usage = get_usage,
 };
 
 // relative_path is resolved against the process' current working directory.

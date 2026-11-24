@@ -237,11 +237,18 @@ error_t fs_get_path(void* data, char* out_path, size_t out_path_size) {
     return ERROR_NONE;
 }
 
+error_t fs_get_usage(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    const auto* internal = static_cast<SpiNandInternal*>(data);
+    auto error = esp_vfs_fat_info(internal->config->mount_path, out_total_bytes, out_free_bytes);
+    return esp_err_to_error(error);
+}
+
 const FileSystemApi SPI_NAND_FS_API = {
     .mount = fs_mount,
     .unmount = fs_unmount,
     .is_mounted = fs_is_mounted,
     .get_path = fs_get_path,
+    .get_usage = fs_get_usage,
 };
 
 // endregion

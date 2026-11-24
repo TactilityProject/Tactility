@@ -40,11 +40,8 @@
 #include <tactility/std/vector.hpp>
 
 #ifdef ESP_PLATFORM
-#include <esp_vfs_fat.h>
 #include <esp_heap_caps.h>
 #include <soc/soc_caps.h>
-#else
-#include <sys/statvfs.h>
 #endif
 
 namespace tt::app::systeminfo {
@@ -55,45 +52,11 @@ extern const ::AppManifest manifest;
 
 namespace {
 
-size_t getHeapFree() {
-    return memory_heap_free();
-}
-
-size_t getHeapTotal() {
-    return memory_heap_total();
-}
-
-size_t getSpiFree() {
-    return memory_external_free();
-}
-
-size_t getHeapLargestBlock() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-#else
-    // Not known on the simulator, so the card leaves it out
-    return 0;
-#endif
-}
-
-size_t getSpiLargestBlock() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
-#else
-    // Not known on the simulator, so the card leaves it out
-    return 0;
-#endif
-}
-
-size_t getSpiTotal() {
-    return memory_external_total();
-}
-
 enum class StorageUnit {
     Bytes,
     Kilobytes,
     Megabytes,
-    Gigabytes
+    Gigabytes,
 };
 
 StorageUnit getStorageUnit(uint64_t value) {
@@ -260,8 +223,6 @@ void updateUsageCard(UsageCardWidgets& widgets, uint64_t free, uint64_t total, u
     widgets.largestBlockText = (largestBlock > 0) ? i18n::format(tr(" · largest block {}"), { formatSize(largestBlock) }) : "";
     fitUsageCardDetail(widgets);
 }
-
-
 
 #if configUSE_TRACE_FACILITY
 
@@ -430,27 +391,16 @@ struct StorageVolume {
     UsageCardWidgets card;
 };
 
-bool getStorageUsage(const char* path, uint64_t& total, uint64_t& free) {
-#ifdef ESP_PLATFORM
-    return esp_vfs_fat_info(path, &total, &free) == ESP_OK;
-#else
-    struct statvfs stats {};
-    if (statvfs(path, &stats) != 0) {
-        return false;
-    }
-    total = static_cast<uint64_t>(stats.f_blocks) * stats.f_frsize;
-    free = static_cast<uint64_t>(stats.f_bavail) * stats.f_frsize;
-    return true;
-#endif
-}
-
 /** Collects the mounted file systems of which the capacity is known. Querying the capacity can be slow, so this isn't for the LVGL task. */
 bool collectStorageVolume(FileSystem* fs, void* context) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     uint64_t total = 0;
     uint64_t free = 0;
-    if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE || !getStorageUsage(path, total, free)) {
-        return true;
+    if (
+        file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE ||
+        file_system_get_usage(fs, &total, &free) != ERROR_NONE
+    ) {
+        return false;
     }
     auto* owner = file_system_get_owner(fs);
     const bool sdcard = owner != nullptr && device_get_type(owner) == &SDCARD_TYPE;
@@ -569,10 +519,10 @@ struct Context {
 
 
 void updateMemory(Context* ctx) {
-    updateUsageCard(ctx->internalMemCard, getHeapFree(), getHeapTotal(), getHeapLargestBlock());
+    updateUsageCard(ctx->internalMemCard, memory_heap_free(), memory_heap_total(), memory_heap_largest_block());
 
     if (ctx->hasExternalMem) {
-        updateUsageCard(ctx->externalMemCard, getSpiFree(), getSpiTotal(), getSpiLargestBlock());
+        updateUsageCard(ctx->externalMemCard, memory_external_free(), memory_external_total(), memory_external_largest_block());
     }
 }
 
@@ -937,11 +887,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     }
 
     // Memory tab content
-    createUsageCard(memory_tab, tr("Internal RAM"), ctx->internalMemCard);
+    bool has_external_memory = memory_external_total() > 0;
+    auto internal_memory_label = has_external_memory ? tr("Internal") : tr("RAM");
+    createUsageCard(memory_tab, internal_memory_label, ctx->internalMemCard);
 
-    ctx->hasExternalMem = getSpiTotal() > 0;
+    ctx->hasExternalMem = memory_external_total() > 0;
     if (ctx->hasExternalMem) {
-        createUsageCard(memory_tab, tr("PSRAM"), ctx->externalMemCard);
+        createUsageCard(memory_tab, tr("External"), ctx->externalMemCard);
     }
 
     // Storage tab content
@@ -997,7 +949,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     addInfoRow(device_card, tr("Flash"), CONFIG_ESPTOOLPY_FLASHSIZE);
 #endif
     if (ctx->hasExternalMem) {
-        addInfoRow(device_card, tr("PSRAM"), formatSize(getSpiTotal()).c_str());
+        addInfoRow(device_card, tr("External"), formatSize(memory_external_total()).c_str());
     }
     Device* display = nullptr;
     if (device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {

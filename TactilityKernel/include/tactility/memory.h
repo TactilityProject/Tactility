@@ -57,10 +57,23 @@ void memory_log_stats(void);
 size_t memory_heap_total(void);
 
 /**
+ * @brief Largest available block of heap memory , in bytes.
+ * @return the largest available block of heap memory, or 0 if the device or platform has none
+ */
+size_t memory_heap_largest_block(void);
+
+
+/**
  * @brief Total size of external memory (PSRAM), in bytes.
  * @return the external memory's total size, or 0 if the device or platform has none
  */
 size_t memory_external_total(void);
+
+/**
+ * @brief Largest available block of external memory (e.g. PSRAM), in bytes.
+ * @return the largest available block of external memory, or 0 if the device or platform has none
+ */
+size_t memory_external_largest_block(void);
 
 /**
  * @brief Currently free space in external memory (PSRAM), in bytes.

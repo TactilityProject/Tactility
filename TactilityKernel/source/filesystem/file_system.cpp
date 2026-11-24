@@ -4,6 +4,7 @@
 #include <cstring>
 #include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/device.h>
+#include <tactility/error.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/system_event.h>
 #include <vector>
@@ -142,6 +143,11 @@ void file_system_set_owner(FileSystem* fs, Device* owner) {
 
 Device* file_system_get_owner(FileSystem* fs) {
     return fs->owner;
+}
+
+error_t file_system_get_usage(FileSystem* fs, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    const auto fn = fs->api->get_usage;
+    return fn != nullptr ? fn(fs->data, out_total_bytes, out_free_bytes) : ERROR_NOT_SUPPORTED;
 }
 
 }

@@ -2,6 +2,9 @@
 #include <tactility/delay.h>
 #include <tactility/drivers/esp32_sdspi.h>
 #include <tactility/drivers/esp32_sdspi_fs.h>
+
+#include <tactility/error_esp32.h>
+
 #include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/log.h>
 
@@ -10,7 +13,11 @@
 #include <sdmmc_cmd.h>
 #include <string>
 
-#define TAG "esp32_sdspi_fs"
+namespace {
+
+constexpr auto TAG = "esp32_sdspi_fs";
+
+}
 
 // A card that was in the middle of a transfer when the CPU reset can fail its first init and work on the next one
 static constexpr uint32_t MOUNT_RETRY_DELAYS_MS[] = { 100, 250 };
@@ -133,11 +140,18 @@ static error_t get_path(void* data, char* out_path, size_t out_path_size) {
     return ERROR_NONE;
 }
 
+static error_t get_usage(void* data, uint64_t* out_total_bytes, uint64_t* out_free_bytes) {
+    const auto* fs_data = GET_DATA(data);
+    auto error = esp_vfs_fat_info(fs_data->mount_path.c_str(), out_total_bytes, out_free_bytes);
+    return esp_err_to_error(error);
+}
+
 const FileSystemApi esp32_sdspi_fs_api = {
     .mount = mount,
     .unmount = unmount,
     .is_mounted = is_mounted,
-    .get_path = get_path
+    .get_path = get_path,
+    .get_usage = get_usage,
 };
 
 } // extern "C"
