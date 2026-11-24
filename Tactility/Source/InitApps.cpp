@@ -185,7 +185,9 @@ static void registerInternalApps() {
 
     // Notifications also come from apps and services on devices without a radio
     app_manager_add(&app::notificationsettings::manifest);
+#if !defined(ESP_PLATFORM) || defined(CONFIG_TT_APP_HUB_ONLINE)
     app_manager_add(&app::softwaresettings::manifest);
+#endif
     app_manager_add(&app::standbysettings::manifest);
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED

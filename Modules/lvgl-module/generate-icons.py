@@ -132,6 +132,8 @@ shared_symbol_code_point_names = [
     "add",
     "apps",
     "area_chart", # System Info
+    "pause", # System Info tasks
+    "radio_button_unchecked", # System Info tasks
     "app_registration", # App Settings app
     "calendar_month",
     "cable",

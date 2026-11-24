@@ -1,6 +1,6 @@
 #define L10N_APP "locationsettings"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/lvgl/Style.h>
 
 #include <app/event.h>
@@ -76,6 +76,9 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t enableBit = 0;
     uint32_t precisionBit = 0;
+    /** Signaled by the delete confirmation, which stores the pressed button in deleteResult first */
+    uint32_t deleteBit = 0;
+    int32_t deleteResult = WINDOW_DIALOG_DISMISSED;
     ::std::atomic<bool> requestedEnabled = false;
     ::std::atomic<LocationPrecision> requestedPrecision = LOCATION_PRECISION_PRECISE;
     // Valid while the window is shown
@@ -89,8 +92,9 @@ struct Context {
     // Filled by the app's task. The list shows shownSubscribers.
     std::vector<std::string> subscribers;
     std::vector<std::string> shownSubscribers;
-    // Set while a delete confirmation is pending
-    bool hasPendingDelete = false;
+    // Set from a delete button until the app's task has read the confirmation, which belongs to pendingDeleteIndex.
+    // Another delete button is ignored meanwhile, so it can't replace the target of the confirmation.
+    ::std::atomic<bool> hasPendingDelete = false;
     size_t pendingDeleteIndex = 0;
 };
 
@@ -190,11 +194,21 @@ void onAddGpsPressed(lv_event_t*) {
 void onDeleteGpsPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* device = static_cast<Device*>(lv_obj_get_user_data(lv_event_get_target_obj(event)));
+    if (ctx->hasPendingDelete) {
+        return;
+    }
     for (const auto& row : ctx->gpsConfigurationRows) {
         if (row.device == device) {
             ctx->pendingDeleteIndex = row.configurationIndex;
             ctx->hasPendingDelete = true;
-            alertdialog::start(ctx->appInstanceId, tr("Confirmation"), i18n::format(tr("Do you want to delete {}?"), { device->name }), ::std::vector<::std::string> { tr("Yes"), tr("No") });
+            const error_t error = dialog::alert(ctx->appInstanceId, tr("Confirmation"), i18n::format(tr("Do you want to delete {}?"), { device->name }), { tr("Yes"), tr("No") }, [](int32_t button, void* userData) {
+                auto* ctx = static_cast<Context*>(userData);
+                ctx->deleteResult = button;
+                task_event_group_signal(ctx->eventGroup, ctx->deleteBit);
+            }, ctx);
+            if (error != ERROR_NONE) {
+                ctx->hasPendingDelete = false;
+            }
             return;
         }
     }
@@ -426,6 +440,7 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.eventGroup = &eventGroup;
     check(task_event_group_claim_bit(&eventGroup, &ctx.enableBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.precisionBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.deleteBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -448,24 +463,22 @@ int32_t appMain(int argc, char* argv[]) {
             location_set_precision(ctx.requestedPrecision);
         }
 
+        if ((flags & ctx.deleteBit) != 0 && ctx.hasPendingDelete) {
+            ctx.hasPendingDelete = false;
+            // The first button is "Yes"
+            if (ctx.deleteResult == 0) {
+                gps_settings_remove_configuration_at(ctx.pendingDeleteIndex);
+                lvgl_lock();
+                rebuildGpsDeviceList(&ctx);
+                lvgl_unlock();
+            }
+        }
+
         AppEvent event {};
         while (app_event_poll(&appEvents, &event) == ERROR_NONE) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (ctx.hasPendingDelete) {
-                    ctx.hasPendingDelete = false;
-                    // The first button is "Yes"
-                    if (event.result.result == 0) {
-                        gps_settings_remove_configuration_at(ctx.pendingDeleteIndex);
-                        lvgl_lock();
-                        rebuildGpsDeviceList(&ctx);
-                        lvgl_unlock();
-                    }
-                }
-                app_manager_stop(event.result.launch_id);
             }
         }
 

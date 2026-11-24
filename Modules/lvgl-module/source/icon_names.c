@@ -7,6 +7,8 @@ const char* const lvgl_icon_shared_names[] = {
     "add",
     "apps",
     "area_chart",
+    "pause",
+    "radio_button_unchecked",
     "app_registration",
     "calendar_month",
     "cable",

@@ -6,6 +6,11 @@ get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
+# The Software app only configures online features, so it is left out of devices that disable CONFIG_TT_APP_HUB_ONLINE
+if (DEFINED ENV{ESP_IDF_VERSION} AND NOT CONFIG_TT_APP_HUB_ONLINE)
+    list(FILTER SOURCE_FILES EXCLUDE REGEX "/Source/app/softwaresettings/")
+endif ()
+
 # Get the project and device id
 if (DEFINED ENV{ESP_IDF_VERSION})
     include("../Buildscripts/device.cmake")

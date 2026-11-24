@@ -52,7 +52,7 @@ constexpr int32_t ORIENTATION_ICON_ROTATIONS[] = { 2700, 0, 900, 1800 };
 struct Context {
     uint32_t appInstanceId;
     settings::display::DisplaySettings displaySettings;
-    bool displaySettingsUpdated = false;
+    bool orientationSettingsUpdated = false;
     TaskEventGroup* eventGroup = nullptr;
     // Widgets, valid while the window is shown
     // Shown when auto-rotate is off or unavailable: the orientation label and chips
@@ -62,61 +62,25 @@ struct Context {
 };
 
 
-Device* getBacklightDevice() {
-    Device* display;
-    check(device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE);
-    // Boards not yet migrated to the kernel display driver register a placeholder device (so the
-    // devicetree node resolves) with a NULL api - nothing for display_get_backlight() to act on.
-    if (device_get_driver(display)->api == nullptr) {
-        device_put(display);
-        return nullptr;
-    }
-    Device* backlight = nullptr;
-    display_get_backlight(display, &backlight);
-    device_put(display);
-    return backlight;
-}
-
 void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     app_event_emit_close(ctx->appInstanceId);
 }
 
-constexpr int32_t BRIGHTNESS_STEP = 10;
-
-// The slider shows a percentage of the backlight's brightness range
-int32_t percentToBrightness(Device* backlight, int32_t percent) {
-    const int32_t min = backlight_get_min_brightness(backlight);
-    const int32_t range = backlight_get_max_brightness(backlight) - min;
-    const int32_t brightness = min + (percent * range + 50) / 100;
-    // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
-    return brightness < 1 ? 1 : brightness;
-}
-
-int32_t brightnessToPercent(Device* backlight, int32_t brightness) {
-    // A backlight with few levels can't map a level back to the exact percentage, so the slider step of the level is used
-    for (int32_t percent = 0; percent <= 100; percent += BRIGHTNESS_STEP) {
-        if (percentToBrightness(backlight, percent) == brightness) {
-            return percent;
-        }
-    }
-    const int32_t min = backlight_get_min_brightness(backlight);
-    const int32_t range = backlight_get_max_brightness(backlight) - min;
-    // A saved brightness can be out of range, e.g. when it was saved for another backlight driver
-    const int32_t clamped = ::std::clamp(brightness, min, min + range);
-    return range > 0 ? ((clamped - min) * 100 + range / 2) / range : 100;
-}
+constexpr int32_t BRIGHTNESS_STEP = settings::display::BACKLIGHT_STEP_PERCENT;
 
 void onBacklightSliderEvent(lv_event_t* event) {
     auto* slider_box = lv_event_get_current_target_obj(event);
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* backlight = getBacklightDevice();
+    auto* backlight = settings::display::getBacklight();
     assert(backlight != nullptr);
 
     const int32_t percent = lvgl_sliderbox_get_value(slider_box);
-    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(percentToBrightness(backlight, percent));
-    ctx->displaySettingsUpdated = true;
+    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(settings::display::backlightPercentToBrightness(backlight, percent));
     backlight_set_brightness(backlight, ctx->displaySettings.backlightDuty);
+    if (!settings::display::queueSaveBacklightDuty(ctx->displaySettings.backlightDuty)) {
+        LOG_E(TAG, "Failed to queue saving brightness");
+    }
     device_put(backlight);
 }
 
@@ -147,7 +111,7 @@ void onOrientationChipPressed(lv_event_t* event) {
     auto selected_orientation = static_cast<settings::display::Orientation>(selected_index);
     if (selected_orientation != ctx->displaySettings.orientation) {
         ctx->displaySettings.orientation = selected_orientation;
-        ctx->displaySettingsUpdated = true;
+        ctx->orientationSettingsUpdated = true;
         lv_display_set_rotation(lv_display_get_default(), settings::display::toLvglDisplayRotation(selected_orientation));
         setCheckedChip(ctx->orientationChips, selected_orientation);
     }
@@ -158,7 +122,7 @@ void onAutoRotateSwitch(lv_event_t* event) {
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     ctx->displaySettings.autoRotateEnabled = enabled;
-    ctx->displaySettingsUpdated = true;
+    ctx->orientationSettingsUpdated = true;
     updateOrientationVisibility(ctx);
 }
 
@@ -217,7 +181,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* backlight = getBacklightDevice();
+    auto* backlight = settings::display::getBacklight();
+    if (backlight != nullptr) {
+        uint8_t current_duty = 0;
+        if (backlight_get_brightness(backlight, &current_duty) == ERROR_NONE) {
+            ctx->displaySettings.backlightDuty = current_duty;
+        }
+    }
 
     auto* toolbar = lvgl_toolbar_create(parent, tr("Display"));
     // The global toolbar nav callback only knows how to stop old-model apps.
@@ -234,15 +204,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // DisplayApi has no gamma curve control yet.
 
     if (backlight != nullptr) {
-        bool is_on_off_brightness = backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1;
-        if (!is_on_off_brightness) {
+        if (settings::display::backlightSupportsBrightness(backlight)) {
             auto* brightness_label = lv_label_create(main_wrapper);
             lv_label_set_text(brightness_label, tr("Brightness"));
 
             auto* brightness_card = lvgl_card_create(main_wrapper);
             lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
 
-            const int32_t percent = brightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
+            const int32_t percent = settings::display::backlightBrightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
             auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, BRIGHTNESS_STEP, percent);
             lv_obj_set_width(brightness_slider, LV_PCT(100));
             lvgl_sliderbox_add_value_changed_cb(brightness_slider, onBacklightSliderEvent, ctx);
@@ -290,16 +259,16 @@ void destroyWidgets(void* userData) {
     ctx->autoRotateSwitch = nullptr;
 }
 
-// Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is
-// giving up its thread for a save/resume cycle, or closing for good) whenever they changed.
+// Persist the non-brightness settings after the window is removed and its widgets can no longer change them.
 struct SaveSettingsJob {
-    settings::display::DisplaySettings settings;
+    settings::display::Orientation orientation;
+    bool autoRotateEnabled;
 };
 
 /** File operation: it runs on the file operations task, which frees the job */
 void saveSettingsInBackground(void* context) {
     auto* job = static_cast<SaveSettingsJob*>(context);
-    settings::display::save(job->settings);
+    settings::display::saveOrientationAndAutoRotate(job->orientation, job->autoRotateEnabled);
     // Notify AutoRotate service to reload settings
     auto autoRotate = service::autorotate::findService();
     if (autoRotate) {
@@ -309,9 +278,9 @@ void saveSettingsInBackground(void* context) {
 }
 
 void persistIfUpdated(Context& ctx) {
-    if (ctx.displaySettingsUpdated) {
+    if (ctx.orientationSettingsUpdated) {
         // Queued, so file IO doesn't block the UI
-        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.displaySettings };
+        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.displaySettings.orientation, ctx.displaySettings.autoRotateEnabled };
         if (job == nullptr || file_ops_queue(saveSettingsInBackground, job, nullptr) != ERROR_NONE) {
             LOG_E(TAG, "Failed to queue saving display settings");
             delete job;
@@ -343,7 +312,6 @@ int32_t appMain(int argc, char* argv[]) {
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
             switch (event.type) {
                 case APP_EVENT_CLOSE:
-                    persistIfUpdated(ctx);
                     shouldClose = true;
                     break;
                 default:
@@ -354,6 +322,7 @@ int32_t appMain(int argc, char* argv[]) {
     }
 
     window_manager_remove(window);
+    persistIfUpdated(ctx);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
 

@@ -126,7 +126,11 @@ WindowId window_manager_create_ext(AppInstanceId app_instance_id, WindowCreateWi
 /**
  * Removes a window, wherever it is in the stack - not necessarily the topmost one. If it was
  * topmost, its widgets are deleted and whichever window is now on top (if any) has its
- * create_widgets called again to rebuild its widgets.
+ * create_widgets called again to rebuild its widgets. Removal waits until any result callback
+ * for a dialog belonging to the app has returned, so the app may release callback context after
+ * this function returns.
+ * @warning Do not call synchronously from that app's dialog result callback, or while holding a
+ * lock needed by one; removal waits for the callback to finish.
  */
 void window_manager_remove(WindowId id);
 

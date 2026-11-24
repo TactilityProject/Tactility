@@ -1,6 +1,6 @@
 #define L10N_APP "developmentprompt"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/development/Fingerprint.h>
 #include <Tactility/lvgl/Style.h>
 
@@ -134,30 +134,24 @@ int32_t appMain(int argc, char* argv[]) {
 
     WindowId window = window_manager_create(ctx.appInstanceId, createWidgets, &ctx);
 
-    uint32_t detailsDialogId = 0;
     bool done = false;
     while (!done) {
         uint32_t flags = 0;
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
-        if ((flags & ctx.detailsBit) != 0 && detailsDialogId == 0) {
-            detailsDialogId = alertdialog::start(ctx.appInstanceId, tr("Fingerprint"), development::formatFingerprint(argv[2]));
+        if (flags & ctx.detailsBit) {
+            // Refused while the dialog is already shown
+            dialog::alert(ctx.appInstanceId, tr("Fingerprint"), development::formatFingerprint(argv[2]));
         }
 
         AppEvent event {};
         while (app_event_poll(&subscription, &event) == ERROR_NONE) {
-            if (event.type == APP_EVENT_RESULT && event.result.launch_id == detailsDialogId) {
-                app_manager_stop(detailsDialogId);
-                detailsDialogId = 0;
-            } else if (event.type == APP_EVENT_CLOSE) {
+            if (event.type == APP_EVENT_CLOSE) {
                 done = true;
             }
         }
     }
 
-    if (detailsDialogId != 0) {
-        app_manager_stop(detailsDialogId);
-    }
     window_manager_remove(window);
     check(app_event_unsubscribe(&subscription) == ERROR_NONE);
     task_event_group_release_bit(&eventGroup, ctx.detailsBit);

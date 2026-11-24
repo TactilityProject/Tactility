@@ -5,22 +5,18 @@
 ## Higher Priority
 
 - Notification sounds and vibration
- 
+
 ## Medium Priority
 
-- Add reboot option in system overlay power menu
-- System overlay: show slider for sound and backlight.
-- App Hub: the "Updates" tab is shown and then hidden: reverse that. hidden until needed.
+- Check if main mesh task stack (8kB) can move to external RAM when available. Shift file IO to file_ops?
+- SystemInfo is causing stack overflow when clicking on task to see its details
+- Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.
+- SDL display dimming: T-Deck Plus Display settings allow to dim to 0 setting but display keeps minimum lighting. We have a hack in SDL display dimming to avoid dimming to a point that it shows no light. Fix discrepancy.
+- Files app: Re-usable lvgl_files view with click/long click callbacks. Built-in swipe handling for pages.
+- Sound settings: need API and UI for default playback and recording device selection
+- saveBacklightDuty() and similar settings should be bound to a device
 - "data" and "/data": Rename to "internal"? Find and get rid of hard-coding these names?
-- Rewrite System Info storage tab: use file system API instead of hard-coded SD and /data logic.
-- System overlay menu is in its own layer in lvgl. I want a new layer inbetween the apps and the system overlay.
-  It is usable by system certain functionality.
-  For example: alertdialog/inputdialog/fileselection are now apps. Create new APIs like lvgl_alertdialog_* that shows the UI in this new overlay.
-  Deprecate the old apps.
-  Don't expose the new overlay as public API.
-- API for default sound playback/recording device selection
 - Copy/paste buffer
-- DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.

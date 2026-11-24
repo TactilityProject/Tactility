@@ -2,14 +2,11 @@
 #define L10N_APP "softwaresettings"
 #include <Tactility/i18n/AppDomain.h>
 
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/app/inputdialog/InputDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-#include <app/stream.h>
 
 #include <app_hub/app_hub.h>
 
@@ -18,6 +15,8 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -27,8 +26,6 @@
 
 #include <atomic>
 #include <cstring>
-#include <string>
-#include <vector>
 
 namespace tt::app::softwaresettings {
 
@@ -46,7 +43,7 @@ enum class Request : int32_t {
 };
 
 struct RepositoryItem {
-    std::string url;
+    ::std::string url;
     bool enabled;
     bool official;
 };
@@ -56,15 +53,15 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t requestBit = 0;
     /** What the widgets show. Filled by the app's task, with the LVGL lock held while the widgets use it. */
-    std::vector<RepositoryItem> repositories;
+    ::std::vector<RepositoryItem> repositories;
     /** Set by the widgets, handled by the app's task because the repositories are stored in files */
-    std::atomic<Request> request { Request::None };
-    std::atomic<size_t> requestIndex { 0 };
-    std::atomic<bool> requestEnabled { false };
-    uint32_t warningDialogId = 0;
-    uint32_t inputDialogId = 0;
-    AppStream inputStream {};
-    char inputBuffer[APP_HUB_REPOSITORY_URL_MAX_LENGTH + 1] = {};
+    ::std::atomic<Request> request { Request::None };
+    ::std::atomic<size_t> requestIndex { 0 };
+    ::std::atomic<bool> requestEnabled { false };
+    /** Signaled by the address dialog, which stores its result in addressConfirmed and addressText first */
+    uint32_t addressBit = 0;
+    bool addressConfirmed = false;
+    ::std::string addressText;
     /** nullptr while the widgets don't exist */
     lv_obj_t* list = nullptr;
 };
@@ -111,7 +108,7 @@ lv_obj_t* createRow(lv_obj_t* parent) {
 }
 
 /** @return "Tactility" for the official repository, otherwise the host name of the address */
-std::string getName(const RepositoryItem& repository) {
+::std::string getName(const RepositoryItem& repository) {
     if (repository.official) {
         return "Tactility";
     }
@@ -197,13 +194,13 @@ void destroyWidgets(void* userData) {
 
 /** Reads the repositories. It reads storage, so it is called without the LVGL lock. */
 void loadRepositories(Context* ctx) {
-    std::vector<RepositoryItem> repositories;
+    ::std::vector<RepositoryItem> repositories;
     app_hub_repository_for_each([](const AppHubRepository* repository, void* context) {
-        static_cast<std::vector<RepositoryItem>*>(context)->push_back({ repository->url, repository->enabled, repository->official });
+        static_cast<::std::vector<RepositoryItem>*>(context)->push_back({ repository->url, repository->enabled, repository->official });
         return true;
     }, &repositories);
     lvgl_lock();
-    ctx->repositories = std::move(repositories);
+    ctx->repositories = ::std::move(repositories);
     if (ctx->list != nullptr) {
         populateList(ctx);
     }
@@ -226,47 +223,51 @@ void showError(Context* ctx, error_t error) {
             message = tr("The change could not be saved.");
             break;
     }
-    alertdialog::start(ctx->appInstanceId, tr("Error"), message);
+    dialog::alert(ctx->appInstanceId, tr("Error"), message);
 }
+
+void startAddressInput(Context* ctx);
 
 /** Warns about the risk first, as an app from a repository can do anything on the device */
 void startWarning(Context* ctx) {
-    if (ctx->warningDialogId != 0 || ctx->inputDialogId != 0) {
-        return;
-    }
-    ctx->warningDialogId = alertdialog::start(
+    dialog::alert(
         ctx->appInstanceId,
         tr("Third party apps"),
         tr("Apps from a third party repository are not checked by the Tactility project. They can contain harmful software that steals your data or damages your device. Only add a repository that you trust."),
-        { tr("Cancel"), tr("Continue") }
+        { tr("Cancel"), tr("Continue") },
+        [](int32_t button, void* userData) {
+            // The second button continues
+            if (button == 1) {
+                startAddressInput(static_cast<Context*>(userData));
+            }
+        },
+        ctx
     );
 }
 
 void startAddressInput(Context* ctx) {
-    ctx->inputBuffer[0] = '\0';
-    ctx->inputDialogId = inputdialog::start(
+    dialog::input(
         ctx->appInstanceId,
         tr("Add repository"),
         tr("The address of the repository, starting with https://"),
         "https://",
-        ctx->inputStream,
-        ctx->inputBuffer,
-        sizeof(ctx->inputBuffer),
-        ctx->eventGroup
+        [](bool confirmed, const char* text, void* userData) {
+            auto* ctx = static_cast<Context*>(userData);
+            ctx->addressConfirmed = confirmed;
+            ctx->addressText = text;
+            task_event_group_signal(ctx->eventGroup, ctx->addressBit);
+        },
+        ctx
     );
 }
 
-void onAddressResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char url[sizeof(Context::inputBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->inputStream, url, sizeof(url) - 1);
-        url[length] = '\0';
-        const error_t error = app_hub_repository_add(url);
+void onAddressResult(Context* ctx) {
+    if (ctx->addressConfirmed) {
+        const error_t error = app_hub_repository_add(ctx->addressText.c_str());
         if (error != ERROR_NONE) {
             showError(ctx, error);
         }
     }
-    app_stream_unsubscribe(&ctx->inputStream);
 }
 
 void handleRequest(Context* ctx) {
@@ -283,7 +284,7 @@ void handleRequest(Context* ctx) {
             if (index >= ctx->repositories.size()) {
                 return;
             }
-            const std::string url = ctx->repositories[index].url;
+            const ::std::string url = ctx->repositories[index].url;
             const error_t error = request == Request::Remove ? app_hub_repository_remove(url.c_str()) : app_hub_repository_set_enabled(url.c_str(), ctx->requestEnabled);
             if (error != ERROR_NONE) {
                 LOG_E(TAG, "Failed to change %s: %s", url.c_str(), error_to_string(error));
@@ -301,6 +302,7 @@ int32_t appMain(int argc, char* argv[]) {
     task_event_group_construct(&eventGroup);
     ctx.eventGroup = &eventGroup;
     check(task_event_group_claim_bit(&eventGroup, &ctx.requestBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.addressBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -326,25 +328,16 @@ int32_t appMain(int argc, char* argv[]) {
             changed = true;
         }
 
+        if (flags & ctx.addressBit) {
+            onAddressResult(&ctx);
+            changed = true;
+        }
+
         AppEvent event {};
         while (app_event_poll(&appEvents, &event) == ERROR_NONE) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.warningDialogId) {
-                    ctx.warningDialogId = 0;
-                    // The second button continues
-                    if (event.result.result == 1) {
-                        startAddressInput(&ctx);
-                    }
-                } else if (event.result.launch_id == ctx.inputDialogId) {
-                    ctx.inputDialogId = 0;
-                    onAddressResult(&ctx, event.result.result);
-                    changed = true;
-                }
-                app_manager_stop(event.result.launch_id);
             }
         }
 

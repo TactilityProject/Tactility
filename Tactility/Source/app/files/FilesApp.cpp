@@ -64,6 +64,10 @@ int32_t appMain(int argc, char* argv[]) {
                 view.onPasteRequested();
             }
 
+            if (flags & view.getDialogBit()) {
+                view.onDialogResult();
+            }
+
             AppEvent event {};
             while (app_event_poll(&sub, &event) == ERROR_NONE) {
                 switch (event.type) {
@@ -71,7 +75,7 @@ int32_t appMain(int argc, char* argv[]) {
                         shouldClose = true;
                         break;
                     case APP_EVENT_RESULT:
-                        view.onResult(event.result.launch_id, event.result.result);
+                        // An app that was started from here has ended
                         app_manager_stop(event.result.launch_id);
                         break;
                     default:

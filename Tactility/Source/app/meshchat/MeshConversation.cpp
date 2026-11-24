@@ -1,8 +1,7 @@
 
 #define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
 #include <app/event.h>
@@ -56,13 +55,16 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t menuBit = 0;
     uint32_t loadOlderBit = 0;
-    uint32_t menuDialogId = 0;
-    uint32_t notificationsDialogId = 0;
+    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    uint32_t selectResultBit = 0;
+    enum class SelectKind { Menu, Notifications } selectKind = SelectKind::Menu;
+    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
     /** The action of each option of the open menu */
     tt::std::vector<int> menuItems;
-    uint32_t removeDialogId = 0;
-    uint32_t deleteDialogId = 0;
-    uint32_t messageDialogId = 0;
+    /** Signaled by a confirmation dialog, which stores what it was for in confirmKind, and the pressed button in confirmResult, first */
+    uint32_t confirmBit = 0;
+    enum class Confirm { Remove, DeleteHistory } confirmKind = Confirm::Remove;
+    int32_t confirmResult = WINDOW_DIALOG_DISMISSED;
     bool isContact = true;
     /** A channel with a key that isn't derived from its name, so it has to be shared */
     bool isPrivateChannel = false;
@@ -549,35 +551,36 @@ bool getChannel(const Context* ctx, MeshChannel* channel) {
 }
 
 void showChannelKey(Context* ctx) {
-    if (ctx->messageDialogId != 0) {
-        return;
-    }
     MeshChannel channel;
     if (!getChannel(ctx, &channel) || channel.key_length == 0) {
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Channel key"), tr("The key isn't available."));
+        dialog::alert(ctx->appInstanceId, tr("Channel key"), tr("The key isn't available."));
         return;
     }
     MeshAddress key {};
     memcpy(key.bytes, channel.key, channel.key_length);
     key.length = channel.key_length;
     const ::std::string text = addressToHex(key);
-    ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Channel key"), text.c_str());
+    dialog::alert(ctx->appInstanceId, tr("Channel key"), text);
+}
+
+/** Shows a confirmation. Its result is handled by the app's task, as it removes things from the mesh. */
+void startConfirmation(Context* ctx, Context::Confirm kind, const char* title, const char* message, const char* confirmLabel) {
+    ctx->confirmKind = kind;
+    dialog::alert(ctx->appInstanceId, title, message, { confirmLabel, tr("Cancel") }, [](int32_t button, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->confirmResult = button;
+        task_event_group_signal(ctx->eventGroup, ctx->confirmBit);
+    }, ctx);
 }
 
 void startRemoveDialog(Context* ctx) {
-    if (ctx->removeDialogId != 0) {
-        return;
-    }
     const char* title = ctx->isContact ? tr("Remove contact") : tr("Leave channel");
     const char* message = ctx->isContact ? tr("The messages are kept.") : tr("The messages are kept, but new messages in this channel aren't received anymore.");
-    ctx->removeDialogId = alertdialog::start(ctx->appInstanceId, title, message, { tr("Remove"), tr("Cancel") });
+    startConfirmation(ctx, Context::Confirm::Remove, title, message, tr("Remove"));
 }
 
 void startDeleteHistoryDialog(Context* ctx) {
-    if (ctx->deleteDialogId != 0) {
-        return;
-    }
-    ctx->deleteDialogId = alertdialog::start(ctx->appInstanceId, tr("Delete message history"), tr("All messages of this conversation are deleted."), { tr("Delete"), tr("Cancel") });
+    startConfirmation(ctx, Context::Confirm::DeleteHistory, tr("Delete message history"), tr("All messages of this conversation are deleted."), tr("Delete"));
 }
 
 void onDeleteHistoryResult(Context* ctx, int32_t result) {
@@ -587,7 +590,7 @@ void onDeleteHistoryResult(Context* ctx, int32_t result) {
     const error_t error = mesh_delete_conversation(getPeer(ctx), ctx->channel);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to delete the history: %s", error_to_string(error));
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Couldn't delete"), error == ERROR_INVALID_STATE ? tr("Turn mesh on to delete the messages.") : error_to_string(error));
+        dialog::alert(ctx->appInstanceId, tr("Couldn't delete"), error == ERROR_INVALID_STATE ? tr("Turn mesh on to delete the messages.") : error_to_string(error));
         return;
     }
     lvgl_lock();
@@ -604,10 +607,16 @@ void onDeleteHistoryResult(Context* ctx, int32_t result) {
 /** The order of these matches the options of the selection dialog, see startMenu() */
 enum class MenuItem { Details, ChannelKey, Notifications, DeleteHistory, Remove };
 
+void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const ::std::vector<::std::string>& items) {
+    ctx->selectKind = kind;
+    dialog::selection(ctx->appInstanceId, title, items, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->selectResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+    }, ctx);
+}
+
 void startMenu(Context* ctx) {
-    if (ctx->menuDialogId != 0) {
-        return;
-    }
     ctx->menuItems.clear();
     ::std::vector<::std::string> items;
     if (ctx->isContact) {
@@ -623,7 +632,7 @@ void startMenu(Context* ctx) {
     items.emplace_back(tr("Delete message history"));
     ctx->menuItems.push_back(static_cast<int>(MenuItem::Remove));
     items.emplace_back(ctx->isContact ? tr("Remove contact") : tr("Leave channel"));
-    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, ctx->title, items);
+    startSelection(ctx, Context::SelectKind::Menu, ctx->title.c_str(), items);
 }
 
 void onMenuSelected(Context* ctx, int32_t selected) {
@@ -641,11 +650,11 @@ void onMenuSelected(Context* ctx, int32_t selected) {
             showChannelKey(ctx);
             break;
         case MenuItem::Notifications:
-            if (ctx->notificationsDialogId == 0) {
+            {
                 // The option that is selected now says so
                 const bool all = mesh_get_conversation_notifications(getPeer(ctx), ctx->channel);
                 const ::std::string current = ::std::string(" (") + tr("current") + ")";
-                ctx->notificationsDialogId = selectiondialog::start(ctx->appInstanceId, tr("Notifications"), {
+                startSelection(ctx, Context::SelectKind::Notifications, tr("Notifications"), {
                     ::std::string(tr("All messages")) + (all ? current : ""),
                     ::std::string(tr("None")) + (all ? "" : current)
                 });
@@ -669,7 +678,7 @@ bool onRemoveResult(Context* ctx, int32_t result) {
     if (error != ERROR_NONE && error != ERROR_NOT_FOUND) {
         LOG_E(TAG, "Failed to remove: %s", error_to_string(error));
         const char* reason = (error == ERROR_INVALID_ARGUMENT) ? tr("This channel can't be left.") : error_to_string(error);
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Couldn't remove"), reason);
+        dialog::alert(ctx->appInstanceId, tr("Couldn't remove"), reason);
         return false;
     }
     return true;
@@ -698,6 +707,8 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.eventGroup = &eventGroup;
     check(task_event_group_claim_bit(&eventGroup, &ctx.menuBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.loadOlderBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.confirmBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.selectResultBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -726,6 +737,24 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.loadOlderBit) {
             loadOlderMessages(&ctx);
         }
+        if (flags & ctx.selectResultBit) {
+            if (ctx.selectKind == Context::SelectKind::Menu) {
+                onMenuSelected(&ctx, ctx.selectResult);
+            } else if (ctx.selectResult == 0 || ctx.selectResult == 1) {
+                // The first option is all messages, the second one is none. Other results mean that it was dismissed.
+                const error_t error = mesh_set_conversation_notifications(getPeer(&ctx), ctx.channel, ctx.selectResult == 0);
+                if (error != ERROR_NONE) {
+                    LOG_E(TAG, "Failed to set the notifications: %s", error_to_string(error));
+                }
+            }
+        }
+        if (flags & ctx.confirmBit) {
+            if (ctx.confirmKind == Context::Confirm::Remove) {
+                shouldClose |= onRemoveResult(&ctx, ctx.confirmResult);
+            } else {
+                onDeleteHistoryResult(&ctx, ctx.confirmResult);
+            }
+        }
 
         MeshEvent meshEvent {};
         while (mesh_event_poll(&meshEvents, &meshEvent) == ERROR_NONE) {
@@ -751,30 +780,6 @@ int32_t appMain(int argc, char* argv[]) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.menuDialogId) {
-                    ctx.menuDialogId = 0;
-                    onMenuSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.notificationsDialogId) {
-                    ctx.notificationsDialogId = 0;
-                    // The first option is all messages, the second one is none. Other results mean that it was dismissed.
-                    if (event.result.result == 0 || event.result.result == 1) {
-                        const error_t error = mesh_set_conversation_notifications(getPeer(&ctx), ctx.channel, event.result.result == 0);
-                        if (error != ERROR_NONE) {
-                            LOG_E(TAG, "Failed to set the notifications: %s", error_to_string(error));
-                        }
-                    }
-                } else if (event.result.launch_id == ctx.removeDialogId) {
-                    ctx.removeDialogId = 0;
-                    shouldClose |= onRemoveResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.deleteDialogId) {
-                    ctx.deleteDialogId = 0;
-                    onDeleteHistoryResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.messageDialogId) {
-                    ctx.messageDialogId = 0;
-                }
-                app_manager_stop(event.result.launch_id);
             }
         }
     }

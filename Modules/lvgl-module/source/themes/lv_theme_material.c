@@ -1184,6 +1184,8 @@ static void style_init(my_theme_t * theme)
     style_init_reset(&theme->styles.field_focused);
     lv_style_set_border_color(&theme->styles.field_focused, FIELD_FOCUSED_BORDER_COLOR);
     lv_style_set_border_width(&theme->styles.field_focused, FIELD_FOCUSED_BORDER_WIDTH);
+    lv_style_set_pad_hor(&theme->styles.field_focused, FIELD_PAD_HOR - (FIELD_FOCUSED_BORDER_WIDTH - FIELD_BORDER_WIDTH));
+    lv_style_set_pad_ver(&theme->styles.field_focused, FIELD_PAD_VER - (FIELD_FOCUSED_BORDER_WIDTH - FIELD_BORDER_WIDTH));
 #endif
 
 #if LV_USE_TEXTAREA

@@ -13,6 +13,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+      # SDL only builds the backends of the audio libraries that have their headers installed. The simulator plays sound with SDL.
+      - name: "Install Audio Dependencies for SDL"
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libpulse-dev libpipewire-0.3-dev
       - name: "Configure Project"
         uses: threeal/cmake-action@v1.3.0
       - name: "Prepare Project"

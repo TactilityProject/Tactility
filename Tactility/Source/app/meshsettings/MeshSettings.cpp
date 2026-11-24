@@ -7,17 +7,13 @@
 #include <random>
 #endif
 
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/app/inputdialog/InputDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/meshsettings/MeshChannels.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/settings/RadioSettings.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-#include <app/stream.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -26,6 +22,8 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -56,7 +54,7 @@ constexpr auto* MESHTASTIC_ID = "meshtastic";
 enum class RadioSetting { Frequency, Bandwidth, SpreadingFactor, CodingRate, Power, PathHashSize, RegionScope };
 constexpr size_t RADIO_SETTING_COUNT = 7;
 
-constexpr std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { tr_noop("Frequency (MHz)"), tr_noop("Bandwidth"), tr_noop("Spreading factor"), tr_noop("Coding rate"), tr_noop("Transmit power"), tr_noop("Path hash size"), tr_noop("Region scope") };
+constexpr ::std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { tr_noop("Frequency (MHz)"), tr_noop("Bandwidth"), tr_noop("Spreading factor"), tr_noop("Coding rate"), tr_noop("Transmit power"), tr_noop("Path hash size"), tr_noop("Region scope") };
 
 struct Context {
     uint32_t appInstanceId;
@@ -68,35 +66,37 @@ struct Context {
     uint32_t changeNameBit = 0;
     uint32_t advancedBit = 0;
     uint32_t rxBoostedGainBit = 0;
-    uint32_t advancedDialogId = 0;
+    /** Signaled by the legal warning, which stores the pressed button in advancedResult first */
+    uint32_t advancedResultBit = 0;
+    int32_t advancedResult = WINDOW_DIALOG_DISMISSED;
     uint32_t selectRadioBit = 0;
     uint32_t radioSettingBits[RADIO_SETTING_COUNT] = {};
-    uint32_t serviceDialogId = 0;
-    uint32_t regionDialogId = 0;
-    uint32_t presetDialogId = 0;
-    uint32_t nameDialogId = 0;
-    uint32_t radioDialogId = 0;
-    uint32_t radioSettingDialogId = 0;
+    /**
+     * Set while a dialog is shown or its result isn't read yet, which the app's task does and then clears it.
+     * A request for another dialog meanwhile is ignored, as it would replace what the shown dialog is for.
+     */
+    ::std::atomic<bool> dialogOpen { false };
+    /** Signaled by a selection dialog, which stores what it was for in selectKind, and the selected index in selectResult, first */
+    uint32_t selectResultBit = 0;
+    enum class SelectKind { Service, Region, Preset, Radio, RadioSetting } selectKind = SelectKind::Service;
+    int32_t selectResult = WINDOW_DIALOG_DISMISSED;
     RadioSetting settingKind = RadioSetting::Bandwidth;
-    uint32_t scopeDialogId = 0;
-    AppStream scopeStream {};
-    char scopeBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
-    uint32_t frequencyDialogId = 0;
-    AppStream frequencyStream {};
-    char frequencyBuffer[16] = {};
+    /** Signaled by a text dialog, which stores what it was for in textKind, and its result in textConfirmed and text, first */
+    uint32_t textResultBit = 0;
+    enum class TextKind { Name, Frequency, Scope } textKind = TextKind::Name;
+    bool textConfirmed = false;
+    tt::std::string text;
     /** Values that the items of the open radio setting dialog stand for */
-    std::vector<int32_t> radioSettingValues;
-    AppStream nameStream {};
-    char nameBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
+    tt::std::vector<int32_t> radioSettingValues;
     // Shown by updateLabels(), which can run on another app's thread and so must not query the services.
     // The app's own thread fills these with loadState().
-    std::string serviceText;
-    std::string nameText;
-    std::string radioText = "-";
+    tt::std::string serviceText;
+    tt::std::string nameText;
+    tt::std::string radioText = "-";
     bool radioChoice = false;
-    std::string regionText;
-    std::string presetText;
-    std::string modemPresetText;
+    tt::std::string regionText;
+    tt::std::string presetText;
+    tt::std::string modemPresetText;
     /** Whether the selected backend has presets, which is when the radio does LoRa */
     bool hasPresets = false;
     /** The backend that the open preset dialog is for */
@@ -110,13 +110,13 @@ struct Context {
     ::std::atomic<bool> rxBoostedGainRequest { false };
     bool hasMeshCore = false;
     bool hasMeshtastic = false;
-    std::string radioSettingTexts[RADIO_SETTING_COUNT];
-    std::string statusText;
+    tt::std::string radioSettingTexts[RADIO_SETTING_COUNT];
+    tt::std::string statusText;
     /** Index 0 is tr("Disabled"), the rest are backend ids */
-    std::vector<std::string> serviceIds;
-    std::vector<std::string> presetNames;
+    tt::std::vector<tt::std::string> serviceIds;
+    tt::std::vector<tt::std::string> presetNames;
     /** Device names of the radios, in the order of the selection dialog */
-    std::vector<std::string> radioNames;
+    tt::std::vector<tt::std::string> radioNames;
     // Valid while the window is shown
     lv_obj_t* serviceLabel = nullptr;
     lv_obj_t* nameLabel = nullptr;
@@ -137,13 +137,13 @@ struct Context {
     lv_obj_t* statusLabel = nullptr;
 };
 
-std::string getServiceLabel(const std::string& id) {
-    if (id == "meshcore") return "MeshCore";
-    if (id == "meshtastic") return "Meshtastic";
+tt::std::string getServiceLabel(const char* id) {
+    if (::strcmp(id, MESHCORE_ID) == 0) return "MeshCore";
+    if (::strcmp(id, MESHTASTIC_ID) == 0) return "Meshtastic";
     return id;
 }
 
-std::string getCurrentService() {
+tt::std::string getCurrentService() {
     if (!mesh_is_enabled()) {
         return tr("Disabled");
     }
@@ -152,13 +152,13 @@ std::string getCurrentService() {
 }
 
 /** @param[in] lora whether the radio does LoRa, which is bound to the region */
-std::string getStatus(bool lora) {
+tt::std::string getStatus(bool lora) {
     const auto state = mesh_get_state();
     if (state == MESH_STATE_NO_REGION) {
         return tr("Select a region to turn on the radio");
     }
     if (state == MESH_STATE_ERROR && lora) {
-        return i18n::format(tr("Settings not allowed in {}"), { settings::radio::getRegionLabel(settings::radio::loadRegion()) });
+        return i18n::format(tr("Settings not allowed in {}"), { settings::radio::getRegionLabel(settings::radio::loadRegion()) }).c_str();
     }
     return mesh_state_to_string(state);
 }
@@ -197,10 +197,10 @@ void updateLabels(Context* ctx) {
 }
 
 /** The device names of the radios, and the names to show for them: the kind of radio, plus the device name when there are several of a kind */
-void loadRadios(std::vector<std::string>& names, std::vector<std::string>& labels) {
+void loadRadios(tt::std::vector<tt::std::string>& names, tt::std::vector<tt::std::string>& labels) {
     names.clear();
     labels.clear();
-    std::vector<MeshRadioKind> kinds;
+    tt::std::vector<MeshRadioKind> kinds;
     const size_t count = mesh_get_radio_count();
     for (size_t i = 0; i < count; i++) {
         char name[MESH_NAME_MAX_LENGTH + 1];
@@ -212,12 +212,12 @@ void loadRadios(std::vector<std::string>& names, std::vector<std::string>& label
     }
     for (size_t i = 0; i < names.size(); i++) {
         const char* kindText = (kinds[i] == MESH_RADIO_LORA) ? "LoRa" : "ESP-NOW";
-        const auto sameKind = std::count(kinds.begin(), kinds.end(), kinds[i]);
-        labels.push_back(sameKind > 1 ? std::string(kindText) + " " + names[i] : std::string(kindText));
+        const auto sameKind = ::std::count(kinds.begin(), kinds.end(), kinds[i]);
+        labels.push_back(sameKind > 1 ? tt::std::string(kindText) + " " + names[i] : tt::std::string(kindText));
     }
 }
 
-std::string formatRadioSetting(RadioSetting kind, int32_t value) {
+tt::std::string formatRadioSetting(RadioSetting kind, int32_t value) {
     if (value == 0) {
         return "-";
     }
@@ -239,7 +239,7 @@ std::string formatRadioSetting(RadioSetting kind, int32_t value) {
             snprintf(text, sizeof(text), "%d dBm", (int)value);
             break;
         case RadioSetting::PathHashSize:
-            return i18n::format(value == 1 ? tr("{} byte") : tr("{} bytes"), { std::to_string(value) });
+            return i18n::format(value == 1 ? tr("{} byte") : tr("{} bytes"), { ::std::to_string(value) }).c_str();
             break;
         case RadioSetting::RegionScope:
             break;
@@ -256,8 +256,8 @@ void loadState(Context* ctx) {
     // A choice is only possible when there is more than one radio
     char radio[MESH_NAME_MAX_LENGTH + 1] = "-";
     mesh_get_radio(radio, sizeof(radio));
-    std::vector<std::string> radioNames;
-    std::vector<std::string> radioLabels;
+    tt::std::vector<tt::std::string> radioNames;
+    tt::std::vector<tt::std::string> radioLabels;
     loadRadios(radioNames, radioLabels);
     ctx->radioText = radio;
     for (size_t i = 0; i < radioNames.size(); i++) {
@@ -347,35 +347,34 @@ void onChangeNamePressed(lv_event_t* event) {
     task_event_group_signal(ctx->eventGroup, ctx->changeNameBit);
 }
 
-void startNameDialog(Context* ctx) {
-    if (ctx->nameDialogId != 0) {
-        return;
+/** Shows a text field. The result is handled by the app's task, as it changes the settings of the mesh. */
+void startTextDialog(Context* ctx, Context::TextKind kind, const char* title, const char* message, const char* prefilled) {
+    ctx->textKind = kind;
+    ctx->dialogOpen = true;
+    const error_t error = dialog::input(ctx->appInstanceId, title, message, prefilled, [](bool confirmed, const char* text, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->textConfirmed = confirmed;
+        ctx->text = text;
+        task_event_group_signal(ctx->eventGroup, ctx->textResultBit);
+    }, ctx);
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
     }
-    char name[MESH_NAME_MAX_LENGTH + 1];
-    mesh_get_node_name(name, sizeof(name));
-    ctx->nameDialogId = inputdialog::start(
-        ctx->appInstanceId,
-        tr("Name"),
-        tr("The name that other nodes see"),
-        name,
-        ctx->nameStream,
-        ctx->nameBuffer,
-        sizeof(ctx->nameBuffer),
-        ctx->eventGroup
-    );
 }
 
-void onNameDialogResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char name[sizeof(Context::nameBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->nameStream, name, sizeof(name) - 1);
-        name[length] = '\0';
-        const error_t error = mesh_set_node_name(name);
+void startNameDialog(Context* ctx) {
+    char name[MESH_NAME_MAX_LENGTH + 1];
+    mesh_get_node_name(name, sizeof(name));
+    startTextDialog(ctx, Context::TextKind::Name, tr("Name"), tr("The name that other nodes see"), name);
+}
+
+void onNameDialogResult(Context* ctx) {
+    if (ctx->textConfirmed) {
+        const error_t error = mesh_set_node_name(ctx->text.c_str());
         if (error != ERROR_NONE) {
             LOG_E(TAG, "Failed to set the name: %s", error_to_string(error));
         }
     }
-    app_stream_unsubscribe(&ctx->nameStream);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -403,12 +402,27 @@ void onSelectPresetPressed(lv_event_t* event) {
     task_event_group_signal(ctx->eventGroup, ctx->selectPresetBit);
 }
 
-void startServiceSelection(Context* ctx) {
-    if (ctx->serviceDialogId != 0) {
-        return;
+void startSelection(Context* ctx, Context::SelectKind kind, const char* title, const tt::std::vector<tt::std::string>& items) {
+    ctx->selectKind = kind;
+    ctx->dialogOpen = true;
+    ::std::vector<::std::string> dialogItems;
+    dialogItems.reserve(items.size());
+    for (const auto& item : items) {
+        dialogItems.emplace_back(item.c_str());
     }
+    const error_t error = dialog::selection(ctx->appInstanceId, title, dialogItems, [](int32_t selected, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->selectResult = selected;
+        task_event_group_signal(ctx->eventGroup, ctx->selectResultBit);
+    }, ctx);
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
+    }
+}
+
+void startServiceSelection(Context* ctx) {
     ctx->serviceIds = { "" };
-    std::vector<std::string> items = { tr("Disabled") };
+    tt::std::vector<tt::std::string> items = { tr("Disabled") };
     const size_t count = mesh_get_backend_count();
     for (size_t i = 0; i < count; i++) {
         char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
@@ -417,7 +431,7 @@ void startServiceSelection(Context* ctx) {
             items.push_back(getServiceLabel(id));
         }
     }
-    ctx->serviceDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh network"), items);
+    startSelection(ctx, Context::SelectKind::Service, tr("Mesh network"), items);
 }
 
 void onServiceSelected(Context* ctx, int32_t selected) {
@@ -433,13 +447,10 @@ void onServiceSelected(Context* ctx, int32_t selected) {
 }
 
 void startRadioSelection(Context* ctx) {
-    if (ctx->radioDialogId != 0) {
-        return;
-    }
-    std::vector<std::string> labels;
+    tt::std::vector<tt::std::string> labels;
     loadRadios(ctx->radioNames, labels);
     if (ctx->radioNames.size() > 1) {
-        ctx->radioDialogId = selectiondialog::start(ctx->appInstanceId, tr("Radio"), labels);
+        startSelection(ctx, Context::SelectKind::Radio, tr("Radio"), labels);
     }
 }
 
@@ -453,42 +464,29 @@ void onRadioSelected(Context* ctx, int32_t selected) {
 }
 
 void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
-    if (ctx->radioSettingDialogId != 0) {
-        return;
-    }
     if (kind == RadioSetting::Frequency) {
-        if (ctx->frequencyDialogId == 0) {
-            const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
-            ctx->frequencyDialogId = inputdialog::start(
-                ctx->appInstanceId,
-                tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
-                tr("e.g. 869.618, empty for the preset's value"),
-                current == "-" ? "" : current.c_str(),
-                ctx->frequencyStream,
-                ctx->frequencyBuffer,
-                sizeof(ctx->frequencyBuffer),
-                ctx->eventGroup
-            );
-        }
+        const tt::std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
+        startTextDialog(
+            ctx,
+            Context::TextKind::Frequency,
+            tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
+            tr("e.g. 869.618, empty for the preset's value"),
+            current == "-" ? "" : current.c_str()
+        );
         return;
     }
     if (kind == RadioSetting::RegionScope) {
-        if (ctx->scopeDialogId == 0) {
-            const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
-            ctx->scopeDialogId = inputdialog::start(
-                ctx->appInstanceId,
-                tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
-                tr("e.g. nl, * for none, empty for the preset's value"),
-                current == tr("None") ? MESH_REGION_SCOPE_NONE : current.c_str(),
-                ctx->scopeStream,
-                ctx->scopeBuffer,
-                sizeof(ctx->scopeBuffer),
-                ctx->eventGroup
-            );
-        }
+        const tt::std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
+        startTextDialog(
+            ctx,
+            Context::TextKind::Scope,
+            tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
+            tr("e.g. nl, * for none, empty for the preset's value"),
+            current == tr("None") ? MESH_REGION_SCOPE_NONE : current.c_str()
+        );
         return;
     }
-    std::vector<int32_t> values;
+    tt::std::vector<int32_t> values;
     switch (kind) {
         case RadioSetting::RegionScope:
         case RadioSetting::Frequency:
@@ -514,24 +512,31 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
     // Item 0 uses the profile value
     ctx->radioSettingValues = { 0 };
     ctx->radioSettingValues.insert(ctx->radioSettingValues.end(), values.begin(), values.end());
-    std::vector<std::string> items = { tr("Profile value") };
+    tt::std::vector<tt::std::string> items = { tr("Profile value") };
     for (const int32_t value : values) {
         items.push_back(formatRadioSetting(kind, value));
     }
     ctx->settingKind = kind;
-    ctx->radioSettingDialogId = selectiondialog::start(ctx->appInstanceId, tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]), items);
+    startSelection(ctx, Context::SelectKind::RadioSetting, tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]), items);
 }
 
 void startAdvancedWarning(Context* ctx) {
-    if (ctx->advancedDialogId != 0) {
-        return;
-    }
-    ctx->advancedDialogId = alertdialog::start(
+    ctx->dialogOpen = true;
+    const error_t error = dialog::alert(
         ctx->appInstanceId,
         tr("Legal warning"),
         tr("Advanced radio settings can make your radio operate outside the limits that apply in your country or region. You are responsible for following the local regulations. Wrong settings can cause interference and may have legal consequences."),
-        std::vector<std::string> { tr("Continue"), tr("Cancel") }
+        { tr("Continue"), tr("Cancel") },
+        [](int32_t button, void* userData) {
+            auto* ctx = static_cast<Context*>(userData);
+            ctx->advancedResult = button;
+            task_event_group_signal(ctx->eventGroup, ctx->advancedResultBit);
+        },
+        ctx
     );
+    if (error != ERROR_NONE) {
+        ctx->dialogOpen = false;
+    }
 }
 
 /** Frequency and power are shared, so a change goes to every backend that has presets */
@@ -557,11 +562,9 @@ void onAdvancedWarningResult(Context* ctx, int32_t result) {
     ctx->showAdvanced = result == 0;
 }
 
-void onFrequencyDialogResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char text[sizeof(Context::frequencyBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->frequencyStream, text, sizeof(text) - 1);
-        text[length] = '\0';
+void onFrequencyDialogResult(Context* ctx) {
+    if (ctx->textConfirmed) {
+        const char* text = ctx->text.c_str();
         char* end = nullptr;
         const double megahertz = strtod(text, &end);
         const bool cleared = text[0] == '\0';
@@ -569,23 +572,18 @@ void onFrequencyDialogResult(Context* ctx, int32_t result) {
             applySharedRadioSetting(RadioSetting::Frequency, cleared ? 0 : static_cast<int32_t>(megahertz * 1e6 + 0.5));
         }
     }
-    app_stream_unsubscribe(&ctx->frequencyStream);
 }
 
-void onScopeDialogResult(Context* ctx, int32_t result) {
-    if (result == 0) {
-        char text[sizeof(Context::scopeBuffer)] = {};
-        const size_t length = app_stream_read(&ctx->scopeStream, text, sizeof(text) - 1);
-        text[length] = '\0';
+void onScopeDialogResult(Context* ctx) {
+    if (ctx->textConfirmed) {
         MeshNetworkSettings network {};
         mesh_get_network_settings(MESHCORE_ID, &network);
-        strncpy(network.region_scope, text, MESH_NAME_MAX_LENGTH);
+        strncpy(network.region_scope, ctx->text.c_str(), MESH_NAME_MAX_LENGTH);
         const error_t error = mesh_set_network_settings(MESHCORE_ID, &network);
         if (error != ERROR_NONE) {
             LOG_E(TAG, "Failed to set the region scope: %s", error_to_string(error));
         }
     }
-    app_stream_unsubscribe(&ctx->scopeStream);
 }
 
 void onRadioSettingSelected(Context* ctx, int32_t selected) {
@@ -623,14 +621,11 @@ void onRadioSettingSelected(Context* ctx, int32_t selected) {
 }
 
 void startRegionSelection(Context* ctx) {
-    if (ctx->regionDialogId != 0) {
-        return;
-    }
-    std::vector<std::string> items;
+    tt::std::vector<tt::std::string> items;
     for (int region = RADIO_REGION_UNSET + 1; region < RADIO_REGION_COUNT; region++) {
         items.emplace_back(settings::radio::getRegionLabel(static_cast<RadioRegion>(region)));
     }
-    ctx->regionDialogId = selectiondialog::start(ctx->appInstanceId, tr("Region"), items);
+    startSelection(ctx, Context::SelectKind::Region, tr("Region"), items);
 }
 
 void onRegionSelected(int32_t selected) {
@@ -640,9 +635,6 @@ void onRegionSelected(int32_t selected) {
 }
 
 void startPresetSelection(Context* ctx, const char* backend) {
-    if (ctx->presetDialogId != 0) {
-        return;
-    }
     ctx->presetBackend = backend;
     ctx->presetNames.clear();
     const size_t count = mesh_get_preset_count(backend);
@@ -653,7 +645,7 @@ void startPresetSelection(Context* ctx, const char* backend) {
         }
     }
     if (!ctx->presetNames.empty()) {
-        ctx->presetDialogId = selectiondialog::start(ctx->appInstanceId, tr("Preset"), ctx->presetNames);
+        startSelection(ctx, Context::SelectKind::Preset, tr("Preset"), ctx->presetNames);
     }
 }
 
@@ -852,6 +844,9 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&eventGroup, &ctx.changeNameBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.advancedBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.rxBoostedGainBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.textResultBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.advancedResultBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.selectResultBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.selectRadioBit) == ERROR_NONE);
     for (auto& bit : ctx.radioSettingBits) {
         check(task_event_group_claim_bit(&eventGroup, &bit) == ERROR_NONE);
@@ -870,16 +865,18 @@ int32_t appMain(int argc, char* argv[]) {
         uint32_t flags = 0;
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
-        if (flags & ctx.selectServiceBit) {
+        // Requests are checked here, before they change what a dialog stands for. One that comes while a dialog is open is dropped.
+        const auto canStartDialog = [&ctx]() { return !ctx.dialogOpen; };
+        if ((flags & ctx.selectServiceBit) && canStartDialog()) {
             startServiceSelection(&ctx);
         }
-        if (flags & ctx.selectRegionBit) {
+        if ((flags & ctx.selectRegionBit) && canStartDialog()) {
             startRegionSelection(&ctx);
         }
-        if (flags & ctx.selectPresetBit) {
+        if ((flags & ctx.selectPresetBit) && canStartDialog()) {
             startPresetSelection(&ctx, MESHCORE_ID);
         }
-        if (flags & ctx.selectModemPresetBit) {
+        if ((flags & ctx.selectModemPresetBit) && canStartDialog()) {
             startPresetSelection(&ctx, MESHTASTIC_ID);
         }
         if (flags & ctx.rxBoostedGainBit) {
@@ -888,22 +885,64 @@ int32_t appMain(int argc, char* argv[]) {
                 LOG_E(TAG, "Failed to set the RX boosted gain: %s", error_to_string(error));
             }
         }
-        if (flags & ctx.advancedBit) {
+        if ((flags & ctx.advancedBit) && canStartDialog()) {
             startAdvancedWarning(&ctx);
         }
-        if (flags & ctx.changeNameBit) {
+        if ((flags & ctx.changeNameBit) && canStartDialog()) {
             startNameDialog(&ctx);
         }
-        if (flags & ctx.selectRadioBit) {
+        if ((flags & ctx.selectRadioBit) && canStartDialog()) {
             startRadioSelection(&ctx);
         }
         for (size_t i = 0; i < RADIO_SETTING_COUNT; i++) {
-            if (flags & ctx.radioSettingBits[i]) {
+            if ((flags & ctx.radioSettingBits[i]) && canStartDialog()) {
                 startRadioSettingSelection(&ctx, static_cast<RadioSetting>(i));
             }
         }
 
         bool changed = false;
+        if (flags & ctx.textResultBit) {
+            // Before the handler, which can show the next dialog
+            ctx.dialogOpen = false;
+            switch (ctx.textKind) {
+                case Context::TextKind::Name:
+                    onNameDialogResult(&ctx);
+                    break;
+                case Context::TextKind::Frequency:
+                    onFrequencyDialogResult(&ctx);
+                    break;
+                case Context::TextKind::Scope:
+                    onScopeDialogResult(&ctx);
+                    break;
+            }
+            changed = true;
+        }
+        if (flags & ctx.selectResultBit) {
+            ctx.dialogOpen = false;
+            switch (ctx.selectKind) {
+                case Context::SelectKind::Service:
+                    onServiceSelected(&ctx, ctx.selectResult);
+                    break;
+                case Context::SelectKind::Region:
+                    onRegionSelected(ctx.selectResult);
+                    break;
+                case Context::SelectKind::Preset:
+                    onPresetSelected(&ctx, ctx.selectResult);
+                    break;
+                case Context::SelectKind::Radio:
+                    onRadioSelected(&ctx, ctx.selectResult);
+                    break;
+                case Context::SelectKind::RadioSetting:
+                    onRadioSettingSelected(&ctx, ctx.selectResult);
+                    break;
+            }
+            changed = true;
+        }
+        if (flags & ctx.advancedResultBit) {
+            ctx.dialogOpen = false;
+            onAdvancedWarningResult(&ctx, ctx.advancedResult);
+            changed = true;
+        }
         MeshEvent meshEvent {};
         while (mesh_event_poll(&meshEvents, &meshEvent) == ERROR_NONE) {
             changed |= meshEvent.type == MESH_EVENT_STATE;
@@ -914,38 +953,6 @@ int32_t appMain(int argc, char* argv[]) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
-            }
-            if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.serviceDialogId) {
-                    ctx.serviceDialogId = 0;
-                    onServiceSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.regionDialogId) {
-                    ctx.regionDialogId = 0;
-                    onRegionSelected(event.result.result);
-                } else if (event.result.launch_id == ctx.presetDialogId) {
-                    ctx.presetDialogId = 0;
-                    onPresetSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.radioDialogId) {
-                    ctx.radioDialogId = 0;
-                    onRadioSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.scopeDialogId) {
-                    ctx.scopeDialogId = 0;
-                    onScopeDialogResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.frequencyDialogId) {
-                    ctx.frequencyDialogId = 0;
-                    onFrequencyDialogResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.radioSettingDialogId) {
-                    ctx.radioSettingDialogId = 0;
-                    onRadioSettingSelected(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.advancedDialogId) {
-                    ctx.advancedDialogId = 0;
-                    onAdvancedWarningResult(&ctx, event.result.result);
-                } else if (event.result.launch_id == ctx.nameDialogId) {
-                    ctx.nameDialogId = 0;
-                    onNameDialogResult(&ctx, event.result.result);
-                }
-                app_manager_stop(event.result.launch_id);
-                changed = true;
             }
         }
 
@@ -982,7 +989,7 @@ static error_t findChannelIndex(const char* name, uint8_t* index) {
             return ERROR_NONE;
         }
         primaryTaken |= channels[i].index == 0;
-        *index = std::max<uint8_t>(*index, channels[i].index + 1);
+        *index = ::std::max<uint8_t>(*index, channels[i].index + 1);
     }
     // The Public channel of MeshCore takes the primary index again when it was removed
     if (!primaryTaken && strcmp(name, "Public") == 0) {
@@ -1028,7 +1035,7 @@ error_t createPrivateChannel(const char* name) {
 #ifdef ESP_PLATFORM
     esp_fill_random(key, sizeof(key));
 #else
-    std::random_device device;
+    ::std::random_device device;
     for (auto& byte : key) {
         byte = static_cast<uint8_t>(device());
     }

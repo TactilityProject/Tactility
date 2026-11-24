@@ -7,7 +7,6 @@
 
 #include <sdmmc_cmd.h>
 
-#include <esp_timer.h>
 #include <tactility/log.h>
 
 #include <soc/soc_caps.h>
@@ -58,9 +57,7 @@ static esp_err_t locked_do_transaction(int slot, sdmmc_command_t* cmd) {
     if (entry == nullptr) {
         return ESP_ERR_INVALID_STATE;
     }
-    const int64_t start = esp_timer_get_time();
     spi_controller_lock(entry->controller);
-    const int64_t locked = esp_timer_get_time();
     esp_err_t result = entry->inner(slot, cmd);
     spi_controller_unlock(entry->controller);
     return result;

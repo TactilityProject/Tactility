@@ -8,8 +8,12 @@
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/device.h>
+#include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/file_ops.h>
+#include <tactility/log.h>
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <utility>
@@ -24,6 +28,17 @@ struct FileMutex {
 
 // The settings app and the auto-rotate service both save, and a save must not overlap a load or another save
 static FileMutex file_mutex;
+
+struct BacklightSaveState {
+    Mutex mutex {};
+    uint8_t duty = 0;
+    bool queued = false;
+
+    BacklightSaveState() { mutex_construct(&mutex); }
+    ~BacklightSaveState() { mutex_destruct(&mutex); }
+};
+
+static BacklightSaveState backlight_save_state;
 
 static std::string getSettingsFilePath() {
     char path[256];
@@ -187,24 +202,139 @@ bool save(const DisplaySettings& settings) {
     return saved;
 }
 
+/** Must be called with file_mutex held */
+static bool loadForPartialSaveUnlocked(DisplaySettings& settings) {
+    switch (loadUnlocked(settings)) {
+        case LoadResult::Loaded:
+            return true;
+        case LoadResult::Missing:
+            settings = getDefault();
+            return true;
+        case LoadResult::Failed:
+            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
+            return false;
+    }
+    return false;
+}
+
 bool saveOrientation(Orientation orientation) {
     mutex_lock(&file_mutex.mutex);
     DisplaySettings settings;
-    switch (loadUnlocked(settings)) {
-        case LoadResult::Loaded:
-            break;
-        case LoadResult::Missing:
-            settings = getDefault();
-            break;
-        case LoadResult::Failed:
-            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
-            mutex_unlock(&file_mutex.mutex);
-            return false;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
     }
     settings.orientation = orientation;
     const bool saved = saveUnlocked(settings);
     mutex_unlock(&file_mutex.mutex);
     return saved;
+}
+
+bool saveOrientationAndAutoRotate(Orientation orientation, bool autoRotateEnabled) {
+    mutex_lock(&file_mutex.mutex);
+    DisplaySettings settings;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
+    }
+    settings.orientation = orientation;
+    settings.autoRotateEnabled = autoRotateEnabled;
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
+}
+
+bool saveBacklightDuty(uint8_t duty) {
+    mutex_lock(&file_mutex.mutex);
+    DisplaySettings settings;
+    if (!loadForPartialSaveUnlocked(settings)) {
+        mutex_unlock(&file_mutex.mutex);
+        return false;
+    }
+    settings.backlightDuty = duty;
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
+}
+
+static void saveLatestBacklightDuty(void*) {
+    for (;;) {
+        mutex_lock(&backlight_save_state.mutex);
+        const uint8_t duty = backlight_save_state.duty;
+        mutex_unlock(&backlight_save_state.mutex);
+
+        if (!saveBacklightDuty(duty)) {
+            LOG_E("DisplaySettings", "Failed to save brightness");
+        }
+
+        mutex_lock(&backlight_save_state.mutex);
+        if (backlight_save_state.duty == duty) {
+            backlight_save_state.queued = false;
+            mutex_unlock(&backlight_save_state.mutex);
+            return;
+        }
+        mutex_unlock(&backlight_save_state.mutex);
+    }
+}
+
+bool queueSaveBacklightDuty(uint8_t duty) {
+    mutex_lock(&backlight_save_state.mutex);
+    backlight_save_state.duty = duty;
+    if (backlight_save_state.queued) {
+        mutex_unlock(&backlight_save_state.mutex);
+        return true;
+    }
+
+    backlight_save_state.queued = true;
+    const error_t result = file_ops_queue(saveLatestBacklightDuty, nullptr, nullptr);
+    if (result != ERROR_NONE) {
+        backlight_save_state.queued = false;
+    }
+    mutex_unlock(&backlight_save_state.mutex);
+    return result == ERROR_NONE;
+}
+
+Device* getBacklight() {
+    Device* display = nullptr;
+    if (device_get_first_by_type(&DISPLAY_TYPE, &display) != ERROR_NONE) {
+        return nullptr;
+    }
+    // Boards not yet migrated to the kernel display driver register a placeholder device (so the
+    // devicetree node resolves) with a NULL api - nothing for display_get_backlight() to act on.
+    if (device_get_driver(display)->api == nullptr) {
+        device_put(display);
+        return nullptr;
+    }
+    Device* backlight = nullptr;
+    display_get_backlight(display, &backlight);
+    device_put(display);
+    return backlight;
+}
+
+bool backlightSupportsBrightness(Device* backlight) {
+    return !(backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1);
+}
+
+int32_t backlightPercentToBrightness(Device* backlight, int32_t percent) {
+    const int32_t min = backlight_get_min_brightness(backlight);
+    const int32_t range = backlight_get_max_brightness(backlight) - min;
+    const int32_t brightness = min + (percent * range + 50) / 100;
+    // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
+    return brightness < 1 ? 1 : brightness;
+}
+
+int32_t backlightBrightnessToPercent(Device* backlight, int32_t brightness) {
+    // A backlight with few levels can't map a level back to the exact percentage, so the slider step of the level is used
+    for (int32_t percent = 0; percent <= 100; percent += BACKLIGHT_STEP_PERCENT) {
+        if (backlightPercentToBrightness(backlight, percent) == brightness) {
+            return percent;
+        }
+    }
+    const int32_t min = backlight_get_min_brightness(backlight);
+    const int32_t range = backlight_get_max_brightness(backlight) - min;
+    // A saved brightness can be out of range, e.g. when it was saved for another backlight driver
+    const int32_t clamped = std::clamp(brightness, min, min + range);
+    return range > 0 ? ((clamped - min) * 100 + range / 2) / range : 100;
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {

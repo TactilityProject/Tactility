@@ -22,11 +22,15 @@ constexpr auto* TAG = "Simulator";
 extern "C" {
 
 extern Driver sdl_display_driver;
+extern Driver sdl_backlight_driver;
+extern Driver sdl_audio_driver;
 extern Driver sdl_touch_driver;
 extern Driver sdl_keyboard_driver;
 
 static Driver* const simulator_drivers[] = {
     &sdl_display_driver,
+    &sdl_backlight_driver,
+    &sdl_audio_driver,
     &sdl_touch_driver,
     &sdl_keyboard_driver,
     nullptr
@@ -39,6 +43,8 @@ static Driver* const simulator_drivers[] = {
 // it's available below.
 static SdlDisplayConfig sdl_display_config = {};
 static Device sdl_display_device {};
+static Device sdl_backlight_device {};
+static Device sdl_audio_device {};
 static Device sdl_pointer_device {};
 static Device sdl_keyboard_device {};
 
@@ -99,6 +105,11 @@ static void on_root_started(Device* device, DeviceEvent event, void* context) {
     };
 
     construct_add_start(&sdl_display_device, device, "display0", &sdl_display_config, "tactility,sdl-display");
+    // A monochrome display has no backlight to dim
+    if (!profile.mono) {
+        construct_add_start(&sdl_backlight_device, &sdl_display_device, "backlight0", nullptr, "tactility,sdl-backlight");
+    }
+    construct_add_start(&sdl_audio_device, device, "audio0", nullptr, "tactility,sdl-audio");
     if (profile.touch) {
         construct_add_start(&sdl_pointer_device, device, "touch0", nullptr, "tactility,sdl-touch");
     }

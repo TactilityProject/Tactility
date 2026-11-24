@@ -4,6 +4,7 @@
 #include <Tactility/lvgl/SystemMenuPower.h>
 #include <Tactility/lvgl/NotificationPanel.h>
 #include <Tactility/service/audio/Audio.h>
+#include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/settings/RadioSettings.h>
 
 #include <app/manager.h>
@@ -37,11 +38,13 @@
 #include <tactility/concurrent/dispatcher.h>
 #include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
+#include <tactility/drivers/backlight.h>
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -287,6 +290,26 @@ enum class Kind { Settings, Notifications };
 constexpr intptr_t KIND_MASK = 0xFF;
 constexpr intptr_t SHOW_POWER_OPTIONS = 0x100;
 
+/** A row "[icon] [-] [slider or percentage] [+]" that sets a level from 0 to 100 */
+struct LevelControl {
+    struct StepArgument {
+        LevelControl* control = nullptr;
+        int32_t direction = 0;
+    };
+
+    lv_obj_t* root = nullptr;
+    lv_obj_t* slider = nullptr;
+    lv_obj_t* label = nullptr;
+    int32_t labelWidth = 0;
+    int32_t step = 10;
+    /** Applies the level, with the LVGL lock held */
+    void (*apply)(int32_t level) = nullptr;
+    /** Called when the user is done changing the level. Optional. */
+    void (*commit)() = nullptr;
+    StepArgument minus;
+    StepArgument plus;
+};
+
 /** Only one menu exists at a time, as it is the window manager's overlay. Allocated while the menu is shown. */
 struct MenuState {
     Kind kind = Kind::Settings;
@@ -312,12 +335,16 @@ struct MenuState {
         lv_obj_t* value = nullptr;
         lv_obj_t* unit = nullptr;
     } ramGauge, psramGauge;
-    /** The speaker volume row, which is null without sound output */
-    lv_obj_t* volumeRow = nullptr;
+    /** The tiles of the quick settings, which are above the level controls */
+    lv_obj_t* tileGrid = nullptr;
+    /** Holds the level controls, which is null without sound output and without a backlight that can be dimmed */
+    lv_obj_t* controls = nullptr;
+    /** The speaker volume, with a root that is null without sound output */
+    LevelControl volume;
     lv_obj_t* volumeMute = nullptr;
     lv_obj_t* volumeMuteIcon = nullptr;
-    lv_obj_t* volumeSlider = nullptr;
-    lv_obj_t* volumeLabel = nullptr;
+    /** The brightness of the display, with a root that is null when the backlight can't be dimmed */
+    LevelControl brightness;
     NotificationPanel* notifications = nullptr;
     size_t notificationTotal = 0;
 };
@@ -568,9 +595,51 @@ static void createMemoryRow(lv_obj_t* parent) {
 }
 
 static constexpr int32_t VOLUME_STEP = 10;
+/** The widest a level control gets when it is alone, so that its slider stays easy to use on a wide card */
+static constexpr int32_t SINGLE_CONTROL_MAX_WIDTH_DPX = 360;
 
-static void updateVolumeLabel() {
-    lv_label_set_text_fmt(menu->volumeLabel, "%d %%", static_cast<int>(lv_slider_get_value(menu->volumeSlider)));
+static void setLevel(LevelControl* control, int32_t level) {
+    lv_slider_set_value(control->slider, level, LV_ANIM_OFF);
+    lv_label_set_text_fmt(control->label, "%d %%", static_cast<int>(level));
+    control->apply(level);
+}
+
+static void onLevelSliderChanged(lv_event_t* event) {
+    auto* control = static_cast<LevelControl*>(lv_event_get_user_data(event));
+    setLevel(control, lv_slider_get_value(control->slider));
+}
+
+static void onLevelSliderReleased(lv_event_t* event) {
+    auto* control = static_cast<LevelControl*>(lv_event_get_user_data(event));
+    if (control->commit != nullptr) {
+        control->commit();
+    }
+}
+
+static void onLevelStep(lv_event_t* event) {
+    auto* argument = static_cast<LevelControl::StepArgument*>(lv_event_get_user_data(event));
+    auto* control = argument->control;
+    setLevel(control, LV_CLAMP(0, lv_slider_get_value(control->slider) + argument->direction * control->step, 100));
+    if (control->commit != nullptr) {
+        control->commit();
+    }
+}
+
+static void applyVolume(int32_t level) {
+    tt::service::audio::setOutputVolume(static_cast<float>(level));
+}
+
+static void applyBrightness(int32_t level) {
+    auto* backlight = settings::display::getBacklight();
+    if (backlight == nullptr) {
+        return;
+    }
+    const auto duty = static_cast<uint8_t>(settings::display::backlightPercentToBrightness(backlight, level));
+    backlight_set_brightness(backlight, duty);
+    if (!settings::display::queueSaveBacklightDuty(duty)) {
+        LOG_E(TAG, "Failed to queue saving the brightness");
+    }
+    device_put(backlight);
 }
 
 // Checked while the sound is on, like the other toggles
@@ -580,65 +649,74 @@ static void updateVolumeMuteToggle() {
     lv_label_set_text(menu->volumeMuteIcon, on ? LVGL_ICON_SHARED_VOLUME_UP : LVGL_ICON_SHARED_VOLUME_OFF);
 }
 
-static void setVolume(int32_t volume) {
-    lv_slider_set_value(menu->volumeSlider, volume, LV_ANIM_OFF);
-    updateVolumeLabel();
-    tt::service::audio::setOutputVolume(static_cast<float>(volume));
-}
-
-static void onVolumeSliderChanged(lv_event_t* /*event*/) {
-    setVolume(lv_slider_get_value(menu->volumeSlider));
-}
-
-static void onVolumeStep(lv_event_t* event) {
-    const auto direction = static_cast<int32_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
-    const int32_t volume = lv_slider_get_value(menu->volumeSlider) + direction * VOLUME_STEP;
-    setVolume(LV_CLAMP(0, volume, 100));
-}
-
 static void onVolumeMuteChanged(lv_event_t* /*event*/) {
     tt::service::audio::setOutputMuted(!lv_obj_has_state(menu->volumeMute, LV_STATE_CHECKED));
     updateVolumeMuteToggle();
 }
 
-/**
- * A slider needs a pointer to use and enough width to be grabbed.
- * Otherwise the row shows the percentage between the buttons.
- */
-static void updateVolumeMode() {
-    if (menu->volumeRow == nullptr) {
-        return;
-    }
-    lv_obj_set_hidden(menu->volumeSlider, false);
-    lv_obj_set_hidden(menu->volumeLabel, true);
-    lv_obj_update_layout(menu->volumeRow);
-    const bool sliderUsable = lvgl_indev_exists(LV_INDEV_TYPE_POINTER) && lv_obj_get_width(menu->volumeSlider) >= LV_DPX(80);
-    lv_obj_set_hidden(menu->volumeSlider, !sliderUsable);
-    lv_obj_set_hidden(menu->volumeLabel, sliderUsable);
+static int32_t getStepButtonSize() {
+    return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) + 8;
 }
 
-static lv_obj_t* createVolumeStepButton(lv_obj_t* parent, const char* symbol, int32_t direction) {
+static void createStepButton(lv_obj_t* parent, const char* symbol, LevelControl::StepArgument* argument) {
     auto* button = lv_button_create(parent);
-    const auto size = lvgl_get_text_font_height(FONT_SIZE_DEFAULT) + 8;
+    const auto size = getStepButtonSize();
     lv_obj_set_size(button, size, size);
     lv_obj_set_style_pad_all(button, 0, LV_STATE_DEFAULT);
-    lv_obj_add_event_cb(button, onVolumeStep, LV_EVENT_SHORT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(direction)));
+    lv_obj_add_event_cb(button, onLevelStep, LV_EVENT_SHORT_CLICKED, argument);
     auto* label = lv_label_create(button);
     lv_label_set_text(label, symbol);
     lv_obj_center(label);
-    return button;
 }
 
-/** Creates "[speaker] [-] [slider] [+]", where the slider gives way to the percentage when it can't be used */
-static void createVolumeRow(lv_obj_t* parent) {
+static lv_obj_t* createLevelRow(lv_obj_t* parent, LevelControl& control) {
     auto* row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollable(row, false);
     lv_obj_set_style_pad_column(row, LV_DPX(12), LV_STATE_DEFAULT);
-    menu->volumeRow = row;
+    control.root = row;
+    return row;
+}
+
+/** Adds "[-] [slider and percentage] [+]" after the icon that is in the row */
+static void addLevelControls(LevelControl& control, int32_t level) {
+    auto* row = control.root;
+    control.minus = { &control, -1 };
+    control.plus = { &control, 1 };
+    createStepButton(row, LV_SYMBOL_MINUS, &control.minus);
+
+    control.slider = lv_slider_create(row);
+    lv_obj_set_flex_grow(control.slider, 1);
+    lv_slider_set_range(control.slider, 0, 100);
+    lv_obj_add_event_cb(control.slider, onLevelSliderChanged, LV_EVENT_VALUE_CHANGED, &control);
+    lv_obj_add_event_cb(control.slider, onLevelSliderReleased, LV_EVENT_RELEASED, &control);
+
+    // The width of the widest text, so that the plus button stays in place for 1, 2 and 3 digits
+    control.label = lv_label_create(row);
+    lv_obj_set_style_text_align(control.label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    lv_label_set_long_mode(control.label, LV_LABEL_LONG_MODE_CLIP);
+    const lv_font_t* font = lv_obj_get_style_text_font(control.label, LV_PART_MAIN);
+    const int32_t width = 3 * lv_font_get_glyph_width(font, '0', 0) + lv_font_get_glyph_width(font, ' ', 0) + lv_font_get_glyph_width(font, '%', 0);
+    control.labelWidth = width + LV_DPX(4);
+    lv_obj_set_width(control.label, control.labelWidth);
+    lv_obj_set_hidden(control.label, true);
+
+    createStepButton(row, LV_SYMBOL_PLUS, &control.plus);
+
+    lv_slider_set_value(control.slider, level, LV_ANIM_OFF);
+    lv_label_set_text_fmt(control.label, "%d %%", static_cast<int>(level));
+    // The left and right keys move between the buttons and the slider
+    lvgl_grid_navigation_add(row);
+}
+
+/** Creates "[speaker] [-] [slider] [+]" */
+static void createVolumeControl(lv_obj_t* parent) {
+    menu->volume.step = VOLUME_STEP;
+    menu->volume.apply = applyVolume;
+    auto* row = createLevelRow(parent, menu->volume);
 
     menu->volumeMute = createTile(row, LVGL_ICON_SHARED_VOLUME_UP);
     menu->volumeMuteIcon = lv_obj_get_child(menu->volumeMute, 0);
@@ -646,28 +724,86 @@ static void createVolumeRow(lv_obj_t* parent) {
     lv_obj_add_event_cb(menu->volumeMute, onVolumeMuteChanged, LV_EVENT_VALUE_CHANGED, nullptr);
     updateVolumeMuteToggle();
 
-    createVolumeStepButton(row, LV_SYMBOL_MINUS, -1);
+    addLevelControls(menu->volume, static_cast<int32_t>(tt::service::audio::getOutputVolume()));
+}
 
-    menu->volumeSlider = lv_slider_create(row);
-    lv_obj_set_flex_grow(menu->volumeSlider, 1);
-    lv_slider_set_range(menu->volumeSlider, 0, 100);
-    lv_obj_add_event_cb(menu->volumeSlider, onVolumeSliderChanged, LV_EVENT_VALUE_CHANGED, nullptr);
+/** Creates "[display] [-] [slider] [+]", where the icon only shows what the control is for */
+static void createBrightnessControl(lv_obj_t* parent, int32_t level) {
+    menu->brightness.step = settings::display::BACKLIGHT_STEP_PERCENT;
+    menu->brightness.apply = applyBrightness;
+    auto* row = createLevelRow(parent, menu->brightness);
 
-    // The width of the widest text, so that the plus button stays in place for 1, 2 and 3 digits
-    menu->volumeLabel = lv_label_create(row);
-    lv_obj_set_style_text_align(menu->volumeLabel, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-    lv_label_set_long_mode(menu->volumeLabel, LV_LABEL_LONG_MODE_CLIP);
-    const lv_font_t* font = lv_obj_get_style_text_font(menu->volumeLabel, LV_PART_MAIN);
-    const int32_t width = 3 * lv_font_get_glyph_width(font, '0', 0) + lv_font_get_glyph_width(font, ' ', 0) + lv_font_get_glyph_width(font, '%', 0);
-    lv_obj_set_width(menu->volumeLabel, width + LV_DPX(4));
-    lv_obj_set_hidden(menu->volumeLabel, true);
+    const int32_t size = getTileSize();
+    auto* icon = lv_obj_create(row);
+    lv_obj_remove_style_all(icon);
+    lv_obj_set_size(icon, size, size);
+    lv_obj_set_scrollable(icon, false);
+    lv_obj_set_clickable(icon, false);
+    auto* icon_label = lv_label_create(icon);
+    lv_obj_set_style_text_font(icon_label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(icon_label, LVGL_ICON_SHARED_DISPLAY_SETTINGS);
+    lv_obj_center(icon_label);
 
-    createVolumeStepButton(row, LV_SYMBOL_PLUS, 1);
+    addLevelControls(menu->brightness, level);
+}
 
-    lv_slider_set_value(menu->volumeSlider, static_cast<int32_t>(tt::service::audio::getOutputVolume()), LV_ANIM_OFF);
-    updateVolumeLabel();
-    // The left and right keys move between the buttons and the slider
-    lvgl_grid_navigation_add(row);
+static void showLevelControl(LevelControl& control, bool show, bool useSlider) {
+    lv_obj_set_hidden(control.root, !show);
+    lv_obj_set_hidden(control.slider, !useSlider);
+    lv_obj_set_hidden(control.label, useSlider);
+}
+
+/** The width of a control: the icon, the 2 buttons and the slider or the percentage, with the gaps between them */
+static int32_t getLevelControlWidth(const LevelControl& control, bool useSlider) {
+    return getTileSize() + 2 * getStepButtonSize() + (useSlider ? LV_DPX(80) : control.labelWidth) + 3 * LV_DPX(12);
+}
+
+/** Places a control: it either takes the full width of the container (up to a maximum) or a share of its row */
+static void placeLevelControl(LevelControl& control, bool inRow, bool single) {
+    lv_obj_set_width(control.root, inRow ? 0 : LV_PCT(100));
+    lv_obj_set_flex_grow(control.root, inRow ? 1 : 0);
+    if (single) {
+        lv_obj_set_style_max_width(control.root, LV_DPX(SINGLE_CONTROL_MAX_WIDTH_DPX), LV_STATE_DEFAULT);
+    } else {
+        lv_obj_remove_local_style_prop(control.root, LV_STYLE_MAX_WIDTH, LV_PART_MAIN);
+    }
+}
+
+/**
+ * Picks the most that fits: both below each other, with sliders when they fit. Otherwise only the volume
+ * (or the brightness without sound), with a slider when it fits, and centered.
+ * A slider needs a pointer to use and enough width to be grabbed.
+ */
+static void updateControls() {
+    if (menu->controls == nullptr || lv_obj_is_hidden(menu->quickPanel)) {
+        return;
+    }
+    lv_obj_update_layout(menu->quickPanel);
+    const bool hasVolume = menu->volume.root != nullptr;
+    const bool hasBrightness = menu->brightness.root != nullptr;
+    LevelControl* first = hasVolume ? &menu->volume : &menu->brightness;
+    const bool pointer = lvgl_indev_exists(LV_INDEV_TYPE_POINTER);
+    const int32_t width = lv_obj_get_content_width(menu->controls);
+    const int32_t gap = lv_obj_get_style_pad_row(menu->controls, LV_PART_MAIN);
+    const int32_t rowHeight = std::max(getTileSize(), getStepButtonSize());
+    // What the tiles leave of the panel
+    const int32_t room = lv_obj_get_height(menu->quickPanel) - lv_obj_get_height(menu->tileGrid) - lv_obj_get_style_pad_row(menu->quickPanel, LV_PART_MAIN);
+    const bool sliderFits = pointer && width >= getLevelControlWidth(*first, true);
+
+    const bool both = hasVolume && hasBrightness;
+    lv_obj_set_flex_flow(menu->controls, LV_FLEX_FLOW_COLUMN);
+    if (both && room >= 2 * rowHeight + gap) {
+        placeLevelControl(menu->volume, false, false);
+        placeLevelControl(menu->brightness, false, false);
+        showLevelControl(menu->volume, true, sliderFits);
+        showLevelControl(menu->brightness, true, sliderFits);
+    } else {
+        placeLevelControl(*first, false, true);
+        showLevelControl(*first, true, sliderFits);
+        if (both) {
+            showLevelControl(menu->brightness, false, false);
+        }
+    }
 }
 
 /**
@@ -709,7 +845,7 @@ static void applyCardSize() {
     lv_obj_set_size(menu->card, lv_pct(wide ? 60 : 90), lv_pct(wide ? 80 : 90));
     if (menu->quickPanel != nullptr) {
         lv_obj_update_layout(menu->card);
-        updateVolumeMode();
+        updateControls();
         updateMemoryVisibility();
     }
 }
@@ -717,6 +853,43 @@ static void applyCardSize() {
 static void onDisplayResolutionChanged(lv_event_t* /*event*/) {
     if (menu != nullptr) {
         applyCardSize();
+    }
+}
+
+/** Creates the volume and brightness controls, for what the device has. They are arranged when the card is sized. */
+static void createControls(lv_obj_t* parent) {
+    const bool hasVolume = tt::service::audio::isOutputAvailable();
+    auto* backlight = settings::display::getBacklight();
+    const bool hasBrightness = backlight != nullptr && settings::display::backlightSupportsBrightness(backlight);
+    int32_t brightnessLevel = 100;
+    if (hasBrightness) {
+        uint8_t duty = 0;
+        if (backlight_get_brightness(backlight, &duty) == ERROR_NONE) {
+            brightnessLevel = settings::display::backlightBrightnessToPercent(backlight, duty);
+        }
+    }
+    if (backlight != nullptr) {
+        device_put(backlight);
+    }
+    if (!hasVolume && !hasBrightness) {
+        return;
+    }
+
+    auto* controls = lv_obj_create(parent);
+    lv_obj_remove_style_all(controls);
+    lv_obj_set_size(controls, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(controls, LV_DPX(8), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(controls, LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(controls, false);
+    menu->controls = controls;
+
+    if (hasVolume) {
+        createVolumeControl(controls);
+    }
+    if (hasBrightness) {
+        createBrightnessControl(controls, brightnessLevel);
     }
 }
 
@@ -753,6 +926,7 @@ static lv_obj_t* createQuickSettingsPanel(lv_obj_t* parent) {
     const int32_t gap = lvgl_theme_lerp(8, 16, lvgl_theme_get_spacing());
     lv_obj_set_style_pad_column(grid, gap, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(grid, gap, LV_STATE_DEFAULT);
+    menu->tileGrid = grid;
 
     static constexpr ToggleOption wifi_option = { LVGL_ICON_SHARED_WIFI, LVGL_ICON_SHARED_WIFI_OFF, isWifiEnabled, setWifiEnabled, "tactility.wifimanage" };
     if (hasWifi()) {
@@ -777,10 +951,8 @@ static lv_obj_t* createQuickSettingsPanel(lv_obj_t* parent) {
     lv_obj_set_size(spacerBottom, 0, 0);
     lv_obj_set_flex_grow(spacerBottom, 1);
 
-    // The volume row stays at the bottom of the panel
-    if (tt::service::audio::isOutputAvailable()) {
-        createVolumeRow(panel);
-    }
+    // The level controls stay at the bottom of the panel
+    createControls(panel);
     return panel;
 }
 
@@ -810,7 +982,7 @@ static void onPowerToggled(lv_event_t* /*event*/) {
     if (!systemMenuPowerToggle(menu->powerButton, menu->quickPanel, menu->powerPanel)) {
         // The display can have rotated while the quick settings were hidden
         lv_obj_update_layout(menu->card);
-        updateVolumeMode();
+        updateControls();
     }
 }
 

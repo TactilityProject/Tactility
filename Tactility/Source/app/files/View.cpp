@@ -22,9 +22,8 @@
 #include <generated_assets.h>
 
 #include <Tactility/app/files/SupportedFiles.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/imageviewer/ImageViewer.h>
-#include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/file/File.h>
 #include <Tactility/StringUtils.h>
@@ -282,7 +281,7 @@ void runWork(void* context) {
     AppStartContext start_context = app_start_context_for_location(location);
     if (app_start_with_context(&start_context, &instance_id) != ERROR_NONE) {
         LOG_W(TAG, "Failed to run %s", job->path.c_str());
-        alertdialog::start(job->appInstanceId, tr("Run failed"), i18n::format(tr("Could not run \"{}\"."), { file::getLastPathSegment(job->path) }));
+        dialog::alert(job->appInstanceId, tr("Run failed"), i18n::format(tr("Could not run \"{}\"."), { file::getLastPathSegment(job->path) }));
     }
     delete job;
 }
@@ -335,16 +334,39 @@ void View::onFileOpsCompleted() {
     }
 }
 
+namespace {
+
+void onAlertClosed(int32_t button, void* userData) {
+    static_cast<View*>(userData)->onDialogClosed(button, "");
+}
+
+void onInputClosed(bool confirmed, const char* text, void* userData) {
+    static_cast<View*>(userData)->onDialogClosed(confirmed ? 0 : 1, text);
+}
+
+} // namespace
+
+void View::onDialogClosed(int32_t result, const char* text) {
+    dialogResult = result;
+    dialogText = text;
+    task_event_group_signal(eventGroup, dialogBit);
+}
+
 void View::viewFile(const ::std::string& path, const ::std::string& filename) {
     ::std::string file_path = path + "/" + filename;
     LOG_I(TAG, "Clicked %s", file_path.c_str());
 
     if (isSupportedAppFile(filename)) {
+        if (dialogOwner != DialogOwner::None) {
+            return;
+        }
         // install(filename);
         auto message = i18n::format(tr("Do you want to install {}?"), { filename });
         installAppPath = file_path;
-        auto choices = ::std::vector<::std::string> { tr("Yes"), tr("No") };
-        installDialogId = alertdialog::start(appInstanceId, tr("Install?"), message, choices);
+        dialogOwner = DialogOwner::Install;
+        if (dialog::alert(appInstanceId, tr("Install?"), message, { tr("Yes"), tr("No") }, onAlertClosed, this) != ERROR_NONE) {
+            dialogOwner = DialogOwner::None;
+        }
     } else if (isSupportedImageFile(filename)) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
@@ -363,7 +385,7 @@ void View::runFile(const ::std::string& file_path) {
 
     if (!state->isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
-        alertdialog::start(appInstanceId, tr("Run failed"), i18n::format(tr("\"{}\" is not an executable."), { file::getLastPathSegment(file_path) }));
+        dialog::alert(appInstanceId, tr("Run failed"), i18n::format(tr("\"{}\" is not an executable."), { file::getLastPathSegment(file_path) }));
         return;
     }
 
@@ -389,6 +411,7 @@ View::View(const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .userData = this
     }) {
     check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(eventGroup, &dialogBit) == ERROR_NONE);
     check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
 
@@ -418,6 +441,7 @@ View::~View() {
     }
     file_ops_unsubscribe(&fileOpsSub);
     task_event_group_release_bit(eventGroup, pasteBit);
+    task_event_group_release_bit(eventGroup, dialogBit);
 }
 
 ::std::vector<TileGridItem> View::collectItems(void* userData) {
@@ -693,15 +717,26 @@ void View::onOverflowPressed() {
 
 void View::onRenamePressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     ::std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
+    renameTargetPath = state->getSelectedChildPath();
     state->setPendingAction(State::ActionRename);
-    inputdialog::start(appInstanceId, tr("Rename"), "", entry_name, inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    dialogOwner = DialogOwner::Action;
+    if (dialog::input(appInstanceId, tr("Rename"), "", entry_name, onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onDeletePressed() {
-    const auto paths = getSelectedPaths();
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
+    const auto paths = getSelectedPaths();
     state->setPendingDeletePaths(paths);
     state->setPendingAction(State::ActionDelete);
     ::std::string message;
@@ -712,22 +747,39 @@ void View::onDeletePressed() {
         LOG_I(TAG, "Pending delete of %u items", static_cast<unsigned>(paths.size()));
         message = i18n::format(tr("Do you want to delete these {} items?"), { ::std::to_string(paths.size()) });
     }
-    const ::std::vector<::std::string> choices = { tr("Yes"), tr("No") };
-    alertdialog::start(appInstanceId, tr("Are you sure?"), message, choices);
+    dialogOwner = DialogOwner::Action;
+    if (dialog::alert(appInstanceId, tr("Are you sure?"), message, { tr("Yes"), tr("No") }, onAlertClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onNewFilePressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
-    inputdialog::start(appInstanceId, tr("New File"), tr("Enter filename:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    dialogOwner = DialogOwner::Action;
+    if (dialog::input(appInstanceId, tr("New File"), tr("Enter filename:"), "", onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 void View::onNewFolderPressed() {
     onNavigate();
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
-    inputdialog::start(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    dialogOwner = DialogOwner::Action;
+    if (dialog::input(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", onInputClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        state->setPendingAction(State::ActionNone);
+    }
 }
 
 lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
@@ -892,7 +944,7 @@ void View::onEjectPressed() {
 
     if (!ejected) {
         LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
-        alertdialog::start(appInstanceId, tr("Eject failed"), i18n::format(tr("Could not eject \"{}\"."), { file::getLastPathSegment(mount_path) }));
+        dialog::alert(appInstanceId, tr("Eject failed"), i18n::format(tr("Could not eject \"{}\"."), { file::getLastPathSegment(mount_path) }));
     }
 
     onNavigate();
@@ -1144,33 +1196,30 @@ void View::onNavigate() {
     hideOverlay();
 }
 
-void View::onResult(uint32_t launchId, int32_t result) {
-    if (launchId == installDialogId && result == 0) {
-        app_install(installAppPath.c_str());
+void View::onDialogResult() {
+    const DialogOwner owner = dialogOwner;
+    const int32_t result = dialogResult;
+    const ::std::string installPath = installAppPath;
+    dialogOwner = DialogOwner::None;
+    if (owner == DialogOwner::Install) {
+        if (result == 0) {
+            app_install(installPath.c_str());
+        }
         return;
     }
 
     ::std::string filepath = state->getSelectedChildPath();
     LOG_I(TAG, "Result for %s", filepath.c_str());
 
-    // Text-entry result (rename/new file/new folder), read from the AppStream bound to that
-    // dialog's stdout. Empty for Cancel. Other pending actions (delete/paste confirmations) never
-    // bound this stream; their switch cases below only look at `result`, not `resultText`.
-    bool isTextEntryAction = state->getPendingAction() == State::ActionRename ||
-        state->getPendingAction() == State::ActionCreateFile ||
-        state->getPendingAction() == State::ActionCreateFolder;
+    // The entered text of a text dialog (rename/new file/new folder). Empty for Cancel.
+    // Other pending actions (delete/paste confirmations) only look at `result`, not `resultText`.
     ::std::string resultText;
-    if (isTextEntryAction) {
-        if (result == 0) {
-            char buffer[sizeof(inputDialogBuffer)];
-            size_t length = app_stream_read(&inputDialogStream, buffer, sizeof(buffer));
-            resultText = ::std::string(buffer, length);
-        }
-        app_stream_unsubscribe(&inputDialogStream);
+    if (result == 0) {
+        resultText = dialogText;
     }
 
     // The answer of the overwrite confirmation counts even when the pending action was reset meanwhile
-    const auto action = (pasteDialogId != 0 && launchId == pasteDialogId) ? State::ActionPaste : state->getPendingAction();
+    const auto action = owner == DialogOwner::Paste ? State::ActionPaste : state->getPendingAction();
     switch (action) {
         case State::ActionDelete: {
             if (result == 0) {
@@ -1195,13 +1244,15 @@ void View::onResult(uint32_t launchId, int32_t result) {
         }
         case State::ActionRename: {
             ::std::string new_name = resultText;
-            if (!new_name.empty() && new_name != state->getSelectedChildEntry()) {
+            // The entry that was chosen when the dialog opened, not the selection of now
+            filepath = renameTargetPath;
+            if (!new_name.empty() && new_name != file::getLastPathSegment(filepath)) {
                 ::std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
                 struct stat st;
                 if (stat(rename_to.c_str(), &st) == 0) {
                     LOG_W(TAG, "Rename: destination already exists: \"%s\"", rename_to.c_str());
                     state->setPendingAction(State::ActionNone);
-                    alertdialog::start(appInstanceId, tr("Rename failed"), i18n::format(tr("\"{}\" already exists."), { new_name }));
+                    dialog::alert(appInstanceId, tr("Rename failed"), i18n::format(tr("\"{}\" already exists."), { new_name }));
                     break;
                 }
                 if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
@@ -1266,10 +1317,10 @@ void View::onResult(uint32_t launchId, int32_t result) {
         }
         case State::ActionPaste: {
             // Only the answer of the confirmation that belongs to the pending paste counts
-            if (launchId != pasteDialogId) {
+            if (owner != DialogOwner::Paste) {
                 break;
             }
-            pasteDialogId = 0;
+            pasteDialogShown = false;
             const ::std::string paste_source = state->getPendingPasteSource();
             const bool paste_is_cut = state->getPendingPasteIsCut();
             const ::std::string dst = state->getPendingPasteDst();
@@ -1340,8 +1391,8 @@ void View::onPasteRequested() {
     if (!request.has_value()) return;
 
     // The pending destination, source and dialog belong to one paste: a second one waits for the answer
-    if (pasteDialogId != 0 || !pasteQueue.empty()) {
-        LOG_W(TAG, "Paste: another paste is busy, skipping");
+    if (pasteDialogShown || !pasteQueue.empty() || dialogOwner != DialogOwner::None) {
+        LOG_W(TAG, "Paste: another paste or dialog is busy, skipping");
         return;
     }
 
@@ -1378,11 +1429,12 @@ void View::processPasteQueue() {
             state->setPendingPasteSource(src, pasteIsCut);
             state->setPendingPasteDstStat(dst_stat);
             state->setPendingAction(State::ActionPaste);
-            const ::std::vector<::std::string> choices = { tr("Overwrite"), tr("Cancel") };
-            pasteDialogId = alertdialog::start(appInstanceId, tr("File exists"), i18n::format(tr("Overwrite \"{}\"?"), { entry_name }), choices);
-            if (pasteDialogId != 0) {
+            dialogOwner = DialogOwner::Paste;
+            if (dialog::alert(appInstanceId, tr("File exists"), i18n::format(tr("Overwrite \"{}\"?"), { entry_name }), { tr("Overwrite"), tr("Cancel") }, onAlertClosed, this) == ERROR_NONE) {
+                pasteDialogShown = true;
                 return;
             }
+            dialogOwner = DialogOwner::None;
             // The answer never comes, so the paste goes on with the other sources
             LOG_E(TAG, "Failed to start the overwrite confirmation for %s", dst.c_str());
             state->setPendingPasteSource("", false);
@@ -1406,7 +1458,7 @@ void View::processPasteQueue() {
         }
         pasteFailures.clear();
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
-        alertdialog::start(appInstanceId, tr("Paste failed"), message);
+        dialog::alert(appInstanceId, tr("Paste failed"), message);
     }
 }
 

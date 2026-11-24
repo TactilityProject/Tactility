@@ -1,8 +1,9 @@
 #define L10N_APP "apphubdetails"
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/TileGrid.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/apphub/AppHubIcon.h>
+#include <Tactility/app/apphub/AppHubOnline.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 
 #include <app/event.h>
@@ -112,6 +113,11 @@ AppHubApp readApp(Context* ctx) {
     if (app_hub_get_app(ctx->appId.c_str(), &app) != ERROR_NONE) {
         strncpy(app.id, ctx->appId.c_str(), sizeof(app.id) - 1);
         strncpy(app.name, ctx->appId.c_str(), sizeof(app.name) - 1);
+    }
+    if (!apphub::isOnlineEnabled()) {
+        // Without the catalog there are no details to download, and no installs or updates
+        app.in_catalog = false;
+        app.update_available = false;
     }
     return app;
 }
@@ -259,10 +265,10 @@ void onUpdatePressed(lv_event_t* e) {
 void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t* operation_id), const char* failure) {
     const error_t error = operation(ctx->appId.c_str(), nullptr);
     if (error == ERROR_RESOURCE_BUSY) {
-        alertdialog::start(ctx->appInstanceId, tr("Busy"), tr("Another operation is pending. Try again when it's done."));
+        dialog::alert(ctx->appInstanceId, tr("Busy"), tr("Another operation is pending. Try again when it's done."));
         return;
     } else if (error != ERROR_NONE) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), failure);
+        dialog::alert(ctx->appInstanceId, tr("Error"), failure);
         return;
     }
     refreshViews(ctx);
@@ -289,7 +295,7 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
     if (finished && ctx->appId == event.app_id && event.result != ERROR_NONE) {
         LOG_E(TAG, "Operation failed: %s", error_to_string(event.result));
         const char* message = (event.type == APP_HUB_EVENT_REMOVED) ? tr("Failed to uninstall app") : tr("Failed to install app");
-        alertdialog::start(ctx->appInstanceId, tr("Error"), message);
+        dialog::alert(ctx->appInstanceId, tr("Error"), message);
     }
     refreshViews(ctx);
 }
@@ -480,10 +486,6 @@ int32_t appMain(int argc, char* argv[]) {
             switch (event.type) {
                 case APP_EVENT_CLOSE:
                     shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    // An error dialog was closed
-                    app_manager_stop(event.result.launch_id);
                     break;
                 default:
                     break;
