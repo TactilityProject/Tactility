@@ -35,9 +35,7 @@ struct SdlDisplayInternal {
     const SdlDisplayConfig* config = nullptr;
 };
 
-// The simulated backlight, which dims the frame when it is presented. The lowest brightness stays readable.
-// Only turning the display off makes the frame black.
-constexpr uint8_t BRIGHTNESS_FLOOR = 40;
+// The simulated backlight, which dims the frame when it is presented
 static std::atomic<uint8_t> g_brightness { 255 };
 static std::atomic<bool> g_display_on { true };
 // Set from any task, and handled by the main thread, which is the only one that may present
@@ -103,7 +101,7 @@ void sdl_display_present_now(void) {
         return;
     }
     SDL_RenderClear(g_display_internal->renderer);
-    const int brightness = g_display_on.load() ? BRIGHTNESS_FLOOR + g_brightness.load() * (255 - BRIGHTNESS_FLOOR) / 255 : 0;
+    const int brightness = g_display_on.load() ? g_brightness.load() : 0;
     SDL_SetTextureColorMod(g_display_internal->texture, brightness, brightness, brightness);
     SDL_RenderCopy(g_display_internal->renderer, g_display_internal->texture, nullptr, nullptr);
     SDL_RenderPresent(g_display_internal->renderer);

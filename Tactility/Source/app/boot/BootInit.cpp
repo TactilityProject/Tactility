@@ -1,5 +1,7 @@
 #include <Tactility/app/boot/BootInit.h>
 
+#include <algorithm>
+
 #include "Tactility/network/NtpPrivate.h"
 #include "Tactility/settings/TimePrivate.h"
 
@@ -124,6 +126,12 @@ void setupDisplay() {
         if (settings::display::load(settings)) {
         } else {
             settings = settings::display::getDefault();
+        }
+
+        // A brightness can be saved below the minimum by an older firmware
+        if (settings::display::backlightSupportsBrightness(backlight)) {
+            const auto min_duty = settings::display::backlightPercentToBrightness(backlight, settings::display::BACKLIGHT_MIN_PERCENT);
+            settings.backlightDuty = static_cast<uint8_t>(std::max<int32_t>(settings.backlightDuty, min_duty));
         }
 
         if (backlight_set_brightness(backlight, settings.backlightDuty) == ERROR_NONE) {

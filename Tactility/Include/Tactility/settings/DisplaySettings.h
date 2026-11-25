@@ -52,13 +52,16 @@ bool queueSaveBacklightDuty(uint8_t duty);
 /** The step of a brightness slider, in percent */
 constexpr int32_t BACKLIGHT_STEP_PERCENT = 10;
 
+/** The lowest brightness that can be chosen, in percent, so the display stays readable */
+constexpr int32_t BACKLIGHT_MIN_PERCENT = 10;
+
 /** @return the backlight of the first display, or nullptr when there is none. Release it with device_put(). */
 Device* getBacklight();
 
 /** @return true when the backlight has more than 2 levels, so a brightness can be chosen */
 bool backlightSupportsBrightness(Device* backlight);
 
-/** Converts a percentage of the backlight's brightness range to a brightness. 0% is the dimmest setting that is still on. */
+/** Converts a percentage of the backlight's brightness range to a brightness. Percentages below BACKLIGHT_MIN_PERCENT are raised to it. */
 int32_t backlightPercentToBrightness(Device* backlight, int32_t percent);
 
 /** The inverse of backlightPercentToBrightness(), which gives the percentage of a step for backlights with few levels */

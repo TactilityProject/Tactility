@@ -290,7 +290,7 @@ enum class Kind { Settings, Notifications };
 constexpr intptr_t KIND_MASK = 0xFF;
 constexpr intptr_t SHOW_POWER_OPTIONS = 0x100;
 
-/** A row "[icon] [-] [slider or percentage] [+]" that sets a level from 0 to 100 */
+/** A row "[icon] [-] [slider or percentage] [+]" that sets a level from min to 100 */
 struct LevelControl {
     struct StepArgument {
         LevelControl* control = nullptr;
@@ -301,6 +301,7 @@ struct LevelControl {
     lv_obj_t* slider = nullptr;
     lv_obj_t* label = nullptr;
     int32_t labelWidth = 0;
+    int32_t min = 0;
     int32_t step = 10;
     /** Applies the level, with the LVGL lock held */
     void (*apply)(int32_t level) = nullptr;
@@ -619,7 +620,7 @@ static void onLevelSliderReleased(lv_event_t* event) {
 static void onLevelStep(lv_event_t* event) {
     auto* argument = static_cast<LevelControl::StepArgument*>(lv_event_get_user_data(event));
     auto* control = argument->control;
-    setLevel(control, LV_CLAMP(0, lv_slider_get_value(control->slider) + argument->direction * control->step, 100));
+    setLevel(control, LV_CLAMP(control->min, lv_slider_get_value(control->slider) + argument->direction * control->step, 100));
     if (control->commit != nullptr) {
         control->commit();
     }
@@ -690,7 +691,7 @@ static void addLevelControls(LevelControl& control, int32_t level) {
 
     control.slider = lv_slider_create(row);
     lv_obj_set_flex_grow(control.slider, 1);
-    lv_slider_set_range(control.slider, 0, 100);
+    lv_slider_set_range(control.slider, control.min, 100);
     lv_obj_add_event_cb(control.slider, onLevelSliderChanged, LV_EVENT_VALUE_CHANGED, &control);
     lv_obj_add_event_cb(control.slider, onLevelSliderReleased, LV_EVENT_RELEASED, &control);
 
@@ -729,6 +730,7 @@ static void createVolumeControl(lv_obj_t* parent) {
 
 /** Creates "[display] [-] [slider] [+]", where the icon only shows what the control is for */
 static void createBrightnessControl(lv_obj_t* parent, int32_t level) {
+    menu->brightness.min = settings::display::BACKLIGHT_MIN_PERCENT;
     menu->brightness.step = settings::display::BACKLIGHT_STEP_PERCENT;
     menu->brightness.apply = applyBrightness;
     auto* row = createLevelRow(parent, menu->brightness);

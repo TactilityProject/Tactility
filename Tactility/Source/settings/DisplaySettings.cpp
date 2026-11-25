@@ -318,14 +318,14 @@ bool backlightSupportsBrightness(Device* backlight) {
 int32_t backlightPercentToBrightness(Device* backlight, int32_t percent) {
     const int32_t min = backlight_get_min_brightness(backlight);
     const int32_t range = backlight_get_max_brightness(backlight) - min;
-    const int32_t brightness = min + (percent * range + 50) / 100;
-    // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
+    const int32_t brightness = min + (std::clamp(percent, BACKLIGHT_MIN_PERCENT, 100) * range + 50) / 100;
+    // A brightness of 0 turns the backlight off
     return brightness < 1 ? 1 : brightness;
 }
 
 int32_t backlightBrightnessToPercent(Device* backlight, int32_t brightness) {
     // A backlight with few levels can't map a level back to the exact percentage, so the slider step of the level is used
-    for (int32_t percent = 0; percent <= 100; percent += BACKLIGHT_STEP_PERCENT) {
+    for (int32_t percent = BACKLIGHT_MIN_PERCENT; percent <= 100; percent += BACKLIGHT_STEP_PERCENT) {
         if (backlightPercentToBrightness(backlight, percent) == brightness) {
             return percent;
         }
@@ -334,7 +334,7 @@ int32_t backlightBrightnessToPercent(Device* backlight, int32_t brightness) {
     const int32_t range = backlight_get_max_brightness(backlight) - min;
     // A saved brightness can be out of range, e.g. when it was saved for another backlight driver
     const int32_t clamped = std::clamp(brightness, min, min + range);
-    return range > 0 ? ((clamped - min) * 100 + range / 2) / range : 100;
+    return range > 0 ? std::max(((clamped - min) * 100 + range / 2) / range, BACKLIGHT_MIN_PERCENT) : 100;
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {
