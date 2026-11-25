@@ -27,6 +27,9 @@ msgstr "«{}» se copió, pero no se pudo eliminar el original."
 msgid "Are you sure?"
 msgstr "¿Estás seguro?"
 
+msgid "Copy"
+msgstr "Copiar"
+
 msgid "Could not eject \"{}\"."
 msgstr "No se pudo expulsar «{}»."
 
@@ -36,6 +39,15 @@ msgstr "No se pudo eliminar «{}» antes de sobrescribir."
 msgid "Could not run \"{}\"."
 msgstr "No se pudo ejecutar «{}»."
 
+msgid "Cut"
+msgstr "Cortar"
+
+msgid "Delete"
+msgstr "Eliminar"
+
+msgid "Deselect all"
+msgstr "Deseleccionar todo"
+
 msgid "Do you want to delete these {} items?"
 msgstr "¿Quieres eliminar estos {} elementos?"
 
@@ -44,6 +56,9 @@ msgstr "¿Quieres eliminar esto?\n{}"
 
 msgid "Do you want to install {}?"
 msgstr "¿Quieres instalar {}?"
+
+msgid "Eject"
+msgstr "Expulsar"
 
 msgid "Eject failed"
 msgstr "Error al expulsar"
@@ -75,6 +90,9 @@ msgstr "Sobrescribir"
 msgid "Overwrite \"{}\"?"
 msgstr "¿Sobrescribir «{}»?"
 
+msgid "Paste"
+msgstr "Pegar"
+
 msgid "Paste failed"
 msgstr "Error al pegar"
 
@@ -86,3 +104,6 @@ msgstr "Error al renombrar"
 
 msgid "Run failed"
 msgstr "Error al ejecutar"
+
+msgid "{} selected"
+msgstr "{} seleccionados"

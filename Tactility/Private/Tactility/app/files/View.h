@@ -34,7 +34,7 @@ class View final {
      * What the dialog that is shown is for. Set before it is shown, and reset on the app task when its result was read.
      * The pending action and its paths belong to that dialog, so no other action is started meanwhile.
      */
-    enum class DialogOwner { None, Install, Action, Paste };
+    enum class DialogOwner { None, Install, Action, Paste, Menu };
     ::std::atomic<DialogOwner> dialogOwner = DialogOwner::None;
     /** The pressed button, or 0 for OK and 1 for Cancel in a text dialog, or WINDOW_DIALOG_DISMISSED */
     int32_t dialogResult = WINDOW_DIALOG_DISMISSED;
@@ -56,8 +56,12 @@ class View final {
     /** Mono icons are painted in the theme's icon colour */
     bool iconRecolor[9] = {};
 
-    /** Set while a key selects an entry, so the keys keep going to the grid instead of the overlay */
-    bool keepGridFocus = false;
+    /** What the items of the menu dialog do */
+    enum class MenuAction { Open, Select, DeselectAll, Copy, Cut, Paste, Rename, Delete, Eject, NewFile, NewFolder };
+    /** The actions of the menu dialog that is shown, by item index. Set on the LVGL task before it is shown, read on the app task after it closed. */
+    ::std::vector<MenuAction> menuActions;
+    /** Set when "Select" was chosen: taps then add entries to the selection or remove them, instead of opening them */
+    bool selectionMode = false;
 
     TileGrid grid;
 
@@ -65,7 +69,6 @@ class View final {
     lv_obj_t* busy_spinner = nullptr;
     ::std::atomic<int> pendingOperations = 0;
 
-    lv_obj_t* overlay = nullptr;
     lv_obj_t* toolbar = nullptr;
     /** The path bar: the buttons of the path segments that fit, and an ellipsis in front when the path is cut off */
     ::std::vector<lv_obj_t*> pathBarWidgets;
@@ -89,21 +92,25 @@ class View final {
     static void onTileKey(const TileGridItem& item, uint32_t key, void* userData);
     static void onPageChanged(void* userData);
 
-    lv_obj_t* addOverlayButton(const char* icon, lv_event_cb_t callback);
-    void showOverlay(lv_obj_t* anchorTile);
-    void hideOverlay();
-    void showActionsForDirectory(lv_obj_t* tile);
-    void showActionsForFile(lv_obj_t* tile);
-    void showActionsForMountPoint(lv_obj_t* tile);
-    /** Whether actions are shown for a selection that more entries can be added to */
+    /** Shows the menu dialog with @a actions. Runs on the LVGL task. */
+    void showMenu(const ::std::string& title, const ::std::vector<MenuAction>& actions);
+    /** Shows the actions for one entry, which is selected while the menu is shown */
+    void showEntryMenu(const dirent& dir_entry);
+    /** Shows the actions for the entries of the selection mode */
+    void showSelectionMenu();
+    /** Performs a chosen menu action. Runs on the LVGL task. */
+    void runMenuAction(MenuAction action);
+    /** Whether taps add entries to the selection */
     bool isSelecting() const;
-    /** Adds the entry to the selection or removes it, and updates the actions */
+    /** Adds the entry to the selection or removes it. Leaves the selection mode when nothing stays selected. */
     void toggleSelectedEntry(const dirent& dir_entry);
-    /** Shows the actions for the selected entries, anchored at @a tile */
-    void showActionsForSelection(lv_obj_t* tile);
+    /** Deselects all entries and leaves the selection mode */
+    void clearSelection();
+    void setTileChecked(const ::std::string& name, bool checked);
+    /** Opens a directory or views a file */
+    void openEntry(const dirent& dir_entry);
     /** The full paths of the selected entries, or of the selected child entry when none is selected */
     ::std::vector<::std::string> getSelectedPaths() const;
-    void addCommonFileActions();
 
     /** Shows the busy spinner while at least one operation is pending. Runs on any task. */
     void beginOperation();
@@ -173,8 +180,6 @@ public:
     /** Does the file system work of a requested paste. Runs on the app task. */
     void onPasteRequested();
     void onEjectPressed();
-    void onRunPressed();
-    void onOverlayKey(uint32_t key);
     /** The event group bit that is signalled when the app task has to call onDialogResult() */
     uint32_t getDialogBit() const { return dialogBit; }
     /** Stores the result of a dialog and signals the app task. Runs on the task of the dialog. */

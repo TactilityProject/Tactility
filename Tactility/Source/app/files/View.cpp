@@ -61,59 +61,9 @@ static void onBackPressedCallback(lv_event_t* event) {
     view->onBackPressed();
 }
 
-static void onRenamePressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onRenamePressed();
-}
-
-static void onDeletePressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onDeletePressed();
-}
-
 static void onOverflowPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     view->onOverflowPressed();
-}
-
-static void onNewFilePressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onNewFilePressed();
-}
-
-static void onNewFolderPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onNewFolderPressed();
-}
-
-static void onCopyPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onCopyPressed();
-}
-
-static void onCutPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onCutPressed();
-}
-
-static void onEjectPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onEjectPressed();
-}
-
-static void onPastePressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onPastePressed();
-}
-
-static void onRunPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onRunPressed();
-}
-
-static void onOverlayKeyCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onOverlayKey(lv_event_get_key(event));
 }
 
 // endregion
@@ -344,6 +294,10 @@ void onInputClosed(bool confirmed, const char* text, void* userData) {
     static_cast<View*>(userData)->onDialogClosed(confirmed ? 0 : 1, text);
 }
 
+void onMenuClosed(int32_t item, void* userData) {
+    static_cast<View*>(userData)->onDialogClosed(item, "");
+}
+
 } // namespace
 
 void View::onDialogClosed(int32_t result, const char* text) {
@@ -489,16 +443,9 @@ void View::onTileKey(const TileGridItem& item, uint32_t key, void* userData) {
 void View::onPageChanged(void* userData) {
     auto* view = static_cast<View*>(userData);
     const auto entries = view->state->getSelectedEntries();
-    if (entries.empty()) {
-        view->hideOverlay();
-        return;
-    }
-    // The selection and its actions stay, and the tiles of the new page that are selected show it
+    // The selection stays, and the tiles of the new page that are selected show it
     for (const auto& name : entries) {
-        lv_obj_t* tile = view->grid.findTile(name);
-        if (tile != nullptr) {
-            lv_obj_add_state(tile, LV_STATE_CHECKED);
-        }
+        view->setTileChecked(name, true);
     }
 }
 
@@ -515,28 +462,24 @@ bool View::findDirent(const ::std::string& name, dirent& out_entry) {
 }
 
 void View::onDirEntryPressed(const ::std::string& name) {
-    // Once an entry is selected, a tap adds an entry to the selection or removes it
-    if (isSelecting()) {
-        dirent selected_entry;
-        if (findDirent(name, selected_entry)) {
-            toggleSelectedEntry(selected_entry);
-        }
-        return;
-    }
-
-    // A tap only closes the overlay, so it can't open an entry by accident
-    if (!lv_obj_is_hidden(overlay)) {
-        hideOverlay();
-        return;
-    }
-
     dirent dir_entry;
     if (!findDirent(name, dir_entry)) {
         return;
     }
 
+    // In the selection mode, a tap adds an entry to the selection or removes it
+    if (isSelecting()) {
+        toggleSelectedEntry(dir_entry);
+        return;
+    }
+
     LOG_I(TAG, "Pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
-    state->setSelectedChildEntry(dir_entry.d_name);
+    openEntry(dir_entry);
+}
+
+void View::openEntry(const dirent& dir_entry) {
+    const ::std::string name = dir_entry.d_name;
+    state->setSelectedChildEntry(name);
 
     using namespace tt::file;
     switch (dir_entry.d_type) {
@@ -545,7 +488,7 @@ void View::onDirEntryPressed(const ::std::string& name) {
             // A touch doesn't show a selection, so only keys select the first entry
             lv_obj_t* tile = grid.findTile(name);
             selectFirstAfterNavigation = tile != nullptr && lv_obj_has_state(tile, LV_STATE_FOCUS_KEY);
-            navigateTo(file::getChildPath(state->getCurrentPath(), dir_entry.d_name), true, true);
+            navigateTo(file::getChildPath(state->getCurrentPath(), name), true, true);
             break;
         }
 
@@ -554,15 +497,22 @@ void View::onDirEntryPressed(const ::std::string& name) {
             break;
 
         default:
-            viewFile(state->getCurrentPath(), dir_entry.d_name);
+            viewFile(state->getCurrentPath(), name);
             onNavigate();
             break;
     }
 }
 
 bool View::isSelecting() const {
-    // Actions are shown for a selection of entries. At the root only mount points have actions, so they can't be combined.
-    return overlay != nullptr && !lv_obj_is_hidden(overlay) && state->getCurrentPath() != "/" && !state->getSelectedEntries().empty();
+    // At the root only mount points have actions, so they can't be combined
+    return selectionMode && state->getCurrentPath() != "/" && !state->getSelectedEntries().empty();
+}
+
+void View::setTileChecked(const ::std::string& name, bool checked) {
+    lv_obj_t* tile = grid.findTile(name);
+    if (tile != nullptr) {
+        lv_obj_set_state(tile, LV_STATE_CHECKED, checked);
+    }
 }
 
 void View::toggleSelectedEntry(const dirent& dir_entry) {
@@ -570,85 +520,189 @@ void View::toggleSelectedEntry(const dirent& dir_entry) {
         return;
     }
     const ::std::string name = dir_entry.d_name;
-    lv_obj_t* pressed_tile = grid.findTile(name);
-    const bool selected = state->toggleSelectedEntry(name);
-    if (pressed_tile != nullptr) {
-        lv_obj_set_state(pressed_tile, LV_STATE_CHECKED, selected);
-    }
+    setTileChecked(name, state->toggleSelectedEntry(name));
     const auto entries = state->getSelectedEntries();
     if (entries.empty()) {
-        hideOverlay();
+        clearSelection();
     } else {
         state->setSelectedChildEntry(entries.front());
-        showActionsForSelection(grid.findTile(entries.back()));
     }
 }
 
+void View::clearSelection() {
+    selectionMode = false;
+    for (const auto& name : state->getSelectedEntries()) {
+        setTileChecked(name, false);
+    }
+    state->clearSelectedEntries();
+}
+
 void View::onDirEntryLongPressed(const ::std::string& name) {
-    const bool is_root = state->getCurrentPath() == "/";
-    const bool extends_selection = isSelecting();
-    if (!extends_selection) {
-        // Deselects the tile of an overlay that is still open
-        hideOverlay();
+    if (dialogOwner != DialogOwner::None) {
+        return;
     }
 
     dirent dir_entry;
-    if (!findDirent(name, dir_entry)) {
+    if (!findDirent(name, dir_entry) || dir_entry.d_type == file::TT_DT_LNK) {
         return;
     }
 
     LOG_I(TAG, "Long-pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
 
-    if (extends_selection) {
-        toggleSelectedEntry(dir_entry);
+    // In the selection mode, the menu is for all selected entries, including the pressed one
+    if (isSelecting()) {
+        if (!state->isSelectedEntry(name)) {
+            toggleSelectedEntry(dir_entry);
+        }
+        showSelectionMenu();
         return;
     }
 
-    state->setSelectedChildEntry(dir_entry.d_name);
-    lv_obj_t* tile = grid.findTile(name);
+    clearSelection();
+    showEntryMenu(dir_entry);
+}
 
-    if (is_root) {
+void View::showEntryMenu(const dirent& dir_entry) {
+    const ::std::string name = dir_entry.d_name;
+    const bool is_directory = dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR;
+    ::std::vector<MenuAction> actions;
+
+    if (state->getCurrentPath() == "/") {
         // At root, only USB mount points support actions (eject).
         // Other root-level entries intentionally have no context actions.
-        if (isUsbMountPoint(dir_entry.d_name)) {
-            state->selectOnlyEntry(name);
-            showActionsForMountPoint(tile);
+        if (!isUsbMountPoint(dir_entry.d_name)) {
+            return;
         }
-        return;
+        actions = { MenuAction::Open, MenuAction::Eject };
+    } else {
+        const bool can_open = is_directory || isSupportedAppFile(name) || isSupportedImageFile(name) || isSupportedTextFile(name) || state->isExecutable(name);
+        if (can_open) {
+            actions.push_back(MenuAction::Open);
+        }
+        actions.push_back(MenuAction::Select);
+        actions.push_back(MenuAction::Copy);
+        actions.push_back(MenuAction::Cut);
+        if (state->hasClipboard()) {
+            actions.push_back(MenuAction::Paste);
+        }
+        actions.push_back(MenuAction::Rename);
+        actions.push_back(MenuAction::Delete);
     }
 
-    using namespace file;
-    switch (dir_entry.d_type) {
-        case TT_DT_DIR:
-        case TT_DT_CHR:
-            state->selectOnlyEntry(name);
-            showActionsForDirectory(tile);
-            break;
+    // The tile shows which entry the menu is for
+    state->setSelectedChildEntry(name);
+    state->selectOnlyEntry(name);
+    setTileChecked(name, true);
+    showMenu(name, actions);
+}
 
-        case TT_DT_LNK:
-            LOG_W(TAG, "Opening links is not supported");
-            break;
+void View::showSelectionMenu() {
+    const auto entries = state->getSelectedEntries();
+    ::std::vector<MenuAction> actions;
+    if (entries.size() == 1) {
+        actions.push_back(MenuAction::Open);
+    }
+    actions.push_back(MenuAction::Copy);
+    actions.push_back(MenuAction::Cut);
+    if (state->hasClipboard()) {
+        actions.push_back(MenuAction::Paste);
+    }
+    if (entries.size() == 1) {
+        actions.push_back(MenuAction::Rename);
+    }
+    actions.push_back(MenuAction::Delete);
+    actions.push_back(MenuAction::DeselectAll);
+    const auto title = entries.size() == 1 ? entries.front() : i18n::format(tr("{} selected"), { ::std::to_string(entries.size()) });
+    showMenu(title, actions);
+}
 
-        default:
-            state->selectOnlyEntry(name);
-            showActionsForFile(tile);
+void View::showMenu(const ::std::string& title, const ::std::vector<MenuAction>& actions) {
+    if (dialogOwner != DialogOwner::None) {
+        return;
+    }
+    ::std::vector<::std::string> labels;
+    ::std::vector<const char*> icons;
+    for (const auto action : actions) {
+        switch (action) {
+            case MenuAction::Open: labels.emplace_back(tr("Open")); icons.push_back(LVGL_ICON_SHARED_FOLDER_OPEN); break;
+            case MenuAction::Select: labels.emplace_back(tr("Select")); icons.push_back(LVGL_ICON_SHARED_CHECK); break;
+            case MenuAction::DeselectAll: labels.emplace_back(tr("Deselect all")); icons.push_back(LVGL_ICON_SHARED_CLOSE); break;
+            case MenuAction::Copy: labels.emplace_back(tr("Copy")); icons.push_back(LVGL_ICON_SHARED_CONTENT_COPY); break;
+            case MenuAction::Cut: labels.emplace_back(tr("Cut")); icons.push_back(LVGL_ICON_SHARED_CONTENT_CUT); break;
+            case MenuAction::Paste: labels.emplace_back(tr("Paste")); icons.push_back(LVGL_ICON_SHARED_CONTENT_PASTE); break;
+            case MenuAction::Rename: labels.emplace_back(tr("Rename")); icons.push_back(LVGL_ICON_SHARED_EDIT); break;
+            case MenuAction::Delete: labels.emplace_back(tr("Delete")); icons.push_back(LVGL_ICON_SHARED_DELETE); break;
+            case MenuAction::Eject: labels.emplace_back(tr("Eject")); icons.push_back(LVGL_ICON_SHARED_EJECT); break;
+            case MenuAction::NewFile: labels.emplace_back(tr("New File")); icons.push_back(LVGL_ICON_SHARED_NOTE_ADD); break;
+            case MenuAction::NewFolder: labels.emplace_back(tr("New Folder")); icons.push_back(LVGL_ICON_SHARED_CREATE_NEW_FOLDER); break;
+        }
+    }
+    menuActions = actions;
+    dialogOwner = DialogOwner::Menu;
+    if (dialog::selection(appInstanceId, title, labels, icons, onMenuClosed, this) != ERROR_NONE) {
+        dialogOwner = DialogOwner::None;
+        if (!selectionMode) {
+            clearSelection();
+        }
+    }
+}
+
+void View::runMenuAction(MenuAction action) {
+    switch (action) {
+        case MenuAction::Open: {
+            dirent dir_entry;
+            const auto name = state->getSelectedChildEntry();
+            clearSelection();
+            if (findDirent(name, dir_entry)) {
+                openEntry(dir_entry);
+            }
+            break;
+        }
+        case MenuAction::Select:
+            // The entry of the menu stays selected
+            selectionMode = true;
+            break;
+        case MenuAction::DeselectAll:
+            clearSelection();
+            break;
+        case MenuAction::Copy:
+            onCopyPressed();
+            break;
+        case MenuAction::Cut:
+            onCutPressed();
+            break;
+        case MenuAction::Paste:
+            onPastePressed();
+            break;
+        case MenuAction::Rename:
+            onRenamePressed();
+            break;
+        case MenuAction::Delete:
+            onDeletePressed();
+            break;
+        case MenuAction::Eject:
+            onEjectPressed();
+            break;
+        case MenuAction::NewFile:
+            onNewFilePressed();
+            break;
+        case MenuAction::NewFolder:
+            onNewFolderPressed();
             break;
     }
 }
 
 void View::onDirEntryKeyPressed(const ::std::string& name, uint32_t key) {
-    // Space selects like a long press. The focus stays on the grid, so more entries can be selected with space or enter.
+    // Space shows the menu like a long press
     if (key == ' ') {
-        keepGridFocus = true;
         onDirEntryLongPressed(name);
-        keepGridFocus = false;
         return;
     }
 
     if (isSelecting()) {
         switch (key) {
             case LV_KEY_ESC:
-                hideOverlay();
+                clearSelection();
                 break;
             case 'c': case 'C':
                 onCopyPressed();
@@ -687,7 +741,7 @@ void View::onDirEntryKeyPressed(const ::std::string& name, uint32_t key) {
     if (state->getCurrentPath() == "/" || dir_entry.d_type == file::TT_DT_LNK) {
         return;
     }
-    hideOverlay();
+    clearSelection();
     state->setSelectedChildEntry(dir_entry.d_name);
     if (is_delete) {
         onDeletePressed();
@@ -701,18 +755,11 @@ void View::onBackPressed() {
 }
 
 void View::onOverflowPressed() {
-    if (!lv_obj_is_hidden(overlay)) {
-        hideOverlay();
-        return;
-    }
-
-    lv_obj_clean(overlay);
-    addOverlayButton(LVGL_ICON_SHARED_NOTE_ADD, onNewFilePressedCallback);
-    addOverlayButton(LVGL_ICON_SHARED_CREATE_NEW_FOLDER, onNewFolderPressedCallback);
+    ::std::vector<MenuAction> actions = { MenuAction::NewFile, MenuAction::NewFolder };
     if (state->hasClipboard()) {
-        addOverlayButton(LVGL_ICON_SHARED_CONTENT_PASTE, onPastePressedCallback);
+        actions.push_back(MenuAction::Paste);
     }
-    showOverlay(nullptr);
+    showMenu(file::getLastPathSegment(state->getCurrentPath()), actions);
 }
 
 void View::onRenamePressed() {
@@ -732,11 +779,12 @@ void View::onRenamePressed() {
 }
 
 void View::onDeletePressed() {
+    // Before onNavigate(), which clears the selection
+    const auto paths = getSelectedPaths();
     onNavigate();
     if (dialogOwner != DialogOwner::None) {
         return;
     }
-    const auto paths = getSelectedPaths();
     state->setPendingDeletePaths(paths);
     state->setPendingAction(State::ActionDelete);
     ::std::string message;
@@ -782,15 +830,6 @@ void View::onNewFolderPressed() {
     }
 }
 
-lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
-    auto* button = lvgl_icon_button_create(overlay);
-    auto* label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
-    lv_label_set_text(label, icon);
-    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, this);
-    return button;
-}
-
 ::std::vector<::std::string> View::getSelectedPaths() const {
     ::std::vector<::std::string> paths;
     const auto current_path = state->getCurrentPath();
@@ -801,124 +840,6 @@ lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
         paths.push_back(state->getSelectedChildPath());
     }
     return paths;
-}
-
-void View::addCommonFileActions() {
-    addOverlayButton(LVGL_ICON_SHARED_CONTENT_COPY, onCopyPressedCallback);
-    addOverlayButton(LVGL_ICON_SHARED_CONTENT_CUT, onCutPressedCallback);
-    if (state->hasClipboard()) {
-        addOverlayButton(LVGL_ICON_SHARED_CONTENT_PASTE, onPastePressedCallback);
-    }
-    if (state->getSelectedEntries().size() <= 1) {
-        addOverlayButton(LVGL_ICON_SHARED_EDIT, onRenamePressedCallback);
-    }
-    addOverlayButton(LVGL_ICON_SHARED_DELETE, onDeletePressedCallback);
-}
-
-// The overlay covers the bottom of the grid, or its top when it would cover the anchor tile
-void View::showOverlay(lv_obj_t* anchorTile) {
-    lv_obj_set_hidden(overlay, false);
-    lv_obj_align(overlay, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_update_layout(overlay);
-    if (anchorTile != nullptr) {
-        lv_obj_add_state(anchorTile, LV_STATE_CHECKED);
-        lv_area_t tile_area;
-        lv_area_t overlay_area;
-        lv_obj_get_coords(anchorTile, &tile_area);
-        lv_obj_get_coords(overlay, &overlay_area);
-        if (tile_area.y2 > overlay_area.y1) {
-            lv_obj_align_to(overlay, lv_obj_get_parent(anchorTile), LV_ALIGN_TOP_MID, 0, 0);
-        }
-    }
-
-    lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && !keepGridFocus && lv_obj_get_child_count(overlay) > 0) {
-        lv_group_focus_obj(overlay);
-        lv_gridnav_set_focused(overlay, lv_obj_get_child(overlay, 0), LV_ANIM_OFF);
-        // Touch shows no selection, until a key moves the focus
-        lv_indev_t* indev = lv_indev_active();
-        if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            lvgl_focus_hide_key_selection(group);
-        }
-    }
-}
-
-void View::hideOverlay() {
-    if (overlay == nullptr || lv_obj_is_hidden(overlay)) {
-        return;
-    }
-    lv_obj_set_hidden(overlay, true);
-
-    for (const auto& name : state->getSelectedEntries()) {
-        lv_obj_t* selected_tile = grid.findTile(name);
-        if (selected_tile != nullptr) {
-            lv_obj_remove_state(selected_tile, LV_STATE_CHECKED);
-        }
-    }
-    state->clearSelectedEntries();
-
-    lv_obj_t* tile = grid.findTile(state->getSelectedChildEntry());
-    if (tile != nullptr) {
-        lv_obj_remove_state(tile, LV_STATE_CHECKED);
-    }
-
-    // Keys continue on the tile that the overlay was for
-    lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && lv_group_get_focused(group) == overlay) {
-        if (tile != nullptr) {
-            lv_group_focus_obj(lv_obj_get_parent(tile));
-            lv_gridnav_set_focused(lv_obj_get_parent(tile), tile, LV_ANIM_OFF);
-        }
-    }
-}
-
-void View::onOverlayKey(uint32_t key) {
-    if (key == LV_KEY_ESC) {
-        hideOverlay();
-    }
-}
-
-void View::showActionsForDirectory(lv_obj_t* tile) {
-    lv_obj_clean(overlay);
-    addCommonFileActions();
-    showOverlay(tile);
-}
-
-void View::showActionsForFile(lv_obj_t* tile) {
-    lv_obj_clean(overlay);
-    if (state->isExecutable(state->getSelectedChildEntry())) {
-        addOverlayButton(LVGL_ICON_SHARED_PLAY_ARROW, onRunPressedCallback);
-    }
-    addCommonFileActions();
-    showOverlay(tile);
-}
-
-void View::showActionsForSelection(lv_obj_t* tile) {
-    const auto entries = state->getSelectedEntries();
-    dirent dir_entry;
-    if (entries.size() == 1 && findDirent(entries[0], dir_entry)) {
-        if (dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR) {
-            showActionsForDirectory(tile);
-        } else {
-            showActionsForFile(tile);
-        }
-        return;
-    }
-    lv_obj_clean(overlay);
-    addCommonFileActions();
-    showOverlay(tile);
-}
-
-void View::showActionsForMountPoint(lv_obj_t* tile) {
-    lv_obj_clean(overlay);
-    addOverlayButton(LVGL_ICON_SHARED_EJECT, onEjectPressedCallback);
-    showOverlay(tile);
-}
-
-void View::onRunPressed() {
-    ::std::string file_path = state->getSelectedChildPath();
-    onNavigate();
-    runFile(file_path);
 }
 
 void View::onEjectPressed() {
@@ -1165,25 +1086,13 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     grid.setSideIndicator(true);
     grid.createWidgets(parent);
 
-    // Floating, so showing it doesn't change the grid's size and page layout
-    overlay = lvgl_card_create(parent);
-    lv_obj_set_floating(overlay, true);
-    lv_obj_set_size(overlay, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(overlay, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(overlay, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scrollable(overlay, false);
-    lvgl_obj_add_edge_padding(overlay);
-    // The arrow keys move between the overlay's buttons as one row
-    lvgl_grid_navigation_add(overlay);
-    lv_obj_add_event_cb(overlay, onOverlayKeyCallback, LV_EVENT_KEY, this);
-    lv_obj_set_hidden(overlay, true);
 }
 
 void View::destroyWidgets() {
-    // The checked tiles and the overlay are gone, so nothing may stay selected
+    // The checked tiles are gone, so nothing may stay selected
     state->clearSelectedEntries();
+    selectionMode = false;
     busy_spinner = nullptr;
-    overlay = nullptr;
     lv_async_call_cancel(onDeferredPathBarUpdate, this);
     toolbar = nullptr;
     pathBarWidgets.clear();
@@ -1193,7 +1102,7 @@ void View::destroyWidgets() {
 }
 
 void View::onNavigate() {
-    hideOverlay();
+    clearSelection();
 }
 
 void View::onDialogResult() {
@@ -1201,6 +1110,21 @@ void View::onDialogResult() {
     const int32_t result = dialogResult;
     const ::std::string installPath = installAppPath;
     dialogOwner = DialogOwner::None;
+    if (owner == DialogOwner::Menu) {
+        lvgl_lock();
+        // The widgets are gone while another window covers this one
+        if (toolbar == nullptr) {
+            state->clearSelectedEntries();
+            selectionMode = false;
+        } else if (result >= 0 && static_cast<size_t>(result) < menuActions.size()) {
+            runMenuAction(menuActions[result]);
+        } else if (!selectionMode) {
+            // Dismissed: the entry that the menu was for isn't selected anymore
+            clearSelection();
+        }
+        lvgl_unlock();
+        return;
+    }
     if (owner == DialogOwner::Install) {
         if (result == 0) {
             app_install(installPath.c_str());

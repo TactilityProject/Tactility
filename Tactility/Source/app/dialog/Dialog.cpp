@@ -31,4 +31,16 @@ error_t selection(uint32_t appInstanceId, const std::string& title, const std::v
     return window_manager_selection_dialog(appInstanceId, title.c_str(), texts.data(), static_cast<uint32_t>(texts.size()), onResult, userData);
 }
 
+error_t selection(uint32_t appInstanceId, const std::string& title, const std::vector<std::string>& items, const std::vector<const char*>& icons, WindowSelectionDialogResultFn onResult, void* userData) {
+    if (icons.size() != items.size()) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    std::vector<const char*> texts;
+    texts.reserve(items.size());
+    for (const auto& item : items) {
+        texts.push_back(item.c_str());
+    }
+    return window_manager_selection_dialog_with_icons(appInstanceId, title.c_str(), texts.data(), icons.data(), static_cast<uint32_t>(texts.size()), onResult, userData);
+}
+
 } // namespace

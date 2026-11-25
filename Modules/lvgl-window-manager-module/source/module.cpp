@@ -20,6 +20,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(window_manager_alert_dialog),
     DEFINE_MODULE_SYMBOL(window_manager_input_dialog),
     DEFINE_MODULE_SYMBOL(window_manager_selection_dialog),
+    DEFINE_MODULE_SYMBOL(window_manager_selection_dialog_with_icons),
     DEFINE_MODULE_SYMBOL(window_manager_dialog_dismiss),
     DEFINE_MODULE_SYMBOL(system_bars_refresh),
     DEFINE_MODULE_SYMBOL(system_bars_add_pointer),

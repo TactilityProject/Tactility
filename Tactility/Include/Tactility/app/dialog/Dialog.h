@@ -28,4 +28,7 @@ error_t input(uint32_t appInstanceId, const std::string& title, const std::strin
 /** Shows a list of items. @a onResult gets the index of the selected item, or WINDOW_DIALOG_DISMISSED. With one item, the result is that item without showing anything. */
 error_t selection(uint32_t appInstanceId, const std::string& title, const std::vector<std::string>& items, WindowSelectionDialogResultFn onResult, void* userData);
 
+/** Shows a list of items with an icon in front of each. @a icons holds a glyph of the shared icon font (LVGL_ICON_SHARED_*) or nullptr per item. */
+error_t selection(uint32_t appInstanceId, const std::string& title, const std::vector<std::string>& items, const std::vector<const char*>& icons, WindowSelectionDialogResultFn onResult, void* userData);
+
 } // namespace

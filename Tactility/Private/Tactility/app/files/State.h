@@ -315,6 +315,12 @@ public:
         return selected;
     }
 
+    bool isSelectedEntry(const ::std::string& name) const {
+        bool selected = false;
+        mutex.withLock([&] { selected = indexOf(selected_entries, name) >= 0; });
+        return selected;
+    }
+
     void clearSelectedEntries() {
         mutex.withLock([&] { selected_entries.clear(); });
     }
