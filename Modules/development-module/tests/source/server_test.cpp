@@ -833,8 +833,7 @@ TEST_CASE("a remote session streams the display and applies the input of the vie
     }
     CHECK_EQ(key.key, 'a');
     CHECK(key.pressed);
-    CHECK(key.ctrl);
-    CHECK_FALSE(key.alt);
+    CHECK_EQ(key.modifiers, KEYBOARD_MODIFIER_CTRL);
 
     // Two fingers: (3, 2) and (5, 1)
     client->sendFrame(DEVELOPMENT_FRAME_INPUT_TOUCH, std::string(1, '\2') + beU16(3) + beU16(2) + beU16(5) + beU16(1));

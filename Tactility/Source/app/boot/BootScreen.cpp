@@ -424,7 +424,6 @@ BootChoice waitForBootChoice(BootScreen& screen, const BootLogo& logo, const std
                 }
                 switch (data.key) {
                     case CODEPOINT_ENTER:
-                    case CODEPOINT_YES:
                         confirmed = true;
                         break;
                     case CODEPOINT_ARROW_UP:

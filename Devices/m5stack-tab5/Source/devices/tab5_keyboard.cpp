@@ -638,6 +638,7 @@ static error_t tab5_keyboard_read_key(Device* device, KeyboardKeyData* data) {
         data->continue_reading = uxQueueMessagesWaiting(internal->queue) > 0;
         data->ctrl = event.ctrl;
         data->alt = event.alt;
+        data->modifiers = keyboard_modifiers_from_hid(event.hid_modifier);
         data->hid_keycode = event.hid_keycode;
         data->hid_modifier = event.hid_modifier;
     } else {

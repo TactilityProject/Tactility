@@ -35,9 +35,10 @@ void sdl_input_get_pointer_state(struct SdlPointerState* out_state);
  * sdl_input_pump()).
  * @param[out] out_key the key code
  * @param[out] out_pressed true for press, false for release
+ * @param[out] out_shift true if Shift was held when the event was queued
  * @retval false when no key event is pending
  */
-bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed);
+bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed, bool* out_shift);
 
 /**
  * @brief Returns true if another key event is queued after the one just popped.
@@ -50,9 +51,10 @@ bool sdl_input_has_queued_key(void);
  * still physically held down
  *
  * @param[out] out_key the held key code
+ * @param[out] out_shift true if Shift was held when the key was last reported
  * @retval false when no control key is currently held, or the one last reported was released
  */
-bool sdl_input_get_held_key(uint32_t* out_key);
+bool sdl_input_get_held_key(uint32_t* out_key, bool* out_shift);
 
 #ifdef __cplusplus
 }

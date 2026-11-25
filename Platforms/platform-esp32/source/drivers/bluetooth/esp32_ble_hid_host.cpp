@@ -282,6 +282,7 @@ static void publishKey(uint32_t key, bool pressed, bool ctrl, bool alt, uint8_t 
     data.pressed = pressed;
     data.ctrl = ctrl;
     data.alt = alt;
+    data.modifiers = keyboard_modifiers_from_hid(hid_modifier);
     data.hid_keycode = hid_keycode;
     data.hid_modifier = hid_modifier;
     xQueueSend(queue, &data, 0);

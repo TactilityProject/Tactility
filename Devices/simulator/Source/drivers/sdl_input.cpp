@@ -23,6 +23,7 @@ int window_height = 0;
 
 uint32_t key_queue[KEY_QUEUE_CAPACITY];
 bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
+bool key_shift_queue[KEY_QUEUE_CAPACITY] = {};
 size_t key_queue_head = 0;
 size_t key_queue_count = 0;
 
@@ -60,6 +61,7 @@ SDL_Scancode last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
 
 uint32_t last_reported_key = 0;
 bool last_reported_pressed = false;
+bool last_reported_shift = false;
 
 bool mark_control_key_held(uint32_t key) {
     for (HeldControlKey& slot : held_control_keys) {
@@ -119,15 +121,19 @@ void push_key(uint32_t key, bool pressed) {
             size_t src = (key_queue_head + i + 1) % KEY_QUEUE_CAPACITY;
             key_queue[dst] = key_queue[src];
             key_pressed_queue[dst] = key_pressed_queue[src];
+            key_shift_queue[dst] = key_shift_queue[src];
         }
         key_queue_count--;
     }
     size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
     key_queue[idx] = key;
+    const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
     key_pressed_queue[idx] = pressed;
+    key_shift_queue[idx] = shift;
     key_queue_count++;
     last_reported_key = key;
     last_reported_pressed = pressed;
+    last_reported_shift = shift;
 
     if (!pressed) {
         uint32_t other_held_key = find_any_held_control_key();
@@ -394,13 +400,14 @@ void sdl_input_get_pointer_state(SdlPointerState* out_state) {
     map_to_view(&out_state->x, &out_state->y);
 }
 
-bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed) {
+bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed, bool* out_shift) {
     std::lock_guard<std::mutex> lock(state_mutex);
     if (key_queue_count == 0) {
         return false;
     }
     *out_key = key_queue[key_queue_head];
     *out_pressed = key_pressed_queue[key_queue_head];
+    *out_shift = key_shift_queue[key_queue_head];
     key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
     key_queue_count--;
     return true;
@@ -411,7 +418,7 @@ bool sdl_input_has_queued_key() {
     return key_queue_count > 0;
 }
 
-bool sdl_input_get_held_key(uint32_t* out_key) {
+bool sdl_input_get_held_key(uint32_t* out_key, bool* out_shift) {
     std::lock_guard<std::mutex> lock(state_mutex);
     if (!last_reported_pressed || last_reported_key == 0) {
         return false;
@@ -419,6 +426,7 @@ bool sdl_input_get_held_key(uint32_t* out_key) {
     for (const HeldControlKey& slot : held_control_keys) {
         if (slot.key == last_reported_key) {
             *out_key = slot.key;
+            *out_shift = last_reported_shift;
             return true;
         }
     }

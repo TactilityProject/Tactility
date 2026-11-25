@@ -104,7 +104,7 @@ bool KeyboardInput::pump(KeyHandler onKey) {
                 keyboard.removeHeld(data.key);
             } else if (!keyboard.isHeld(data.key)) {
                 keyboard.addHeld(data.key);
-                if (onKey(data.key, data.ctrl, data.alt)) {
+                if (onKey(data.key, (data.modifiers & KEYBOARD_MODIFIER_CTRL) != 0, (data.modifiers & KEYBOARD_MODIFIER_ALT) != 0)) {
                     handled = true;
                 }
             }

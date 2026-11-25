@@ -92,15 +92,10 @@ static uint32_t codepoint_to_lv_key(const struct KeyboardKeyData* key_data) {
         case CODEPOINT_ARROW_DOWN: return LV_KEY_NEXT;
         case CODEPOINT_ARROW_LEFT: return LV_KEY_LEFT;
         case CODEPOINT_ARROW_RIGHT: return LV_KEY_RIGHT;
-        case CODEPOINT_TAB: {
-            // TODO: Shift-tab for previous
-            return LV_KEY_NEXT;
-        }
+        case CODEPOINT_TAB: return (key_data->modifiers & KEYBOARD_MODIFIER_SHIFT) ? LV_KEY_PREV : LV_KEY_NEXT;
         // case CODEPOINT_ARROW_UP: return LV_KEY_PREV;
         case CODEPOINT_HOME: return LV_KEY_HOME;
         case CODEPOINT_END: return LV_KEY_END;
-        case CODEPOINT_YES: return LV_KEY_ENTER;
-        case CODEPOINT_NO: return LV_KEY_ESC;
         default: return key_data->key;
     }
 }

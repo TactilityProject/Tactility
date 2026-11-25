@@ -30,15 +30,18 @@ typedef enum {
     CODEPOINT_ARROW_DOWN  = 0x2193,
     CODEPOINT_HOME        = 0x21F1,
     CODEPOINT_END         = 0x21F2,
-    /** Confirms an action, for keyboards with a dedicated "yes" key */
-    CODEPOINT_YES         = 0x2713,
-    /** Cancels an action, for keyboards with a dedicated "no" key */
-    CODEPOINT_NO          = 0x2717,
     /** Moves the focus to the next widget, for devices that can only step through widgets (e.g. an encoder wheel) */
     CODEPOINT_FOCUS_NEXT     = 0x21E5,
     /** Moves the focus to the previous widget, for devices that can only step through widgets (e.g. an encoder wheel) */
     CODEPOINT_FOCUS_PREVIOUS = 0x21E4,
 } CodePoint;
+
+/** @brief KeyboardKeyData::modifiers bit: Ctrl was held */
+#define KEYBOARD_MODIFIER_CTRL  (1U << 0)
+/** @brief KeyboardKeyData::modifiers bit: Alt was held */
+#define KEYBOARD_MODIFIER_ALT   (1U << 1)
+/** @brief KeyboardKeyData::modifiers bit: Shift was held */
+#define KEYBOARD_MODIFIER_SHIFT (1U << 2)
 
 /**
  * @brief A single key event read from a keyboard device.
@@ -63,6 +66,16 @@ struct KeyboardKeyData {
     bool continue_reading;
     /**
      * @brief True if Ctrl was held when this key was pressed.
+     * @deprecated Use `modifiers` with KEYBOARD_MODIFIER_CTRL.
+     */
+    bool ctrl;
+    /**
+     * @brief True if Alt was held when this key was pressed.
+     * @deprecated Use `modifiers` with KEYBOARD_MODIFIER_ALT.
+     */
+    bool alt;
+    /**
+     * @brief Bitset of KEYBOARD_MODIFIER_* values that were held when this key was pressed.
      *
      * Reported separately rather than folded into `key` because the two encodings collide: the C0
      * control codes a terminal expects for Ctrl chords (Ctrl+C is 0x03, Ctrl+K is 0x0B, ...) overlap
@@ -70,16 +83,14 @@ struct KeyboardKeyData {
      * CODEPOINT_BACKSPACE is Ctrl+H/8, CODEPOINT_TAB is Ctrl+I/9, CODEPOINT_ESCAPE is Ctrl+[/27), so
      * a single uint32_t cannot express both. Consumers that want control codes derive them here, e.g.
      * `((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z')) ? (key & 0x1F) : key`
-     * when ctrl is set.
+     * when KEYBOARD_MODIFIER_CTRL is set.
      *
-     * Drivers whose hardware cannot report Ctrl leave this false.
+     * `key` already holds the shifted character, so KEYBOARD_MODIFIER_SHIFT only matters for keys
+     * without a shifted character of their own (e.g. Shift+Tab).
+     *
+     * Drivers leave the bits of modifiers that their hardware cannot report cleared.
      */
-    bool ctrl;
-    /**
-     * @brief True if Alt was held when this key was pressed. See ctrl for why modifiers are reported
-     * separately. Drivers whose hardware cannot report Alt leave this false.
-     */
-    bool alt;
+    uint8_t modifiers;
     /**
      * @brief Standard USB HID keyboard usage code for this key (USB HID Usage Tables, page 0x07),
      * or 0 if this driver doesn't compute one (most don't - `key` is the only field most consumers need).
@@ -208,6 +219,17 @@ typedef enum {
     KEYBOARD_HID_MOD_RIGHT_ALT   = 1 << 6,
     KEYBOARD_HID_MOD_RIGHT_GUI   = 1 << 7,
 } KeyboardHidModifier;
+
+/**
+ * @brief Converts a HID modifier byte (KeyboardHidModifier bits) to KEYBOARD_MODIFIER_* bits.
+ */
+static inline uint8_t keyboard_modifiers_from_hid(uint8_t hid_modifier) {
+    uint8_t modifiers = 0;
+    if (hid_modifier & (KEYBOARD_HID_MOD_LEFT_CTRL | KEYBOARD_HID_MOD_RIGHT_CTRL)) modifiers |= KEYBOARD_MODIFIER_CTRL;
+    if (hid_modifier & (KEYBOARD_HID_MOD_LEFT_ALT | KEYBOARD_HID_MOD_RIGHT_ALT)) modifiers |= KEYBOARD_MODIFIER_ALT;
+    if (hid_modifier & (KEYBOARD_HID_MOD_LEFT_SHIFT | KEYBOARD_HID_MOD_RIGHT_SHIFT)) modifiers |= KEYBOARD_MODIFIER_SHIFT;
+    return modifiers;
+}
 
 /**
  * @brief Maps a USB HID keyboard usage code (HID Usage Tables page 0x07) plus boot-report

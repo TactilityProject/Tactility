@@ -62,10 +62,10 @@ std::atomic<bool> shellFinished = false;
  */
 char translateKey(const KeyboardKeyData& data) {
     // Ctrl chords first, so they win over the plain-letter reading of the same key code.
-    if (data.ctrl && data.key >= 'a' && data.key <= 'z') {
+    if ((data.modifiers & KEYBOARD_MODIFIER_CTRL) && data.key >= 'a' && data.key <= 'z') {
         return static_cast<char>(data.key & 0x1F);
     }
-    if (data.ctrl && data.key >= 'A' && data.key <= 'Z') {
+    if ((data.modifiers & KEYBOARD_MODIFIER_CTRL) && data.key >= 'A' && data.key <= 'Z') {
         return static_cast<char>(data.key & 0x1F);
     }
 
@@ -77,7 +77,7 @@ char translateKey(const KeyboardKeyData& data) {
         default: break;
     }
 
-    if (data.key == CODEPOINT_TAB && !data.ctrl) {
+    if (data.key == CODEPOINT_TAB && !(data.modifiers & KEYBOARD_MODIFIER_CTRL)) {
         return '\t';
     }
 
@@ -136,8 +136,7 @@ bool handleKey(unsigned int key, bool ctrl, bool alt) {
     KeyboardKeyData data {};
     data.key = key;
     data.pressed = true;
-    data.ctrl = ctrl;
-    data.alt = alt;
+    data.modifiers = (ctrl ? KEYBOARD_MODIFIER_CTRL : 0) | (alt ? KEYBOARD_MODIFIER_ALT : 0);
 
     const char c = translateKey(data);
     if (c != 0) {

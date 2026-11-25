@@ -162,6 +162,7 @@ error_t keyboard_read_key(Device* device, KeyboardKeyData* data) {
     // Defaulted here, not per-driver: only drivers whose hardware reports them set them.
     data->ctrl = false;
     data->alt = false;
+    data->modifiers = 0;
     data->hid_keycode = 0;
     data->hid_modifier = 0;
 
