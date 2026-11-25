@@ -22,6 +22,8 @@
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/list.h>
 #include <lvgl/widgets/page_indicator.h>
+#include <lvgl/widgets/tile_grid.h>
+#include <lvgl/widgets/files.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl/widgets/qr.h>
 #include <lvgl/ui_assets.h>
@@ -165,6 +167,35 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_icon_button_create_variant),
     // lvgl_text_button
     DEFINE_MODULE_SYMBOL(lvgl_text_button_create),
+    // lvgl_tile_grid
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_create),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_add_item),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_set_style),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_set_icon_color),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_show_first_page),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_request_repopulate),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_request_repopulate_selecting_first),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_replace_empty_fallback),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_next_page),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_previous_page),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_get_page),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_find_tile),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_get_tile_item),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_get_tiles),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_get_tile_icon_size),
+    DEFINE_MODULE_SYMBOL(lvgl_tile_grid_get_card_icon_size),
+    // lvgl_files
+    DEFINE_MODULE_SYMBOL(lvgl_files_create),
+    DEFINE_MODULE_SYMBOL(lvgl_files_set_path),
+    DEFINE_MODULE_SYMBOL(lvgl_files_reload),
+    DEFINE_MODULE_SYMBOL(lvgl_files_get_path),
+    DEFINE_MODULE_SYMBOL(lvgl_files_is_loading),
+    DEFINE_MODULE_SYMBOL(lvgl_files_find_entry),
+    DEFINE_MODULE_SYMBOL(lvgl_files_get_entry_count),
+    DEFINE_MODULE_SYMBOL(lvgl_files_find_tile),
+    DEFINE_MODULE_SYMBOL(lvgl_files_get_tile_grid),
+    DEFINE_MODULE_SYMBOL(lvgl_files_entry_is_directory),
+    DEFINE_MODULE_SYMBOL(lvgl_files_entry_is_link),
     // lvgl_list
     DEFINE_MODULE_SYMBOL(lvgl_list_create),
     DEFINE_MODULE_SYMBOL(lvgl_list_add_text),

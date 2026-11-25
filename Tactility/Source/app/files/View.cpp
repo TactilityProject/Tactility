@@ -15,6 +15,7 @@
 #include <lvgl/svg.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/files.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/pathbar_button.h>
 #include <lvgl/widgets/toolbar.h>
@@ -203,21 +204,6 @@ static bool copyRecursive(const ::std::string& src, const ::std::string& dst) {
 
 namespace {
 
-struct NavigateJob {
-    ::std::shared_ptr<State> state;
-    ::std::string path;
-    bool firstPage;
-    bool selectFirst;
-};
-
-void navigateWork(void* context) {
-    auto* job = static_cast<NavigateJob*>(context);
-    if (job->state->setEntriesForPath(job->path)) {
-        job->state->pushCompletedNavigation(job->firstPage, job->selectFirst);
-    }
-    delete job;
-}
-
 struct RunJob {
     uint32_t appInstanceId;
     ::std::string path;
@@ -257,31 +243,54 @@ void View::updateBusySpinner() {
 }
 
 void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirst) {
-    if (navigationPending.exchange(true)) {
+    if (files == nullptr) {
         return;
     }
-    auto* job = new (::std::nothrow) NavigateJob { state, path, firstPage, selectFirst };
-    if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
+    if (lvgl_files_set_path(files, path.c_str(), firstPage, selectFirst) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
-        delete job;
-        navigationPending = false;
         return;
     }
-    beginOperation();
+    if (!navigationPending) {
+        navigationPending = true;
+        beginOperation();
+    }
 }
 
-void View::onFileOpsCompleted() {
-    while (file_ops_poll(&fileOpsSub) == ERROR_NONE) {
+void View::reload() {
+    lvgl_lock();
+    if (files != nullptr) {
+        navigateTo(state->getCurrentPath(), false, false);
+    }
+    lvgl_unlock();
+}
+
+void View::onLoaded(lv_obj_t*, const char* path, error_t error, void* userData) {
+    static_cast<View*>(userData)->onDirectoryLoaded(path, error);
+}
+
+void View::onDirectoryLoaded(const ::std::string& path, error_t error) {
+    if (navigationPending && !lvgl_files_is_loading(files)) {
         navigationPending = false;
         endOperation();
-        auto result = state->takeCompletedNavigation();
-        if (result.has_value()) {
-            lvgl_lock();
-            onNavigate();
-            lvgl_unlock();
-            update(result->first, result->second);
-        }
     }
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to read %s", path.c_str());
+        // The data directory doesn't exist yet, e.g. without an SD card
+        if (!state->isLoaded() && path != "/") {
+            navigateTo("/", true, !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
+        }
+        return;
+    }
+    LOG_I(TAG, "%s has %u entries", path.c_str(), static_cast<unsigned>(lvgl_files_get_entry_count(files)));
+    if (path != state->getCurrentPath()) {
+        // The selection belongs to the previous directory
+        clearSelection();
+    }
+    state->setCurrentPath(path);
+    lv_obj_set_hidden(overflow_button, path == "/");
+    updatePathBar();
+    // The nearest segment of the path bar is selected when the directory has no entries
+    lvgl_tile_grid_replace_empty_fallback(lvgl_files_get_tile_grid(files), getParentPathSegment());
 }
 
 namespace {
@@ -325,7 +334,7 @@ void View::viewFile(const ::std::string& path, const ::std::string& filename) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
         notes::start(file_path);
-    } else if (state->isExecutable(filename)) {
+    } else if (isExecutable(filename)) {
         runFile(file_path);
     } else {
         LOG_W(TAG, "Opening files of this type is not supported");
@@ -337,7 +346,7 @@ void View::viewFile(const ::std::string& path, const ::std::string& filename) {
 void View::runFile(const ::std::string& file_path) {
     LOG_I(TAG, "Running %s", file_path.c_str());
 
-    if (!state->isExecutable(file::getLastPathSegment(file_path))) {
+    if (!isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
         dialog::alert(appInstanceId, tr("Run failed"), i18n::format(tr("\"{}\" is not an executable."), { file::getLastPathSegment(file_path) }));
         return;
@@ -352,21 +361,9 @@ void View::runFile(const ::std::string& file_path) {
 
 View::View(const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
     state(state),
-    eventGroup(eventGroup),
-    grid(TileGrid::Callbacks {
-        .collect = collectItems,
-        .onClicked = onTileClicked,
-        .onLongPressed = onTileLongPressed,
-        .onKey = onTileKey,
-        .resolveImage = resolveImage,
-        .resolveIcon = resolveIcon,
-        .onPageChanged = onPageChanged,
-        .onTilesCleared = nullptr,
-        .userData = this
-    }) {
+    eventGroup(eventGroup) {
     check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
     check(task_event_group_claim_bit(eventGroup, &dialogBit) == ERROR_NONE);
-    check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
 
 void View::loadIcons() {
@@ -393,54 +390,45 @@ View::~View() {
     for (auto* icon : icons) {
         if (icon != nullptr) lv_draw_buf_destroy(icon);
     }
-    file_ops_unsubscribe(&fileOpsSub);
     task_event_group_release_bit(eventGroup, pasteBit);
     task_event_group_release_bit(eventGroup, dialogBit);
 }
 
-::std::vector<TileGridItem> View::collectItems(void* userData) {
+uint32_t View::classifyEntry(const char* directory, const dirent* entry, void*) {
+    auto icon = getIcon(*entry, strcmp(directory, "/") == 0);
+    if (icon == FileIcon::Unknown) {
+        // Reads the file, which is fine on the file operations task
+        const ::std::string child_path = file::getChildPath(directory, entry->d_name);
+        AppLocation location { APP_LOCATION_PATH, const_cast<char*>(child_path.c_str()) };
+        icon = app_is_executable(location) ? FileIcon::Executable : FileIcon::File;
+    }
+    return static_cast<uint32_t>(icon);
+}
+
+void View::getEntryIcon(lv_obj_t*, const dirent*, uint32_t kind, LvglFilesIcon* icon, void* userData) {
     auto* view = static_cast<View*>(userData);
-    const bool is_root = (view->state->getCurrentPath() == "/");
-    ::std::vector<TileGridItem> items;
-    view->state->withEntries([&](const ::std::vector<dirent>& entries) {
-        items.reserve(entries.size());
-        for (const auto& entry : entries) {
-            const auto icon = getIcon(entry, is_root);
-            const lv_image_dsc_t* image = icon == FileIcon::Unknown ? nullptr : reinterpret_cast<const lv_image_dsc_t*>(view->icons[static_cast<size_t>(icon)]);
-            // Files that are resolved later are shown as an executable or a plain file, which are rasterized from the same set
-            const bool recolor = view->iconRecolor[static_cast<size_t>(icon == FileIcon::Unknown ? FileIcon::File : icon)];
-            // The glyph is shown when there is no image: without PSRAM or when it failed to rasterize
-            const char* glyph = icon == FileIcon::Unknown ? nullptr : FILE_ICON_GLYPHS[static_cast<size_t>(icon)];
-            items.push_back({ entry.d_name, entry.d_name, glyph, false, image, recolor });
-        }
-    });
-    return items;
+    if (kind >= ::std::size(FILE_ICON_GLYPHS)) {
+        return;
+    }
+    // The glyph is shown when there is no image: without PSRAM or when it failed to rasterize
+    icon->glyph = FILE_ICON_GLYPHS[kind];
+    icon->image = reinterpret_cast<const lv_image_dsc_t*>(view->icons[kind]);
+    icon->image_recolor = view->iconRecolor[kind];
 }
 
-const char* View::resolveIcon(const TileGridItem& item, void* userData) {
-    auto* view = static_cast<View*>(userData);
-    return FILE_ICON_GLYPHS[static_cast<size_t>(view->state->isExecutable(item.id) ? FileIcon::Executable : FileIcon::File)];
+void View::onEntryClicked(lv_obj_t*, const dirent* entry, uint32_t, void* userData) {
+    static_cast<View*>(userData)->onDirEntryPressed(entry->d_name);
 }
 
-const lv_image_dsc_t* View::resolveImage(const TileGridItem& item, void* userData) {
-    auto* view = static_cast<View*>(userData);
-    const auto icon = view->state->isExecutable(item.id) ? FileIcon::Executable : FileIcon::File;
-    return reinterpret_cast<const lv_image_dsc_t*>(view->icons[static_cast<size_t>(icon)]);
+void View::onEntryLongPressed(lv_obj_t*, const dirent* entry, uint32_t, void* userData) {
+    static_cast<View*>(userData)->onDirEntryLongPressed(entry->d_name);
 }
 
-void View::onTileClicked(const TileGridItem& item, void* userData) {
-    static_cast<View*>(userData)->onDirEntryPressed(item.id);
+void View::onEntryKey(lv_obj_t*, const dirent* entry, uint32_t, uint32_t key, void* userData) {
+    static_cast<View*>(userData)->onDirEntryKeyPressed(entry->d_name, key);
 }
 
-void View::onTileLongPressed(const TileGridItem& item, void* userData) {
-    static_cast<View*>(userData)->onDirEntryLongPressed(item.id);
-}
-
-void View::onTileKey(const TileGridItem& item, uint32_t key, void* userData) {
-    static_cast<View*>(userData)->onDirEntryKeyPressed(item.id, key);
-}
-
-void View::onPageChanged(void* userData) {
+void View::onPageChanged(lv_obj_t*, void* userData) {
     auto* view = static_cast<View*>(userData);
     const auto entries = view->state->getSelectedEntries();
     // The selection stays, and the tiles of the new page that are selected show it
@@ -449,16 +437,13 @@ void View::onPageChanged(void* userData) {
     }
 }
 
-bool View::findDirent(const ::std::string& name, dirent& out_entry) {
-    bool found = false;
-    state->withEntries([&](const ::std::vector<dirent>& entries) {
-        const auto it = ::std::ranges::find_if(entries, [&](const dirent& entry) { return name == entry.d_name; });
-        if (it != entries.end()) {
-            out_entry = *it;
-            found = true;
-        }
-    });
-    return found;
+bool View::isExecutable(const ::std::string& name) const {
+    uint32_t kind = 0;
+    return files != nullptr && lvgl_files_find_entry(files, name.c_str(), nullptr, &kind) && kind == static_cast<uint32_t>(FileIcon::Executable);
+}
+
+bool View::findDirent(const ::std::string& name, dirent& out_entry) const {
+    return files != nullptr && lvgl_files_find_entry(files, name.c_str(), &out_entry, nullptr);
 }
 
 void View::onDirEntryPressed(const ::std::string& name) {
@@ -485,10 +470,10 @@ void View::openEntry(const dirent& dir_entry) {
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
         case TT_DT_CHR: {
-            // A touch doesn't show a selection, so only keys select the first entry
-            lv_obj_t* tile = grid.findTile(name);
-            selectFirstAfterNavigation = tile != nullptr && lv_obj_has_state(tile, LV_STATE_FOCUS_KEY);
-            navigateTo(file::getChildPath(state->getCurrentPath(), name), true, true);
+            lv_obj_t* tile = lvgl_files_find_tile(files, name.c_str());
+            // A touch doesn't show a selection. Without a pointer device there is no touch, so a selection is always wanted.
+            const bool from_keys = tile != nullptr && lv_obj_has_state(tile, LV_STATE_FOCUS_KEY);
+            navigateTo(file::getChildPath(state->getCurrentPath(), name), true, from_keys || !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
             break;
         }
 
@@ -509,7 +494,7 @@ bool View::isSelecting() const {
 }
 
 void View::setTileChecked(const ::std::string& name, bool checked) {
-    lv_obj_t* tile = grid.findTile(name);
+    lv_obj_t* tile = files != nullptr ? lvgl_files_find_tile(files, name.c_str()) : nullptr;
     if (tile != nullptr) {
         lv_obj_set_state(tile, LV_STATE_CHECKED, checked);
     }
@@ -575,7 +560,7 @@ void View::showEntryMenu(const dirent& dir_entry) {
         }
         actions = { MenuAction::Open, MenuAction::Eject };
     } else {
-        const bool can_open = is_directory || isSupportedAppFile(name) || isSupportedImageFile(name) || isSupportedTextFile(name) || state->isExecutable(name);
+        const bool can_open = is_directory || isSupportedAppFile(name) || isSupportedImageFile(name) || isSupportedTextFile(name) || isExecutable(name);
         if (can_open) {
             actions.push_back(MenuAction::Open);
         }
@@ -1018,7 +1003,9 @@ void View::updatePathBar() {
     }
     pathBarWidth = lv_obj_get_width(toolbar);
     // The grid can still hold the chip that was deleted, as the fallback of a selection that waits for the repopulate
-    grid.replaceEmptyFallback(getParentPathSegment());
+    if (files != nullptr) {
+        lvgl_tile_grid_replace_empty_fallback(lvgl_files_get_tile_grid(files), getParentPathSegment());
+    }
 
     // The pressed segment is gone, so the selection moves to the segment below the new directory
     if (selectParentSegment) {
@@ -1026,38 +1013,6 @@ void View::updatePathBar() {
         lv_group_focus_obj(toolbar);
         lv_gridnav_set_focused(toolbar, getParentPathSegment(), LV_ANIM_OFF);
     }
-}
-
-void View::update(bool firstPage, bool selectFirst) {
-    if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
-        LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
-        return;
-    }
-
-    // The widgets are gone while another window covers this one
-    if (toolbar == nullptr) {
-        lvgl_unlock();
-        return;
-    }
-
-    const bool is_root = (state->getCurrentPath() == "/");
-    lv_obj_set_hidden(overflow_button, is_root);
-    updatePathBar();
-
-    if (firstPage) {
-        grid.showFirstPage();
-    }
-    // Without a pointer device there is no touch, so a selection is always wanted
-    selectFirst = selectFirst && (selectFirstAfterNavigation || !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
-    selectFirstAfterNavigation = false;
-    if (firstPage && selectFirst) {
-        // The nearest segment of the path bar, when the directory has no entries
-        grid.requestRepopulateSelectingFirst(getParentPathSegment());
-    } else {
-        grid.requestRepopulate(!firstPage);
-    }
-
-    lvgl_unlock();
 }
 
 void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
@@ -1080,11 +1035,24 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     updatePathBar();
     lv_obj_add_event_cb(toolbar, onToolbarSizeChanged, LV_EVENT_SIZE_CHANGED, this);
 
-    grid.setSwipeNavigation(true);
-    grid.setVerticalSwipeInSideLayout(true);
-    grid.setSystemPageButtons(true);
-    grid.setSideIndicator(true);
-    grid.createWidgets(parent);
+    const LvglFilesConfig config = {
+        .callbacks = {
+            .classify = classifyEntry,
+            .get_icon = getEntryIcon,
+            .on_clicked = onEntryClicked,
+            .on_long_pressed = onEntryLongPressed,
+            .on_key = onEntryKey,
+            .on_page_changed = onPageChanged,
+            .on_loaded = onLoaded,
+            .user_data = this,
+        },
+        .swipe_navigation = true,
+        .paging = getSystemBarsPaging(),
+        .page = page,
+    };
+    files = lvgl_files_create(parent, &config);
+    // The new widget reads the directory again. Without a pointer device, keys need a selection to start from.
+    navigateTo(state->getCurrentPath(), !state->isLoaded(), !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
 
 }
 
@@ -1098,7 +1066,13 @@ void View::destroyWidgets() {
     pathBarWidgets.clear();
     pathBarPaths.clear();
     overflow_button = nullptr;
-    grid.destroyWidgets();
+    // The read of the deleted widget won't report back
+    if (navigationPending) {
+        navigationPending = false;
+        endOperation();
+    }
+    page = lvgl_tile_grid_get_page(lvgl_files_get_tile_grid(files));
+    files = nullptr;
 }
 
 void View::onNavigate() {
@@ -1161,8 +1135,7 @@ void View::onDialogResult() {
                 }
                 state->setPendingDeletePaths({});
 
-                state->setEntriesForPath(state->getCurrentPath());
-                update(false);
+                reload();
             }
             break;
         }
@@ -1185,8 +1158,7 @@ void View::onDialogResult() {
                     LOG_E(TAG, "Failed to rename \"%s\" to \"%s\"", filepath.c_str(), rename_to.c_str());
                 }
 
-                state->setEntriesForPath(state->getCurrentPath());
-                update(false);
+                reload();
             }
             break;
         }
@@ -1212,8 +1184,7 @@ void View::onDialogResult() {
                     LOG_E(TAG, "Failed to create file \"%s\"", new_file_path.c_str());
                 }
 
-                state->setEntriesForPath(state->getCurrentPath());
-                update(false);
+                reload();
             }
             break;
         }
@@ -1234,8 +1205,7 @@ void View::onDialogResult() {
                     LOG_E(TAG, "Failed to create folder \"%s\"", new_folder_path.c_str());
                 }
 
-                state->setEntriesForPath(state->getCurrentPath());
-                update(false);
+                reload();
             }
             break;
         }
@@ -1289,7 +1259,6 @@ void View::onCopyPressed() {
     state->setClipboard(paths, false);
     LOG_I(TAG, "Copied %u item(s) to clipboard", static_cast<unsigned>(paths.size()));
     onNavigate();
-    update(false);
 }
 
 void View::onCutPressed() {
@@ -1297,7 +1266,6 @@ void View::onCutPressed() {
     state->setClipboard(paths, true);
     LOG_I(TAG, "Cut %u item(s) to clipboard", static_cast<unsigned>(paths.size()));
     onNavigate();
-    update(false);
 }
 
 void View::onPastePressed() {
@@ -1371,8 +1339,7 @@ void View::processPasteQueue() {
         doPaste(src, pasteIsCut, dst);
     }
 
-    state->setEntriesForPath(state->getCurrentPath());
-    update(false);
+    reload();
 
     if (!pasteFailures.empty()) {
         ::std::string message;

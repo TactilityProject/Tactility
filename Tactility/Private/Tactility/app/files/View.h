@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Tactility/app/TileGrid.h>
+#include <lvgl/widgets/files.h>
 
 #include <lvgl_window_manager/dialog.h>
 #include <tactility/concurrent/task_event_group.h>
@@ -24,10 +25,8 @@ class View final {
     uint32_t appInstanceId = 0;
     /** Signalled on the event group when a paste is requested */
     uint32_t pasteBit = 0;
-    /** Reports that a queued directory read completed, on the event group */
-    FileOpsSubscription fileOpsSub {};
-    /** True from queueing a directory read until it completed. Set on the LVGL task, cleared on the app task. */
-    ::std::atomic<bool> navigationPending = false;
+    /** True from queueing a directory read until it was shown, while the busy spinner counts it. Only used on the LVGL task. */
+    bool navigationPending = false;
     /** Signalled on the event group when a dialog was closed, after its result was stored in dialogResult and dialogText */
     uint32_t dialogBit = 0;
     /**
@@ -63,7 +62,10 @@ class View final {
     /** Set when "Select" was chosen: taps then add entries to the selection or remove them, instead of opening them */
     bool selectionMode = false;
 
-    TileGrid grid;
+    /** The entries of the current directory, while the widgets exist */
+    lv_obj_t* files = nullptr;
+    /** The page of the entries, kept while there are no widgets */
+    uint32_t page = 0;
 
     /** Shown in the toolbar while file operations are pending */
     lv_obj_t* busy_spinner = nullptr;
@@ -74,8 +76,6 @@ class View final {
     ::std::vector<lv_obj_t*> pathBarWidgets;
     /** The path that each segment button of the path bar navigates to */
     ::std::vector<::std::string> pathBarPaths;
-    /** Set when keys opened a directory, so its first entry is selected instead of nothing */
-    bool selectFirstAfterNavigation = false;
     /** Set when a path segment was pressed: the path bar then selects the segment of the parent of the new directory */
     bool selectParentSegment = false;
     /** The toolbar width that the path bar was built for */
@@ -84,13 +84,17 @@ class View final {
 
     ::std::string installAppPath = { 0 };
 
-    static ::std::vector<TileGridItem> collectItems(void* userData);
-    static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
-    static const char* resolveIcon(const TileGridItem& item, void* userData);
-    static void onTileClicked(const TileGridItem& item, void* userData);
-    static void onTileLongPressed(const TileGridItem& item, void* userData);
-    static void onTileKey(const TileGridItem& item, uint32_t key, void* userData);
-    static void onPageChanged(void* userData);
+    static uint32_t classifyEntry(const char* directory, const dirent* entry, void* userData);
+    static void getEntryIcon(lv_obj_t* files, const dirent* entry, uint32_t kind, LvglFilesIcon* icon, void* userData);
+    static void onEntryClicked(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
+    static void onEntryLongPressed(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
+    static void onEntryKey(lv_obj_t* files, const dirent* entry, uint32_t kind, uint32_t key, void* userData);
+    static void onPageChanged(lv_obj_t* files, void* userData);
+    static void onLoaded(lv_obj_t* files, const char* path, error_t error, void* userData);
+    /** Shows a directory that was read. Runs on the LVGL task. */
+    void onDirectoryLoaded(const ::std::string& path, error_t error);
+    /** Whether the entry of the current directory is an executable */
+    bool isExecutable(const ::std::string& name) const;
 
     /** Shows the menu dialog with @a actions. Runs on the LVGL task. */
     void showMenu(const ::std::string& title, const ::std::vector<MenuAction>& actions);
@@ -134,8 +138,13 @@ class View final {
     static void onPathSegmentPressed(lv_event_t* event);
     static void onToolbarSizeChanged(lv_event_t* event);
     static void onDeferredPathBarUpdate(void* userData);
-    /** Reads the directory on the file operations task, then shows it. Runs on the LVGL task. */
+    /**
+     * Reads the directory on the file operations task, then shows it. Runs on the LVGL task.
+     * @param[in] selectFirst select the first entry, or the nearest path bar segment when the directory is empty
+     */
     void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst);
+    /** Reads the current directory again, after it changed. Runs on any task. */
+    void reload();
 
 public:
 
@@ -144,26 +153,12 @@ public:
 
     /** The event group bit that is signalled when the app task has to call onPasteRequested() */
     uint32_t getPasteBit() const { return pasteBit; }
-    /** The event group bit that is signalled when the app task has to call onFileOpsCompleted() */
-    uint32_t getFileOpsBit() const { return fileOpsSub.bit; }
-
-    /** Shows the directories that were read by the file operations task. Runs on the app task. */
-    void onFileOpsCompleted();
-
     /** Rasterizes the file type icons. Call before the widgets are created. */
     void loadIcons();
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
     /** Forgets the widgets, which are deleted when another window covers this one. Runs on the LVGL task with the lock held. */
     void destroyWidgets();
-    /**
-     * Shows the current entries of the state.
-     * @param[in] firstPage true after navigating to another directory, false to stay on the current page
-     * @param[in] selectFirst with firstPage and without a pointer device: select the first entry, or the navigate up button when empty.
-     * When false the focus stays where it is.
-     */
-    void update(bool firstPage, bool selectFirst = true);
-
     void onBackPressed();
     void onOverflowPressed();
     void onDirEntryPressed(const ::std::string& name);
@@ -189,7 +184,7 @@ public:
 
 private:
 
-    bool findDirent(const ::std::string& name, dirent& out_entry);
+    bool findDirent(const ::std::string& name, dirent& out_entry) const;
     /** Handles the queued paste sources until one needs an overwrite confirmation, or all are done */
     void processPasteQueue();
     void addPasteFailure(const ::std::string& text) { pasteFailures.push_back(State::toExt(text)); }

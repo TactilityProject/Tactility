@@ -40,10 +40,8 @@ public:
 private:
 
     RecursiveMutex mutex;
-    ::std::vector<dirent> dir_entries;
-    ::std::vector<::std::string> executable_names;
-    ::std::vector<::std::pair<bool, bool>> completed_navigations;
     ::std::string current_path;
+    bool loaded = false;
     ::std::string selected_child_entry;
     PendingAction action = ActionNone;
     ::std::string pending_paste_dst;
@@ -94,46 +92,26 @@ public:
         return -1;
     }
 
-    void freeEntries() {
-        dir_entries.clear();
-    }
-
-    ~State() {
-        freeEntries();
-    }
-
-    /** Reads the directory and replaces the entries. Does file operations, so it must not run on the LVGL task. */
-    bool setEntriesForPath(const ::std::string& path);
-
-    /** Whether the entry of the current directory is an executable. Determined by setEntriesForPath(). */
-    bool isExecutable(const ::std::string& name) const {
-        bool result = false;
-        mutex.withLock([&] { result = ::std::ranges::find(executable_names, name) != executable_names.end(); });
-        return result;
-    }
-
-    /** Records that a queued navigation finished, with the arguments for View::update() */
-    void pushCompletedNavigation(bool first_page, bool select_first) {
-        mutex.withLock([&] { completed_navigations.emplace_back(first_page, select_first); });
-    }
-
-    /** Takes the oldest finished navigation as {first_page, select_first}, or nullopt when there is none */
-    ::std::optional<::std::pair<bool, bool>> takeCompletedNavigation() {
-        ::std::optional<::std::pair<bool, bool>> result;
+    /**
+     * Sets the directory that is shown, after it was read. Another directory than before has no selection and no pending action.
+     */
+    void setCurrentPath(const ::std::string& path) {
         mutex.withLock([&] {
-            if (!completed_navigations.empty()) {
-                result = completed_navigations.front();
-                completed_navigations.erase(completed_navigations.begin());
+            if (path != current_path) {
+                current_path = path;
+                selected_child_entry = "";
+                selected_entries.clear();
+                action = ActionNone;
             }
+            loaded = true;
         });
-        return result;
     }
 
-    template <::std::invocable<const ::std::vector<dirent> &> Func>
-    void withEntries(Func&& onEntries) const {
-        mutex.withLock([&] {
-            ::std::invoke(::std::forward<Func>(onEntries), dir_entries);
-        });
+    /** Whether a directory was read since the app started */
+    bool isLoaded() const {
+        bool result = false;
+        mutex.withLock([&] { result = loaded; });
+        return result;
     }
 
     void setSelectedChildEntry(const ::std::string& newFile) {
