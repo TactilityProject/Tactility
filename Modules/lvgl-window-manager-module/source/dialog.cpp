@@ -14,6 +14,7 @@
 #include <lvgl/widgets/list.h>
 
 #include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <tactility/check.h>
@@ -48,6 +49,8 @@ struct Dialog {
     std::string message;
     std::string prefilled;
     std::vector<std::string> buttonLabels;
+    /** The icon glyphs of the selection items, empty for none. Either empty or one per item. */
+    tt::std::vector<tt::std::string> itemIcons;
     WindowAlertDialogResultFn onAlertResult = nullptr;
     WindowInputDialogResultFn onInputResult = nullptr;
     WindowSelectionDialogResultFn onSelectionResult = nullptr;
@@ -356,6 +359,12 @@ bool build_dialog_locked(Dialog* dialog) {
         lv_obj_t* first_item = nullptr;
         for (size_t i = 0; i < dialog->buttonLabels.size(); i++) {
             lv_obj_t* item = lvgl_list_add_button(list, nullptr, dialog->buttonLabels[i].c_str());
+            if (i < dialog->itemIcons.size() && !dialog->itemIcons[i].empty()) {
+                lv_obj_t* icon = lv_label_create(item);
+                lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+                lv_label_set_text(icon, dialog->itemIcons[i].c_str());
+                lv_obj_move_to_index(icon, 0);
+            }
             auto* data = new(std::nothrow) ButtonData { dialog, static_cast<int32_t>(i) };
             if (data != nullptr) {
                 lv_obj_add_event_cb(item, on_button_pressed, LV_EVENT_SHORT_CLICKED, data);
@@ -775,6 +784,18 @@ error_t window_manager_selection_dialog(
     WindowSelectionDialogResultFn on_result,
     void* user_data
 ) {
+    return window_manager_selection_dialog_with_icons(app_instance_id, title, items, nullptr, item_count, on_result, user_data);
+}
+
+error_t window_manager_selection_dialog_with_icons(
+    AppInstanceId app_instance_id,
+    const char* title,
+    const char* const* items,
+    const char* const* icons,
+    uint32_t item_count,
+    WindowSelectionDialogResultFn on_result,
+    void* user_data
+) {
     if (app_instance_id == 0 || title == nullptr || items == nullptr || item_count == 0) {
         return ERROR_INVALID_ARGUMENT;
     }
@@ -791,6 +812,9 @@ error_t window_manager_selection_dialog(
             return ERROR_INVALID_ARGUMENT;
         }
         dialog->buttonLabels.emplace_back(items[i]);
+        if (icons != nullptr) {
+            dialog->itemIcons.emplace_back(icons[i] != nullptr ? icons[i] : "");
+        }
     }
     dialog->onSelectionResult = on_result;
     dialog->userData = user_data;

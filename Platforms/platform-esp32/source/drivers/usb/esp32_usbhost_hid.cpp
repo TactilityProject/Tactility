@@ -588,7 +588,7 @@ static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bo
         return;
     }
     auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(&ctx->kb_device));
-    KeyboardKeyData data = { lv_key, pressed, false, ctrl, alt, hid_keycode, hid_modifier };
+    KeyboardKeyData data = { lv_key, pressed, false, ctrl, alt, keyboard_modifiers_from_hid(hid_modifier), hid_keycode, hid_modifier };
     xQueueSend(queue, &data, 0);
 }
 

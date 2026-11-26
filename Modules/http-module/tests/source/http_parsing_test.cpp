@@ -72,3 +72,27 @@ TEST_CASE("http_parse_chunk_size reads hexadecimal sizes and ignores extensions"
     CHECK_FALSE(http_parse_chunk_size("", size));
     CHECK_FALSE(http_parse_chunk_size("xyz", size));
 }
+
+TEST_CASE("http_parse_chunk_size rejects sizes beyond the signed range") {
+    size_t size = 0;
+    if (sizeof(size_t) == 8) {
+        CHECK_FALSE(http_parse_chunk_size("8000000000000000", size));
+        CHECK(http_parse_chunk_size("7fffffffffffffff", size));
+    }
+}
+
+TEST_CASE("http_is_chunked matches the last coding in any case") {
+    CHECK(http_is_chunked("chunked"));
+    CHECK(http_is_chunked("Chunked"));
+    CHECK(http_is_chunked("gzip, CHUNKED"));
+    CHECK_FALSE(http_is_chunked("chunked, gzip"));
+    CHECK_FALSE(http_is_chunked("notchunked"));
+}
+
+TEST_CASE("http_is_valid_header_name accepts tokens only") {
+    CHECK(http_is_valid_header_name("X-Test"));
+    CHECK(http_is_valid_header_name("X_Test"));
+    CHECK_FALSE(http_is_valid_header_name("X/Test"));
+    CHECK_FALSE(http_is_valid_header_name("X(Test)"));
+    CHECK_FALSE(http_is_valid_header_name("X=Test"));
+}

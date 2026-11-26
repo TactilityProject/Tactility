@@ -20,8 +20,10 @@ macro(tactility_project_post project_name)
     add_library(TactilitySDK INTERFACE)
     target_include_directories(TactilitySDK INTERFACE
         ${TACTILITY_SDK_PATH}/Modules/app-module/include
+        ${TACTILITY_SDK_PATH}/Modules/binfont-module/include
         ${TACTILITY_SDK_PATH}/Modules/crypt-module/include
         ${TACTILITY_SDK_PATH}/Modules/gps-module/include
+        ${TACTILITY_SDK_PATH}/Modules/http-module/include
         ${TACTILITY_SDK_PATH}/Modules/lvgl-module/include
         ${TACTILITY_SDK_PATH}/Modules/lvgl-window-manager-module/include
         ${TACTILITY_SDK_PATH}/Modules/notification-module/include

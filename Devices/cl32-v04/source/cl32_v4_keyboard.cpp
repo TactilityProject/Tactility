@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "cl32_v4.h"
 #include "cl32_v4_keyboard.h"
+#include <tactility/Memory.hpp>
 #include <tactility/device.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
-
-#include <new>
 
 extern Module cl32_v04_module;
 
@@ -85,9 +84,18 @@ struct Cl32V4KeyEvent {
     uint8_t hid_modifier;
 };
 
+// The event a key's press queued, so its release reports the same key even if Shift/Fn changed
+// while it was held
+struct Cl32V4HeldKey {
+    bool held;
+    uint32_t key;
+    uint8_t hid_modifier;
+};
+
 struct Cl32V4KeyboardInternal {
     ToggleState shift_state = ToggleState::Unpressed;
     ToggleState fn_state = ToggleState::Unpressed;
+    Cl32V4HeldKey held[128] = {}; // indexed by HID code (the raw event's low 7 bits)
     Cl32V4KeyEvent pending[PENDING_CAPACITY];
     uint8_t pending_head = 0;
     uint8_t pending_count = 0;
@@ -158,8 +166,8 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
         case KEY_ARROW_LEFT: *out_key = CODEPOINT_ARROW_LEFT; return true;
         case KEY_ARROW_DOWN: *out_key = CODEPOINT_ARROW_DOWN; return true;
         case KEY_ARROW_UP: *out_key = CODEPOINT_ARROW_UP; return true;
-        case KEY_YES: *out_key = CODEPOINT_YES; return true;
-        case KEY_NO: *out_key = CODEPOINT_NO; return true;
+        case KEY_YES: *out_key = CODEPOINT_ENTER; return true;
+        case KEY_NO: *out_key = CODEPOINT_ESCAPE; return true;
         case KEYPAD_SLASH: *out_key = '/'; return true;
         case KEYPAD_ASTERISK: *out_key = '*'; return true;
         case KEYPAD_MINUS: *out_key = '-'; return true;
@@ -197,7 +205,7 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
         LOG_D(TAG, "code=0x%02X (menu/file) shift=%s fn=%s hid_modifier=0x%02X",
               code, toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
         push_pending(internal, 0, true, code, hid_modifier);
-        push_pending(internal, 0, false, code, hid_modifier);
+        internal->held[code] = { true, 0, hid_modifier };
         return;
     }
 
@@ -210,11 +218,9 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
           code, printable, static_cast<unsigned int>(has_key ? key : 0),
           toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
 
-    // LVGL only registers a key on a RELEASED->PRESSED edge, and this chip doesn't report
-    // reliable release events for character keys - queue an immediate press+release pair, same as
-    // tca8418.cpp.
+    // The release is queued when the chip reports the key up (see handle_key_up())
     push_pending(internal, has_key ? key : 0, true, code, hid_modifier);
-    push_pending(internal, has_key ? key : 0, false, code, hid_modifier);
+    internal->held[code] = { true, has_key ? key : 0, hid_modifier };
 
     if (internal->shift_state == ToggleState::OnePress) {
         internal->shift_state = ToggleState::Unpressed;
@@ -222,6 +228,17 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     if (internal->fn_state == ToggleState::OnePress) {
         internal->fn_state = ToggleState::Unpressed;
     }
+}
+
+static void handle_key_up(Cl32V4KeyboardInternal* internal, uint8_t code) {
+    // Shift and Fn are toggles, acted on when pressed. Their releases (and any release without a
+    // matching press) report nothing.
+    Cl32V4HeldKey& held = internal->held[code];
+    if (!held.held) {
+        return;
+    }
+    push_pending(internal, held.key, false, code, held.hid_modifier);
+    held = {};
 }
 
 static void drain_events(Device* i2c0, uint8_t address, Cl32V4KeyboardInternal* internal) {
@@ -248,6 +265,8 @@ static void drain_events(Device* i2c0, uint8_t address, Cl32V4KeyboardInternal* 
 
         if ((raw & 0x80) != 0) {
             handle_key_down(internal, static_cast<uint8_t>(raw & 0x7F));
+        } else {
+            handle_key_up(internal, static_cast<uint8_t>(raw & 0x7F));
         }
 
         if (i2c_controller_register8_get(i2c0, address, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
@@ -274,6 +293,7 @@ static error_t v4_read_key(Device* device, KeyboardKeyData* data) {
         data->continue_reading = internal->pending_count > 0;
         data->ctrl = false;
         data->alt = false;
+        data->modifiers = keyboard_modifiers_from_hid(event.hid_modifier);
         data->hid_keycode = event.hid_keycode;
         data->hid_modifier = event.hid_modifier;
     } else {
@@ -301,7 +321,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    auto* internal = new(std::nothrow) Cl32V4KeyboardInternal();
+    auto* internal = tt::newObject<Cl32V4KeyboardInternal>();
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -311,7 +331,7 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     auto* internal = static_cast<Cl32V4KeyboardInternal*>(device_get_driver_data(device));
-    delete internal;
+    tt::deleteObject(internal);
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }

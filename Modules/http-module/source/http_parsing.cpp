@@ -32,10 +32,26 @@ bool is_digits(const std::string& text) {
 }
 
 bool http_parse_https_url(const std::string& url, HttpUrl& out) {
-    constexpr std::string_view scheme = "https://";
-    if (url.compare(0, scheme.size(), scheme) != 0) {
+    HttpUrl parsed;
+    if (!http_parse_url(url, parsed) || !parsed.secure) {
         return false;
     }
+    out = parsed;
+    return true;
+}
+
+bool http_parse_url(const std::string& url, HttpUrl& out) {
+    // Spaces and control characters would break the request line apart
+    for (const char c : url) {
+        if (static_cast<unsigned char>(c) <= ' ' || c == 127) {
+            return false;
+        }
+    }
+    const bool secure = url.compare(0, 8, "https://") == 0;
+    if (!secure && url.compare(0, 7, "http://") != 0) {
+        return false;
+    }
+    const std::string_view scheme = secure ? "https://" : "http://";
 
     const auto authorityStart = scheme.size();
     const auto pathStart = url.find_first_of("/?#", authorityStart);
@@ -63,7 +79,7 @@ bool http_parse_https_url(const std::string& url, HttpUrl& out) {
         return false;
     }
 
-    std::string port = "443";
+    std::string port = secure ? "443" : "80";
     if (!rest.empty()) {
         if (rest[0] != ':' || !is_digits(rest.substr(1))) {
             return false;
@@ -78,7 +94,32 @@ bool http_parse_https_url(const std::string& url, HttpUrl& out) {
         path.insert(0, "/");
     }
 
-    out = { .host = host, .port = port, .path = path };
+    out = { .host = host, .port = port, .path = path, .secure = secure };
+    return true;
+}
+
+bool http_is_valid_header_name(const char* name) {
+    if (name == nullptr || *name == '\0') {
+        return false;
+    }
+    constexpr std::string_view TOKEN_SYMBOLS = "!#$%&'*+-.^_`|~";
+    for (const char* c = name; *c != '\0'; c++) {
+        if (!std::isalnum(static_cast<unsigned char>(*c)) && TOKEN_SYMBOLS.find(*c) == std::string_view::npos) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool http_is_valid_header_value(const char* value) {
+    if (value == nullptr) {
+        return false;
+    }
+    for (const char* c = value; *c != '\0'; c++) {
+        if ((static_cast<unsigned char>(*c) < ' ' && *c != '\t') || *c == 127) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -127,6 +168,15 @@ bool http_parse_content_length(const std::string& value, long& length) {
     return true;
 }
 
+bool http_is_chunked(const std::string& transferEncoding) {
+    const auto comma = transferEncoding.rfind(',');
+    std::string coding = trim(comma == std::string::npos ? transferEncoding : transferEncoding.substr(comma + 1));
+    for (auto& c : coding) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return coding == "chunked";
+}
+
 bool http_parse_chunk_size(const std::string& line, size_t& size) {
     const std::string digits = trim(line.substr(0, line.find(';')));
     if (digits.empty() || digits.size() > sizeof(size_t) * 2) {
@@ -139,6 +189,10 @@ bool http_parse_chunk_size(const std::string& line, size_t& size) {
         }
         const char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         result = result * 16 + static_cast<size_t>(lower <= '9' ? lower - '0' : lower - 'a' + 10);
+    }
+    // Larger sizes would turn negative in the signed counters of the readers
+    if (result > static_cast<unsigned long long>(LLONG_MAX)) {
+        return false;
     }
     size = result;
     return true;

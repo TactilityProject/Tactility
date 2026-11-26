@@ -29,7 +29,10 @@ void lvgl_toolbar_configure(const ToolbarConfig* config);
  */
 lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title);
 
-/** Sets the toolbar title */
+/**
+ * Sets the toolbar title. It takes the room that the buttons leave: when it doesn't fit in the large font of a large theme,
+ * it is shown in the regular font, and when it doesn't fit in that either, it is cut off with an ellipsis.
+ */
 void lvgl_toolbar_set_title(lv_obj_t* obj, const char* title);
 
 /**

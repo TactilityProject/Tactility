@@ -11,3 +11,15 @@ msgstr "Notizen..."
 
 msgid "Untitled"
 msgstr "Unbenannt"
+
+msgid "New"
+msgstr "Neu"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Save as"
+msgstr "Speichern unter"
+
+msgid "Open"
+msgstr "Öffnen"

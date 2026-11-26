@@ -27,6 +27,9 @@ msgstr "« {} » a été copié mais l'original n'a pas pu être supprimé."
 msgid "Are you sure?"
 msgstr "Êtes-vous sûr ?"
 
+msgid "Copy"
+msgstr "Copier"
+
 msgid "Could not eject \"{}\"."
 msgstr "Impossible d'éjecter « {} »."
 
@@ -36,6 +39,15 @@ msgstr "Impossible de supprimer « {} » avant l'écrasement."
 msgid "Could not run \"{}\"."
 msgstr "Impossible d'exécuter « {} »."
 
+msgid "Cut"
+msgstr "Couper"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Deselect all"
+msgstr "Tout désélectionner"
+
 msgid "Do you want to delete these {} items?"
 msgstr "Voulez-vous supprimer ces {} éléments ?"
 
@@ -44,6 +56,9 @@ msgstr "Voulez-vous supprimer ceci ?\n{}"
 
 msgid "Do you want to install {}?"
 msgstr "Voulez-vous installer {} ?"
+
+msgid "Eject"
+msgstr "Éjecter"
 
 msgid "Eject failed"
 msgstr "Échec de l'éjection"
@@ -75,6 +90,9 @@ msgstr "Écraser"
 msgid "Overwrite \"{}\"?"
 msgstr "Écraser « {} » ?"
 
+msgid "Paste"
+msgstr "Coller"
+
 msgid "Paste failed"
 msgstr "Échec du collage"
 
@@ -86,3 +104,6 @@ msgstr "Échec du renommage"
 
 msgid "Run failed"
 msgstr "Échec de l'exécution"
+
+msgid "{} selected"
+msgstr "{} sélectionnés"

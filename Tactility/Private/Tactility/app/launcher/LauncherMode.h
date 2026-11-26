@@ -12,15 +12,15 @@ struct LauncherMode {
     /** Represents this mode on the button that switches to it */
     const char* buttonIcon;
     /** The look of the tiles */
-    TileGrid::Style tileStyle;
+    LvglTileGridStyle tileStyle;
     /** The tile icon colour for themes that aren't monochrome */
-    TileGrid::IconColor iconColor;
+    LvglTileGridIconColor iconColor;
     /** Returns the items in display order */
     std::vector<TileGridItem> (*collect)();
     /** Optional */
-    void (*onLongPressed)(TileGrid& grid, const TileGridItem& item);
+    void (*onLongPressed)(lv_obj_t* grid, const LvglTileGridItem& item);
     /** Optional */
-    void (*onKey)(TileGrid& grid, const TileGridItem& item, uint32_t key);
+    void (*onKey)(lv_obj_t* grid, const LvglTileGridItem& item, uint32_t key);
 };
 
 /** Reads the favourites from their file into memory. File operation, see <tactility/file_ops.h>. */

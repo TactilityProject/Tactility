@@ -195,8 +195,8 @@ bool areSettingsIconsCurrent() {
 
 const LauncherMode SETTINGS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_SETTINGS,
-    .tileStyle = TileGrid::Style::Card,
-    .iconColor = TileGrid::IconColor::Default,
+    .tileStyle = LVGL_TILE_GRID_STYLE_CARD,
+    .iconColor = LVGL_TILE_GRID_ICON_COLOR_DEFAULT,
     .collect = collectItems,
     .onLongPressed = nullptr,
     .onKey = nullptr

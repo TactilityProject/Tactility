@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Tactility/app/TileGrid.h>
+#include <lvgl/widgets/files.h>
 
 #include <lvgl_window_manager/dialog.h>
 #include <tactility/concurrent/task_event_group.h>
@@ -24,17 +25,19 @@ class View final {
     uint32_t appInstanceId = 0;
     /** Signalled on the event group when a paste is requested */
     uint32_t pasteBit = 0;
-    /** Reports that a queued directory read completed, on the event group */
-    FileOpsSubscription fileOpsSub {};
-    /** True from queueing a directory read until it completed. Set on the LVGL task, cleared on the app task. */
-    ::std::atomic<bool> navigationPending = false;
+    /** True from queueing a directory read until it was shown, while the busy spinner counts it. Only used on the LVGL task. */
+    bool navigationPending = false;
+    /** The directory of the last queued read. Only used on the LVGL task. */
+    ::std::string pendingPath;
+    /** Set when the shown directory changed while another one was being read. Only used on the LVGL task. */
+    bool refreshDeferred = false;
     /** Signalled on the event group when a dialog was closed, after its result was stored in dialogResult and dialogText */
     uint32_t dialogBit = 0;
     /**
      * What the dialog that is shown is for. Set before it is shown, and reset on the app task when its result was read.
      * The pending action and its paths belong to that dialog, so no other action is started meanwhile.
      */
-    enum class DialogOwner { None, Install, Action, Paste };
+    enum class DialogOwner { None, Install, Action, Paste, Menu };
     ::std::atomic<DialogOwner> dialogOwner = DialogOwner::None;
     /** The pressed button, or 0 for OK and 1 for Cancel in a text dialog, or WINDOW_DIALOG_DISMISSED */
     int32_t dialogResult = WINDOW_DIALOG_DISMISSED;
@@ -56,54 +59,63 @@ class View final {
     /** Mono icons are painted in the theme's icon colour */
     bool iconRecolor[9] = {};
 
-    /** Set while a key selects an entry, so the keys keep going to the grid instead of the overlay */
-    bool keepGridFocus = false;
+    /** What the items of the menu dialog do */
+    enum class MenuAction { Open, Select, DeselectAll, Copy, Cut, Paste, Rename, Delete, Eject, NewFile, NewFolder };
+    /** The actions of the menu dialog that is shown, by item index. Set on the LVGL task before it is shown, read on the app task after it closed. */
+    ::std::vector<MenuAction> menuActions;
+    /** Set when "Select" was chosen: taps then add entries to the selection or remove them, instead of opening them */
+    bool selectionMode = false;
 
-    TileGrid grid;
+    /** The entries of the current directory, while the widgets exist */
+    lv_obj_t* files = nullptr;
+    /** The page of the entries, kept while there are no widgets */
+    uint32_t page = 0;
 
     /** Shown in the toolbar while file operations are pending */
     lv_obj_t* busy_spinner = nullptr;
     ::std::atomic<int> pendingOperations = 0;
 
-    lv_obj_t* overlay = nullptr;
     lv_obj_t* toolbar = nullptr;
-    /** The path bar: the buttons of the path segments that fit, and an ellipsis in front when the path is cut off */
-    ::std::vector<lv_obj_t*> pathBarWidgets;
-    /** The path that each segment button of the path bar navigates to */
-    ::std::vector<::std::string> pathBarPaths;
-    /** Set when keys opened a directory, so its first entry is selected instead of nothing */
-    bool selectFirstAfterNavigation = false;
-    /** Set when a path segment was pressed: the path bar then selects the segment of the parent of the new directory */
+    lv_obj_t* path_bar = nullptr;
+    /** Set when keys pressed a path segment: the path bar then selects the segment of the parent of the new directory */
     bool selectParentSegment = false;
-    /** The toolbar width that the path bar was built for */
-    int32_t pathBarWidth = 0;
     lv_obj_t* overflow_button = nullptr;
 
     ::std::string installAppPath = { 0 };
 
-    static ::std::vector<TileGridItem> collectItems(void* userData);
-    static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
-    static const char* resolveIcon(const TileGridItem& item, void* userData);
-    static void onTileClicked(const TileGridItem& item, void* userData);
-    static void onTileLongPressed(const TileGridItem& item, void* userData);
-    static void onTileKey(const TileGridItem& item, uint32_t key, void* userData);
-    static void onPageChanged(void* userData);
+    static uint32_t classifyEntry(const char* directory, const dirent* entry, void* userData);
+    static void getEntryIcon(lv_obj_t* files, const dirent* entry, uint32_t kind, LvglFilesIcon* icon, void* userData);
+    static void onEntryClicked(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
+    static void onEntryLongPressed(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
+    static void onEntryKey(lv_obj_t* files, const dirent* entry, uint32_t kind, uint32_t key, void* userData);
+    static bool isEntryChecked(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
+    static void onLoaded(lv_obj_t* files, const char* path, error_t error, void* userData);
+    /** Shows a directory that was read. Runs on the LVGL task. */
+    void onDirectoryLoaded(const ::std::string& path, error_t error);
+    /** Whether the entry of the current directory is an executable */
+    bool isExecutable(const ::std::string& name) const;
+    /** Whether the entry menu offers to open the entry */
+    bool canOpen(const dirent& dir_entry) const;
 
-    lv_obj_t* addOverlayButton(const char* icon, lv_event_cb_t callback);
-    void showOverlay(lv_obj_t* anchorTile);
-    void hideOverlay();
-    void showActionsForDirectory(lv_obj_t* tile);
-    void showActionsForFile(lv_obj_t* tile);
-    void showActionsForMountPoint(lv_obj_t* tile);
-    /** Whether actions are shown for a selection that more entries can be added to */
+    /** Shows the menu dialog with @a actions. Runs on the LVGL task. */
+    void showMenu(const ::std::string& title, const ::std::vector<MenuAction>& actions);
+    /** Shows the actions for one entry, which is selected while the menu is shown */
+    void showEntryMenu(const dirent& dir_entry);
+    /** Shows the actions for the entries of the selection mode */
+    void showSelectionMenu();
+    /** Performs a chosen menu action. Runs on the LVGL task. */
+    void runMenuAction(MenuAction action);
+    /** Whether taps add entries to the selection */
     bool isSelecting() const;
-    /** Adds the entry to the selection or removes it, and updates the actions */
+    /** Adds the entry to the selection or removes it. Leaves the selection mode when nothing stays selected. */
     void toggleSelectedEntry(const dirent& dir_entry);
-    /** Shows the actions for the selected entries, anchored at @a tile */
-    void showActionsForSelection(lv_obj_t* tile);
+    /** Deselects all entries and leaves the selection mode */
+    void clearSelection();
+    void setTileChecked(const ::std::string& name, bool checked);
+    /** Opens a directory or views a file */
+    void openEntry(const dirent& dir_entry);
     /** The full paths of the selected entries, or of the selected child entry when none is selected */
     ::std::vector<::std::string> getSelectedPaths() const;
-    void addCommonFileActions();
 
     /** Shows the busy spinner while at least one operation is pending. Runs on any task. */
     void beginOperation();
@@ -120,15 +132,16 @@ class View final {
     void viewFile(const ::std::string&path, const ::std::string&filename);
     void runFile(const ::std::string& file_path);
     void onNavigate();
-    /** Rebuilds the path bar for the current path. Runs on the LVGL task. */
-    void updatePathBar();
-    /** @return the path bar segment of the parent of the current directory, or the current directory when it has no pressable parent shown */
-    lv_obj_t* getParentPathSegment() const;
-    static void onPathSegmentPressed(lv_event_t* event);
-    static void onToolbarSizeChanged(lv_event_t* event);
-    static void onDeferredPathBarUpdate(void* userData);
-    /** Reads the directory on the file operations task, then shows it. Runs on the LVGL task. */
-    void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst);
+    static void onPathSegmentPressed(lv_obj_t* bar, const char* path, bool fromKeys, void* userData);
+    static void onPathBarRebuilt(lv_obj_t* bar, void* userData);
+    /**
+     * Reads the directory on the file operations task, then shows it. Runs on the LVGL task.
+     * @param[in] selectFirst select the first entry, or the nearest path bar segment when the directory is empty
+     * @param[in] focusParentSegment then select the path bar segment of the parent of the new directory
+     */
+    void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst, bool focusParentSegment = false);
+    /** Reads the current directory again, after it changed. Runs on any task. */
+    void reload();
 
 public:
 
@@ -137,26 +150,12 @@ public:
 
     /** The event group bit that is signalled when the app task has to call onPasteRequested() */
     uint32_t getPasteBit() const { return pasteBit; }
-    /** The event group bit that is signalled when the app task has to call onFileOpsCompleted() */
-    uint32_t getFileOpsBit() const { return fileOpsSub.bit; }
-
-    /** Shows the directories that were read by the file operations task. Runs on the app task. */
-    void onFileOpsCompleted();
-
     /** Rasterizes the file type icons. Call before the widgets are created. */
     void loadIcons();
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
     /** Forgets the widgets, which are deleted when another window covers this one. Runs on the LVGL task with the lock held. */
     void destroyWidgets();
-    /**
-     * Shows the current entries of the state.
-     * @param[in] firstPage true after navigating to another directory, false to stay on the current page
-     * @param[in] selectFirst with firstPage and without a pointer device: select the first entry, or the navigate up button when empty.
-     * When false the focus stays where it is.
-     */
-    void update(bool firstPage, bool selectFirst = true);
-
     void onBackPressed();
     void onOverflowPressed();
     void onDirEntryPressed(const ::std::string& name);
@@ -173,8 +172,6 @@ public:
     /** Does the file system work of a requested paste. Runs on the app task. */
     void onPasteRequested();
     void onEjectPressed();
-    void onRunPressed();
-    void onOverlayKey(uint32_t key);
     /** The event group bit that is signalled when the app task has to call onDialogResult() */
     uint32_t getDialogBit() const { return dialogBit; }
     /** Stores the result of a dialog and signals the app task. Runs on the task of the dialog. */
@@ -184,7 +181,7 @@ public:
 
 private:
 
-    bool findDirent(const ::std::string& name, dirent& out_entry);
+    bool findDirent(const ::std::string& name, dirent& out_entry) const;
     /** Handles the queued paste sources until one needs an overwrite confirmation, or all are done */
     void processPasteQueue();
     void addPasteFailure(const ::std::string& text) { pasteFailures.push_back(State::toExt(text)); }

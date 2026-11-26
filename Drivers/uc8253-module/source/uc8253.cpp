@@ -518,6 +518,15 @@ static uint16_t uc8253_get_resolution_y(Device* device) {
 
 // endregion
 
+static error_t uc8253_get_backlight(Device* device, Device** backlight) {
+    auto* configured_backlight = GET_CONFIG(device)->backlight;
+    if (configured_backlight == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    *backlight = configured_backlight;
+    return ERROR_NONE;
+}
+
 static const DisplayApi uc8253_display_api = {
     // draw_bitmap() converts into its own target buffer and never DMAs from the given pointer
     .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
@@ -542,7 +551,7 @@ static const DisplayApi uc8253_display_api = {
     .get_resolution_y = uc8253_get_resolution_y,
     .get_frame_buffer = nullptr,
     .get_frame_buffer_count = nullptr,
-    .get_backlight = nullptr,
+    .get_backlight = uc8253_get_backlight,
     .has_capability = nullptr,
     .get_shape = nullptr,
 };

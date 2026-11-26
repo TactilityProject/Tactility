@@ -3,6 +3,7 @@
 #include <Tactility/app/notes/Notes.h>
 
 
+#include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/file/File.h>
 
@@ -17,18 +18,20 @@
 
 #include <lvgl.h>
 #include <lvgl/fonts.h>
-#include <lvgl/grid_navigation.h>
 #include <lvgl/icons/shared.h>
-#include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
-#include <lvgl/widgets/card.h>
-#include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
 #include <tactility/check.h>
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
 
+#include <atomic>
 #include <new>
+#include <vector>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 namespace tt::app::notes {
 
@@ -42,14 +45,20 @@ struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
 
-    lv_obj_t* uiCurrentFileName = nullptr;
+    // Null while the window has no widgets. Accessed with the LVGL lock held.
     lv_obj_t* uiToolbar = nullptr;
-    lv_obj_t* uiOverflowButton = nullptr;
-    lv_obj_t* uiOverlay = nullptr;
     lv_obj_t* uiNoteText = nullptr;
 
-    std::string filePath;
-    std::string saveBuffer;
+    tt::std::string filePath;
+    tt::std::string saveBuffer;
+
+    /** Signalled when the menu dialog closed, as its result arrives on the dialog's task */
+    uint32_t menuBit = 0;
+    int32_t menuResult = WINDOW_DIALOG_DISMISSED;
+    /** The actions of the items of the menu that is shown */
+    tt::std::vector<int> menuActions;
+    /** Set from showing the menu until its result was read, so that no other menu replaces the result or the actions */
+    ::std::atomic<bool> menuPending = false;
 
     uint32_t loadFileLaunchId = 0;
     uint32_t saveFileLaunchId = 0;
@@ -60,38 +69,49 @@ struct Context {
 };
 
 
+/** The toolbar shows the name of the file, without its directory */
+void updateTitle(Context* ctx) {
+    const auto name = ctx->filePath.empty() ? ::std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath.c_str());
+    if (ctx->uiToolbar != nullptr) {
+        lvgl_toolbar_set_title(ctx->uiToolbar, name.c_str());
+    }
+}
+
 void resetFileContent(Context* ctx) {
     lv_textarea_set_text(ctx->uiNoteText, "");
     ctx->filePath = "";
     ctx->saveBuffer = "";
-    lv_label_set_text(ctx->uiCurrentFileName, tr("Untitled"));
+    updateTitle(ctx);
 }
 
-void openFile(Context* ctx, const std::string& path) {
+void openFile(Context* ctx, const ::std::string& path) {
     auto data = file::readString(path);
     if (data != nullptr) {
         lvgl_lock();
-        lv_textarea_set_text(ctx->uiNoteText, reinterpret_cast<const char*>(data.get()));
-        lv_label_set_text(ctx->uiCurrentFileName, path.c_str());
+        // Without widgets, the file is read again when they are created
+        ctx->filePath = path.c_str();
+        if (ctx->uiNoteText != nullptr) {
+            lv_textarea_set_text(ctx->uiNoteText, reinterpret_cast<const char*>(data.get()));
+            updateTitle(ctx);
+        }
         lvgl_unlock();
-        ctx->filePath = path;
         LOG_I(TAG, "Loaded from %s", path.c_str());
     }
 }
 
-bool saveFile(Context* ctx, const std::string& path) {
+bool saveFile(Context* ctx, const ::std::string& path) {
     bool result = false;
     if (file::writeString(path, ctx->saveBuffer.c_str())) {
         LOG_I(TAG, "Saved to %s", path.c_str());
-        ctx->filePath = path;
+        ctx->filePath = path.c_str();
         result = true;
     }
     return result;
 }
 
 struct SaveJob {
-    std::string path;
-    std::string content;
+    ::std::string path;
+    ::std::string content;
 };
 
 /** File operation: it runs on the file operations task, which frees the job */
@@ -105,102 +125,104 @@ void saveInBackground(void* context) {
     delete job;
 }
 
-void hideOverlay(Context* ctx) {
-    if (lv_obj_is_hidden(ctx->uiOverlay)) {
+enum MenuAction { MENU_NEW, MENU_SAVE, MENU_SAVE_AS, MENU_OPEN };
+
+void newFile(Context* ctx) {
+    lvgl_lock();
+    if (ctx->uiNoteText != nullptr) {
+        resetFileContent(ctx);
+    }
+    lvgl_unlock();
+}
+
+void save(Context* ctx) {
+    // The file operations task writes it
+    lvgl_lock();
+    if (ctx->uiNoteText == nullptr) {
+        lvgl_unlock();
         return;
     }
-    lv_obj_set_hidden(ctx->uiOverlay, true);
-
-    // Keys continue on the button that opened the overlay
-    lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && lv_group_get_focused(group) == ctx->uiOverlay) {
-        lv_group_focus_obj(ctx->uiToolbar);
-        lv_gridnav_set_focused(ctx->uiToolbar, ctx->uiOverflowButton, LV_ANIM_OFF);
-    }
-}
-
-void onNewPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    hideOverlay(ctx);
-    resetFileContent(ctx);
-}
-
-void onSavePressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    hideOverlay(ctx);
-    // Runs on the LVGL task, which must not do file operations
-    auto* job = new (::std::nothrow) SaveJob { ctx->filePath, lv_textarea_get_text(ctx->uiNoteText) };
+    auto* job = new (::std::nothrow) SaveJob { ctx->filePath.c_str(), lv_textarea_get_text(ctx->uiNoteText) };
+    lvgl_unlock();
     if (job == nullptr || file_ops_queue(saveInBackground, job, nullptr) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue saving %s", ctx->filePath.c_str());
         delete job;
     }
 }
 
-void onSaveAsPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    hideOverlay(ctx);
+void saveAs(Context* ctx) {
+    lvgl_lock();
+    if (ctx->uiNoteText == nullptr) {
+        lvgl_unlock();
+        return;
+    }
     ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
+    lvgl_unlock();
     ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
     LOG_I(TAG, "launched with id %u", ctx->saveFileLaunchId);
 }
 
-void onOpenPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    hideOverlay(ctx);
+void open(Context* ctx) {
     ctx->loadFileLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->loadResultStream, ctx->loadResultBuffer, sizeof(ctx->loadResultBuffer), ctx->eventGroup);
     LOG_I(TAG, "launched with id %u", ctx->loadFileLaunchId);
 }
 
-void addOverlayButton(Context* ctx, const char* icon, lv_event_cb_t callback) {
-    auto* button = lvgl_icon_button_create(ctx->uiOverlay);
-    auto* label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
-    lv_label_set_text(label, icon);
-    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, ctx);
+/** Runs on the dialog's task */
+void onMenuClosed(int32_t item, void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->menuResult = item;
+    task_event_group_signal(ctx->eventGroup, ctx->menuBit);
 }
 
-void showOverlay(Context* ctx) {
-    lv_obj_clean(ctx->uiOverlay);
-    addOverlayButton(ctx, LVGL_ICON_SHARED_NOTE_ADD, onNewPressed);
-    // Saving needs a file, which "save as" picks
-    if (!ctx->filePath.empty()) {
-        addOverlayButton(ctx, LVGL_ICON_SHARED_SAVE, onSavePressed);
-    }
-    addOverlayButton(ctx, LVGL_ICON_SHARED_SAVE_AS, onSaveAsPressed);
-    addOverlayButton(ctx, LVGL_ICON_SHARED_FOLDER_OPEN, onOpenPressed);
-
-    lv_obj_set_hidden(ctx->uiOverlay, false);
-    lv_obj_align_to(ctx->uiOverlay, ctx->uiToolbar, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
-
-    lv_group_t* group = lv_group_get_default();
-    if (group != nullptr) {
-        lv_group_focus_obj(ctx->uiOverlay);
-        lv_gridnav_set_focused(ctx->uiOverlay, lv_obj_get_child(ctx->uiOverlay, 0), LV_ANIM_OFF);
-        // Touch shows no selection, until a key moves the focus
-        lv_indev_t* indev = lv_indev_active();
-        if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            lvgl_focus_hide_key_selection(group);
-        }
+/** Runs on the app task */
+void onMenuResult(Context* ctx) {
+    const int32_t result = ctx->menuResult;
+    const bool selected = result >= 0 && static_cast<size_t>(result) < ctx->menuActions.size();
+    const int action = selected ? ctx->menuActions[result] : -1;
+    ctx->menuPending = false;
+    switch (action) {
+        case MENU_NEW:
+            newFile(ctx);
+            break;
+        case MENU_SAVE:
+            save(ctx);
+            break;
+        case MENU_SAVE_AS:
+            saveAs(ctx);
+            break;
+        case MENU_OPEN:
+            open(ctx);
+            break;
+        default:
+            break;
     }
 }
 
 void onOverflowPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    if (lv_obj_is_hidden(ctx->uiOverlay)) {
-        showOverlay(ctx);
-    } else {
-        hideOverlay(ctx);
+    if (ctx->menuPending) {
+        return;
     }
-}
-
-void onOverlayKey(lv_event_t* e) {
-    if (lv_event_get_key(e) == LV_KEY_ESC) {
-        hideOverlay(static_cast<Context*>(lv_event_get_user_data(e)));
+    ::std::vector<::std::string> labels;
+    ::std::vector<const char*> icons;
+    ctx->menuActions.clear();
+    auto add = [&](MenuAction action, const char* label, const char* icon) {
+        ctx->menuActions.push_back(action);
+        labels.emplace_back(label);
+        icons.push_back(icon);
+    };
+    add(MENU_NEW, tr("New"), LVGL_ICON_SHARED_NOTE_ADD);
+    // Saving needs a file, which "save as" picks
+    if (!ctx->filePath.empty()) {
+        add(MENU_SAVE, tr("Save"), LVGL_ICON_SHARED_SAVE);
     }
-}
-
-void onNoteTextPressed(lv_event_t* e) {
-    hideOverlay(static_cast<Context*>(lv_event_get_user_data(e)));
+    add(MENU_SAVE_AS, tr("Save as"), LVGL_ICON_SHARED_SAVE_AS);
+    add(MENU_OPEN, tr("Open"), LVGL_ICON_SHARED_FOLDER_OPEN);
+    ctx->menuPending = true;
+    if (dialog::selection(ctx->appInstanceId, tr("Notes"), labels, icons, onMenuClosed, ctx) != ERROR_NONE) {
+        ctx->menuPending = false;
+        LOG_E(TAG, "Failed to show the menu");
+    }
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -210,64 +232,27 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    ctx->uiToolbar = lvgl_toolbar_create(parent, tr("Notes"));
+    ctx->uiToolbar = lvgl_toolbar_create(parent, "");
+    updateTitle(ctx);
     lv_obj_align(ctx->uiToolbar, LV_ALIGN_TOP_MID, 0, 0);
-    ctx->uiOverflowButton = lvgl_toolbar_add_text_button_action(ctx->uiToolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressed, ctx);
-    lv_obj_set_style_text_font(ctx->uiOverflowButton, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_obj_t* overflow_button = lvgl_toolbar_add_text_button_action(ctx->uiToolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressed, ctx);
+    lv_obj_set_style_text_font(overflow_button, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
 
-    lv_obj_t* wrapper = lv_obj_create(parent);
-    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    lv_obj_set_flex_grow(wrapper, 1);
-    lv_obj_set_width(wrapper, LV_PCT(100));
-    lv_obj_set_height(wrapper, LV_PCT(100));
-    lv_obj_set_style_pad_all(wrapper, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_row(wrapper, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(wrapper, 0, LV_PART_MAIN);
-    lv_obj_set_scrollable(wrapper, false);
-
-    ctx->uiNoteText = lv_textarea_create(wrapper);
+    ctx->uiNoteText = lv_textarea_create(parent);
     lv_obj_set_width(ctx->uiNoteText, LV_PCT(100));
-    lv_obj_set_height(ctx->uiNoteText, LV_PCT(86));
+    lv_obj_set_flex_grow(ctx->uiNoteText, 1);
     lv_textarea_set_password_mode(ctx->uiNoteText, false);
     lv_textarea_set_placeholder_text(ctx->uiNoteText, tr("Notes..."));
-    lv_obj_add_event_cb(ctx->uiNoteText, onNoteTextPressed, LV_EVENT_PRESSED, ctx);
-
-    lv_obj_t* footer = lv_obj_create(wrapper);
-    lv_obj_set_flex_flow(footer, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(footer, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    // Shows the screen background
-    lv_obj_set_style_bg_opa(footer, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(footer, 0, LV_PART_MAIN);
-
-    lv_obj_set_width(footer, LV_PCT(100));
-    lv_obj_set_height(footer, LV_PCT(14));
-    lv_obj_set_style_pad_all(footer, 0, LV_PART_MAIN);
-    lv_obj_set_scrollable(footer, false);
-
-    ctx->uiCurrentFileName = lv_label_create(footer);
-    lv_label_set_long_mode(ctx->uiCurrentFileName, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
-    lv_obj_set_width(ctx->uiCurrentFileName, LV_SIZE_CONTENT);
-    lv_obj_set_height(ctx->uiCurrentFileName, LV_SIZE_CONTENT);
-    lv_label_set_text(ctx->uiCurrentFileName, tr("Untitled"));
-    lv_obj_align(ctx->uiCurrentFileName, LV_ALIGN_CENTER, 0, 0);
-
-    // Floating over the text area, below the toolbar
-    ctx->uiOverlay = lvgl_card_create(parent);
-    lv_obj_set_floating(ctx->uiOverlay, true);
-    lv_obj_set_size(ctx->uiOverlay, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(ctx->uiOverlay, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ctx->uiOverlay, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scrollable(ctx->uiOverlay, false);
-    lvgl_obj_add_edge_padding(ctx->uiOverlay);
-    // The arrow keys move between the overlay's buttons as one row
-    lvgl_grid_navigation_add(ctx->uiOverlay);
-    lv_obj_add_event_cb(ctx->uiOverlay, onOverlayKey, LV_EVENT_KEY, ctx);
-    lv_obj_set_hidden(ctx->uiOverlay, true);
 
     if (!ctx->filePath.empty()) {
-        openFile(ctx, ctx->filePath);
+        openFile(ctx, ctx->filePath.c_str());
     }
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->uiToolbar = nullptr;
+    ctx->uiNoteText = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -282,15 +267,21 @@ int32_t appMain(int argc, char* argv[]) {
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.menuBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.menuBit) {
+            onMenuResult(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -306,7 +297,7 @@ int32_t appMain(int argc, char* argv[]) {
                             char destination[sizeof(ctx.loadResultBuffer)];
                             size_t length = app_stream_read(&ctx.loadResultStream, destination, sizeof(destination));
                             app_stream_unsubscribe(&ctx.loadResultStream);
-                            auto path = std::string(destination, length);
+                            auto path = ::std::string(destination, length);
                             LOG_I(TAG, "Path: '%s'", path.c_str());
                             if (!path.empty()) {
                                 openFile(&ctx, path);
@@ -320,7 +311,7 @@ int32_t appMain(int argc, char* argv[]) {
                             char destination[sizeof(ctx.saveResultBuffer)];
                             size_t length = app_stream_read(&ctx.saveResultStream, destination, sizeof(destination));
                             app_stream_unsubscribe(&ctx.saveResultStream);
-                            auto path = std::string(destination, length);
+                            auto path = ::std::string(destination, length);
                             // Must re-open file, because the UI was cleared after opening the dialog.
                             LOG_I(TAG, "Path: '%s'", path.c_str());
                             if (!path.empty() && saveFile(&ctx, path)) {
@@ -341,6 +332,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.menuBit);
     task_event_group_destruct(&event_group);
 
     return 0;
@@ -348,7 +340,7 @@ int32_t appMain(int argc, char* argv[]) {
 
 } // namespace
 
-void start(const std::string& filePath) {
+void start(const ::std::string& filePath) {
     const char* argv[] = { filePath.c_str() };
     uint32_t instanceId = 0;
     AppStartContext context = app_start_context_for_manifest(&manifest);

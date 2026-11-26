@@ -38,11 +38,11 @@ constexpr auto* TAG = "Launcher";
 
 namespace {
 
-std::vector<TileGridItem> collectItems(void* userData);
-void onTilesCleared(void* userData);
-void onAppClicked(const TileGridItem& item, void* userData);
-void onAppLongPressed(const TileGridItem& item, void* userData);
-void onAppKey(const TileGridItem& item, uint32_t key, void* userData);
+void collectItems(lv_obj_t* grid, void* userData);
+void onTilesCleared(lv_obj_t* grid, void* userData);
+void onAppClicked(lv_obj_t* grid, const LvglTileGridItem* item, void* userData);
+void onAppLongPressed(lv_obj_t* grid, const LvglTileGridItem* item, void* userData);
+void onAppKey(lv_obj_t* grid, const LvglTileGridItem* item, uint32_t key, void* userData);
 
 enum class Mode {
     Apps,
@@ -67,20 +67,13 @@ struct Context {
     std::atomic<bool> packagesChanged { false };
     // Set when the settings are shown before their icons are loaded
     std::atomic<bool> settingsIconsRequested { false };
-    TileGrid grid { TileGrid::Callbacks {
-        .collect = collectItems,
-        .onClicked = onAppClicked,
-        .onLongPressed = onAppLongPressed,
-        .onKey = onAppKey,
-        .resolveImage = nullptr,
-        .resolveIcon = nullptr,
-        .onPageChanged = nullptr,
-        .onTilesCleared = onTilesCleared,
-        .userData = this,
-    } };
+    /** Set while the widgets exist, accessed with the LVGL lock held */
+    lv_obj_t* grid = nullptr;
+    /** The page of the grid, kept while there are no widgets */
+    uint32_t page = 0;
 };
 
-std::vector<TileGridItem> collectItems(void* userData) {
+void collectItems(lv_obj_t* grid, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     // The theme changed since the icons were rasterized: the file operations task rasterizes them again, then the grid is rebuilt
     const bool appIconsOutdated = !areAppIconsCurrent();
@@ -91,11 +84,11 @@ std::vector<TileGridItem> collectItems(void* userData) {
         if (settingsIconsOutdated) ctx->settingsIconsRequested = true;
         task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
     }
-    return getLauncherMode(ctx->mode).collect();
+    addTileGridItems(grid, getLauncherMode(ctx->mode).collect());
 }
 
 // The tiles that showed replaced icon images are gone
-void onTilesCleared(void*) {
+void onTilesCleared(lv_obj_t*, void*) {
     releaseRetiredAppIcons();
     releaseRetiredSettingsIcons();
 }
@@ -122,37 +115,39 @@ void startApp(void* context) {
     delete job;
 }
 
-void onAppClicked(const TileGridItem& item, void*) {
-    auto* job = new (::std::nothrow) StartAppJob { item.id };
+void onAppClicked(lv_obj_t*, const LvglTileGridItem* item, void*) {
+    auto* job = new (::std::nothrow) StartAppJob { item->id };
     if (job == nullptr || file_ops_queue(startApp, job, nullptr) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to queue starting %s", item.id.c_str());
+        LOG_E(TAG, "Failed to queue starting %s", item->id);
         delete job;
     }
 }
 
-void onAppLongPressed(const TileGridItem& item, void* userData) {
+void onAppLongPressed(lv_obj_t* grid, const LvglTileGridItem* item, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     const LauncherMode& mode = getLauncherMode(ctx->mode);
     if (mode.onLongPressed != nullptr) {
-        mode.onLongPressed(ctx->grid, item);
+        mode.onLongPressed(grid, *item);
     }
 }
 
-void onAppKey(const TileGridItem& item, uint32_t key, void* userData) {
+void onAppKey(lv_obj_t* grid, const LvglTileGridItem* item, uint32_t key, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     const LauncherMode& mode = getLauncherMode(ctx->mode);
     if (mode.onKey != nullptr) {
-        mode.onKey(ctx->grid, item, key);
+        mode.onKey(grid, *item, key);
     }
+}
+
+// The monochrome theme's primary color is black, also on a black background
+LvglTileGridIconColor getIconColor(const LauncherMode& mode) {
+    return lvgl_theme_is_mono() ? LVGL_TILE_GRID_ICON_COLOR_DEFAULT : mode.iconColor;
 }
 
 void applyMode(Context* ctx) {
     const auto& mode = getLauncherMode(ctx->mode);
-    ctx->grid.setStyle(mode.tileStyle);
-    // The monochrome theme's primary color is black, also on a black background
-    if (!lvgl_theme_is_mono()) {
-        ctx->grid.setIconColor(mode.iconColor);
-    }
+    lvgl_tile_grid_set_style(ctx->grid, mode.tileStyle);
+    lvgl_tile_grid_set_icon_color(ctx->grid, getIconColor(mode));
 }
 
 void onModeButtonPressed(void* userData) {
@@ -163,8 +158,9 @@ void onModeButtonPressed(void* userData) {
         task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
     }
     applyMode(ctx);
-    ctx->grid.showFirstPage();
-    ctx->grid.requestRepopulate(false);
+    lvgl_tile_grid_show_first_page(ctx->grid);
+    ctx->page = 0;
+    lvgl_tile_grid_request_repopulate(ctx->grid, false);
     system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
 }
 
@@ -174,20 +170,41 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    applyMode(ctx);
-    ctx->grid.setSwipeNavigation(true);
-    ctx->grid.setVerticalSwipeInSideLayout(true);
-    ctx->grid.setSystemPageButtons(true);
-    ctx->grid.setSideIndicator(true);
+    const auto& mode = getLauncherMode(ctx->mode);
+    const LvglTileGridConfig config = {
+        .style = mode.tileStyle,
+        .icon_color = getIconColor(mode),
+        .swipe_navigation = true,
+        .callbacks = {
+            .collect = collectItems,
+            .on_clicked = onAppClicked,
+            .on_long_pressed = onAppLongPressed,
+            .on_key = onAppKey,
+            .resolve_image = nullptr,
+            .resolve_icon = nullptr,
+            .on_page_changed = nullptr,
+            .on_tiles_cleared = onTilesCleared,
+            .user_data = ctx,
+        },
+        .paging = getSystemBarsPaging(),
+        .page = ctx->page,
+    };
+    ctx->grid = lvgl_tile_grid_create(parent, &config);
+    if (ctx->grid == nullptr) {
+        LOG_E(TAG, "Failed to create the grid");
+        return;
+    }
     system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
-    ctx->grid.createWidgets(parent);
     ctx->widgetsExist = true;
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->widgetsExist = false;
-    ctx->grid.destroyWidgets();
+    if (ctx->grid != nullptr) {
+        ctx->page = lvgl_tile_grid_get_page(ctx->grid);
+    }
+    ctx->grid = nullptr;
 }
 
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
@@ -328,7 +345,7 @@ int32_t appMain(int argc, char* argv[]) {
             // Replaced images are freed by the rebuild, or right away when there are no tiles
             lvgl_lock();
             if (ctx.widgetsExist) {
-                ctx.grid.requestRepopulate(true);
+                lvgl_tile_grid_request_repopulate(ctx.grid, true);
             } else {
                 releaseRetiredAppIcons();
                 releaseRetiredSettingsIcons();

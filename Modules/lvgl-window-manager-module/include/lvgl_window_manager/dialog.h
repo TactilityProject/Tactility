@@ -131,6 +131,22 @@ error_t window_manager_selection_dialog(
 );
 
 /**
+ * Shows a dialog with a title and a list of items to choose from, each with an optional icon in front of its text.
+ * Behaves like window_manager_selection_dialog().
+ * @param[in] icons a glyph of the shared icon font per item (LVGL_ICON_SHARED_* from <lvgl/icons/shared.h>), or NULL for no icon.
+ * The array may be NULL for no icons at all. They are copied.
+ */
+error_t window_manager_selection_dialog_with_icons(
+    AppInstanceId app_instance_id,
+    const char* title,
+    const char* const* items,
+    const char* const* icons,
+    uint32_t item_count,
+    WindowSelectionDialogResultFn on_result,
+    void* user_data
+);
+
+/**
  * Closes the dialog that is shown, as if it was dismissed. Does nothing when no dialog is shown.
  * @warning Only uses the LVGL lock, so it can be called from LVGL event callbacks.
  */

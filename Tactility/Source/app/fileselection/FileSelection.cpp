@@ -19,6 +19,8 @@
 #include <lvgl/lvgl.h>
 
 #include <tactility/check.h>
+#include <tactility/delay.h>
+#include <tactility/file_ops.h>
 #include <tactility/filesystem/fs.h>
 
 #include <cstdint>
@@ -108,7 +110,7 @@ void destroyWidgets(void* userData) {
 
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>" and "--ext=<extension>" (repeatable)
+    // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>", "--path=<directory>" and "--ext=<extension>" (repeatable)
     Options options;
     size_t maxResultBytes = SIZE_MAX;
     for (int i = 0; i < argc; i++) {
@@ -118,6 +120,7 @@ int32_t appMain(int argc, char* argv[]) {
         else if (arg == "--no-files") options.allowFiles = false;
         else if (arg == "--multiple") options.multiple = true;
         else if (arg.starts_with("--ext=")) options.extensions.push_back(arg.substr(6));
+        else if (arg.starts_with("--path=")) options.initialPath = arg.substr(7);
         else if (arg.starts_with("--max-bytes=")) maxResultBytes = strtoul(arg.c_str() + 12, nullptr, 10);
     }
 
@@ -129,7 +132,7 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.maxResultBytes = maxResultBytes;
     ctx.state = ::std::make_shared<State>(::std::move(options));
     check(task_event_group_claim_bit(&event_group, &ctx.pickedBit) == ERROR_NONE);
-    ctx.view = ::std::make_unique<View>(appInstanceId, ctx.state, &event_group, [&ctx, &event_group](const ::std::vector<::std::string>& paths) {
+    ctx.view = ::std::make_unique<View>(appInstanceId, ctx.state, [&ctx, &event_group](const ::std::vector<::std::string>& paths) {
         // Runs on the LVGL thread, which can't check whether the files exist
         ctx.pickedPaths = paths;
         task_event_group_signal(&event_group, ctx.pickedBit);
@@ -138,15 +141,16 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
+    // Subscribed up front, as the teardown has to wait for pending file operations
+    FileOpsSubscription fileOpsSub {};
+    check(file_ops_subscribe(&fileOpsSub, &event_group) == ERROR_NONE);
+
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     while (true) {
         uint32_t flags = 0;
         task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
 
-        if (flags & ctx.view->getFileOpsBit()) {
-            ctx.view->onFileOpsCompleted();
-        }
         if (flags & ctx.pickedBit) {
             onPicked(&ctx);
         }
@@ -164,6 +168,17 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    // A directory read that was pending when the widgets were deleted still filters its entries with the view.
+    // The file operations run in order, so it has completed when work that is queued after it has.
+    // Other failures than a lack of memory only happen when nothing is queued, so no read is pending then
+    error_t queueError;
+    while ((queueError = file_ops_queue([](void*) {}, nullptr, &fileOpsSub)) == ERROR_OUT_OF_MEMORY) {
+        delay_millis(10);
+    }
+    if (queueError == ERROR_NONE) {
+        file_ops_await(&fileOpsSub, portMAX_DELAY);
+    }
+    file_ops_unsubscribe(&fileOpsSub);
     // The view releases its event group bit when it is destroyed, so it ends before the event group does
     ctx.view.reset();
     task_event_group_release_bit(&event_group, ctx.pickedBit);
@@ -193,6 +208,9 @@ uint32_t start(uint32_t callerAppInstanceId, AppStream& stream, void* buffer, si
     if (options.multiple) args.emplace_back("--multiple");
     for (const auto& extension : options.extensions) {
         args.push_back("--ext=" + extension);
+    }
+    if (!options.initialPath.empty()) {
+        args.push_back("--path=" + options.initialPath);
     }
     args.push_back("--max-bytes=" + ::std::to_string(bufferCapacity));
     ::std::vector<const char*> argv;

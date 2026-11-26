@@ -258,6 +258,7 @@ void remote_input_key(RemoteInput* input, uint32_t key, bool pressed, bool ctrl,
         data.pressed = pressed;
         data.ctrl = ctrl;
         data.alt = alt;
+        data.modifiers = (ctrl ? KEYBOARD_MODIFIER_CTRL : 0) | (alt ? KEYBOARD_MODIFIER_ALT : 0);
         input->keys[(input->keyHead + input->keyCount) % KEY_QUEUE_CAPACITY] = data;
         input->keyCount++;
     }

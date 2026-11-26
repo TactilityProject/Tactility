@@ -20,6 +20,8 @@ struct Uc8253Config {
     int clock_speed_hz;
     /** Panel name, see the binding's panel-type */
     const char* panel_type;
+    // Optional reference to this display's backlight device, NULL if none.
+    struct Device* backlight;
 };
 
 #ifdef __cplusplus

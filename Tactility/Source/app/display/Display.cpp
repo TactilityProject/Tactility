@@ -212,7 +212,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
 
             const int32_t percent = settings::display::backlightBrightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
-            auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, BRIGHTNESS_STEP, percent);
+            auto* brightness_slider = lvgl_sliderbox_create(brightness_card, settings::display::BACKLIGHT_MIN_PERCENT, 100, BRIGHTNESS_STEP, percent);
             lv_obj_set_width(brightness_slider, LV_PCT(100));
             lvgl_sliderbox_add_value_changed_cb(brightness_slider, onBacklightSliderEvent, ctx);
         }

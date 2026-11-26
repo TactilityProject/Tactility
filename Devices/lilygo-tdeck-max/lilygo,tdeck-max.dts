@@ -214,6 +214,7 @@
 			pin-cs = <&gpio0 34 GPIO_FLAG_NONE>;
 			clock-speed-hz = <10000000>;
 			panel-type = "gdeq031t10";
+			backlight = <&display_backlight>;
 		};
 
 		sdcard@1 {

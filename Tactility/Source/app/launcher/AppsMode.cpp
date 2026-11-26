@@ -221,7 +221,7 @@ std::vector<TileGridItem> collectItems() {
     return items;
 }
 
-void toggleFavourite(TileGrid& grid, const char* appId, bool keepSelection) {
+void toggleFavourite(lv_obj_t* grid, const char* appId, bool keepSelection) {
     auto* job = new (::std::nothrow) SaveFavouritesJob();
     if (job == nullptr) {
         LOG_E(TAG, "Failed to queue saving favourites");
@@ -237,16 +237,16 @@ void toggleFavourite(TileGrid& grid, const char* appId, bool keepSelection) {
         LOG_E(TAG, "Failed to queue saving favourites");
         delete job;
     }
-    grid.requestRepopulate(keepSelection);
+    lvgl_tile_grid_request_repopulate(grid, keepSelection);
 }
 
-void onLongPressed(TileGrid& grid, const TileGridItem& item) {
-    toggleFavourite(grid, item.id.c_str(), false);
+void onLongPressed(lv_obj_t* grid, const LvglTileGridItem& item) {
+    toggleFavourite(grid, item.id, false);
 }
 
-void onKey(TileGrid& grid, const TileGridItem& item, uint32_t key) {
+void onKey(lv_obj_t* grid, const LvglTileGridItem& item, uint32_t key) {
     if (key == 'f' || key == 'F') {
-        toggleFavourite(grid, item.id.c_str(), true);
+        toggleFavourite(grid, item.id, true);
     }
 }
 
@@ -423,8 +423,8 @@ void loadPackageIcons(void*) {
 
 const LauncherMode APPS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_APPS,
-    .tileStyle = TileGrid::Style::Tile,
-    .iconColor = TileGrid::IconColor::Primary,
+    .tileStyle = LVGL_TILE_GRID_STYLE_TILE,
+    .iconColor = LVGL_TILE_GRID_ICON_COLOR_PRIMARY,
     .collect = collectItems,
     .onLongPressed = onLongPressed,
     .onKey = onKey

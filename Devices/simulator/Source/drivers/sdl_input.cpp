@@ -2,6 +2,8 @@
 #include "sdl_input.h"
 #include "sdl_display.h"
 
+#include <tactility/Memory.hpp>
+#include <tactility/check.h>
 #include <tactility/drivers/keyboard.h>
 
 #include <SDL2/SDL.h>
@@ -21,10 +23,18 @@ SdlPointerState pointer_state = { 0, 0, false };
 int window_width = 0;
 int window_height = 0;
 
-uint32_t key_queue[KEY_QUEUE_CAPACITY];
-bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
-size_t key_queue_head = 0;
-size_t key_queue_count = 0;
+struct KeyQueue {
+    KeyboardKeyData events[KEY_QUEUE_CAPACITY] = {};
+    size_t head = 0;
+    size_t count = 0;
+};
+
+// Allocated on first use and never freed. Guarded by state_mutex.
+KeyQueue& key_queue() {
+    static KeyQueue* instance = tt::newObject<KeyQueue>();
+    check(instance != nullptr);
+    return *instance;
+}
 
 bool text_input_started = false;
 
@@ -42,7 +52,8 @@ float wheel_swipe_offset_y = 0.0f;
 uint32_t wheel_swipe_last_ms = 0;
 
 struct HeldControlKey {
-    uint32_t key = 0;
+    // The press, so that its release reports the same modifiers. The key is 0 when the slot is free.
+    KeyboardKeyData data = {};
     uint8_t ref_count = 0;
 };
 
@@ -51,26 +62,48 @@ HeldControlKey held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
 
 struct HeldTextKey {
     SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
-    uint32_t key = 0;
+    KeyboardKeyData data = {};
 };
 
 constexpr size_t MAX_HELD_TEXT_KEYS = 11;
 HeldTextKey held_text_keys[MAX_HELD_TEXT_KEYS] = {};
-SDL_Scancode last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
 
-uint32_t last_reported_key = 0;
-bool last_reported_pressed = false;
+// The key down that the next text input belongs to
+struct TextKeyDown {
+    SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+    uint8_t modifiers = 0;
+};
 
-bool mark_control_key_held(uint32_t key) {
+TextKeyDown last_text_keydown;
+
+KeyboardKeyData last_reported = {};
+
+KeyboardKeyData make_key_data(uint32_t key, uint8_t modifiers) {
+    KeyboardKeyData data = {};
+    data.key = key;
+    data.modifiers = modifiers;
+    return data;
+}
+
+// The modifiers of an SDL event, which are the ones from when the key was pressed rather than the current ones
+uint8_t to_modifiers(uint16_t sdl_modifiers) {
+    uint8_t modifiers = 0;
+    if ((sdl_modifiers & KMOD_CTRL) != 0) modifiers |= KEYBOARD_MODIFIER_CTRL;
+    if ((sdl_modifiers & KMOD_ALT) != 0) modifiers |= KEYBOARD_MODIFIER_ALT;
+    if ((sdl_modifiers & KMOD_SHIFT) != 0) modifiers |= KEYBOARD_MODIFIER_SHIFT;
+    return modifiers;
+}
+
+bool mark_control_key_held(const KeyboardKeyData& data) {
     for (HeldControlKey& slot : held_control_keys) {
-        if (slot.key == key) {
+        if (slot.data.key == data.key) {
             slot.ref_count++;
             return false;
         }
     }
     for (HeldControlKey& slot : held_control_keys) {
         if (slot.ref_count == 0) {
-            slot.key = key;
+            slot.data = data;
             slot.ref_count = 1;
             return true;
         }
@@ -78,12 +111,14 @@ bool mark_control_key_held(uint32_t key) {
     return true; // unreachable
 }
 
-bool clear_control_key_held(uint32_t key) {
+// Replaces the data with the one of the press, when there was one
+bool clear_control_key_held(KeyboardKeyData& data) {
     for (HeldControlKey& slot : held_control_keys) {
-        if (slot.key == key) {
+        if (slot.data.key == data.key) {
+            data = slot.data;
             slot.ref_count--;
             if (slot.ref_count == 0) {
-                slot.key = 0;
+                slot.data = {};
                 return true;
             }
             return false;
@@ -92,81 +127,77 @@ bool clear_control_key_held(uint32_t key) {
     return true;
 }
 
-uint32_t find_any_held_control_key() {
+const HeldControlKey* find_any_held_control_key() {
     for (const HeldControlKey& slot : held_control_keys) {
-        if (slot.key != 0) {
-            return slot.key;
+        if (slot.data.key != 0) {
+            return &slot;
         }
     }
-    return 0;
+    return nullptr;
 }
 
-void push_key(uint32_t key, bool pressed) {
-    if (key == 0) {
+void push_key(KeyboardKeyData data, bool pressed) {
+    if (data.key == 0) {
         return;
     }
-    if (key_queue_count >= KEY_QUEUE_CAPACITY) {
+    data.pressed = pressed;
+    KeyQueue& queue = key_queue();
+    if (queue.count >= KEY_QUEUE_CAPACITY) {
         size_t evict_offset = 0;
-        for (size_t i = 0; i < key_queue_count; i++) {
-            size_t idx = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
-            if (key_pressed_queue[idx]) {
+        for (size_t i = 0; i < queue.count; i++) {
+            if (queue.events[(queue.head + i) % KEY_QUEUE_CAPACITY].pressed) {
                 evict_offset = i;
                 break;
             }
         }
-        for (size_t i = evict_offset; i + 1 < key_queue_count; i++) {
-            size_t dst = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
-            size_t src = (key_queue_head + i + 1) % KEY_QUEUE_CAPACITY;
-            key_queue[dst] = key_queue[src];
-            key_pressed_queue[dst] = key_pressed_queue[src];
+        for (size_t i = evict_offset; i + 1 < queue.count; i++) {
+            queue.events[(queue.head + i) % KEY_QUEUE_CAPACITY] = queue.events[(queue.head + i + 1) % KEY_QUEUE_CAPACITY];
         }
-        key_queue_count--;
+        queue.count--;
     }
-    size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
-    key_queue[idx] = key;
-    key_pressed_queue[idx] = pressed;
-    key_queue_count++;
-    last_reported_key = key;
-    last_reported_pressed = pressed;
+    queue.events[(queue.head + queue.count) % KEY_QUEUE_CAPACITY] = data;
+    queue.count++;
+    last_reported = data;
 
     if (!pressed) {
-        uint32_t other_held_key = find_any_held_control_key();
-        if (other_held_key != 0) {
-            last_reported_key = other_held_key;
-            last_reported_pressed = true;
+        const HeldControlKey* other_held_key = find_any_held_control_key();
+        if (other_held_key != nullptr) {
+            last_reported = other_held_key->data;
+            last_reported.pressed = true;
         }
     }
 }
 
-bool hold_text_key(SDL_Scancode scancode, uint32_t key) {
+// @return the data of the held key, which is the one of the first press while it types the same character, or null without a free slot
+const KeyboardKeyData* hold_text_key(SDL_Scancode scancode, const KeyboardKeyData& data) {
     if (scancode == SDL_SCANCODE_UNKNOWN) {
-        return false;
+        return nullptr;
     }
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode == scancode) {
-            if (slot.key != key) {
-                push_key(slot.key, false);
+            if (slot.data.key != data.key) {
+                push_key(slot.data, false);
+                slot.data = data;
             }
-            slot.key = key;
-            return true;
+            return &slot.data;
         }
     }
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode == SDL_SCANCODE_UNKNOWN) {
             slot.scancode = scancode;
-            slot.key = key;
-            return true;
+            slot.data = data;
+            return &slot.data;
         }
     }
-    return false;
+    return nullptr;
 }
 
 void release_text_key(SDL_Scancode scancode) {
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode == scancode) {
-            const uint32_t key = slot.key;
+            const KeyboardKeyData data = slot.data;
             slot = HeldTextKey {};
-            push_key(key, false);
+            push_key(data, false);
             return;
         }
     }
@@ -176,20 +207,20 @@ void release_text_key(SDL_Scancode scancode) {
 // focus, so nothing else would ever release them.
 void release_all_held_keys() {
     for (HeldControlKey& slot : held_control_keys) {
-        if (slot.key != 0) {
-            const uint32_t key = slot.key;
+        if (slot.data.key != 0) {
+            const KeyboardKeyData data = slot.data;
             slot = HeldControlKey {};
-            push_key(key, false);
+            push_key(data, false);
         }
     }
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode != SDL_SCANCODE_UNKNOWN) {
-            const uint32_t key = slot.key;
+            const KeyboardKeyData data = slot.data;
             slot = HeldTextKey {};
-            push_key(key, false);
+            push_key(data, false);
         }
     }
-    last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+    last_text_keydown = {};
 }
 
 void set_pointer_position(int32_t window_x, int32_t window_y) {
@@ -308,25 +339,27 @@ void sdl_input_pump() {
                 case SDL_KEYDOWN: {
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
                     if (key != 0) {
-                        last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+                        last_text_keydown = {};
                         // event.key.repeat is true for the auto-repeat events the OS sends
                         // while a key is held
                         if (event.key.repeat) {
                             break;
                         }
-                        if (mark_control_key_held(key)) {
-                            push_key(key, true);
+                        const KeyboardKeyData data = make_key_data(key, to_modifiers(event.key.keysym.mod));
+                        if (mark_control_key_held(data)) {
+                            push_key(data, true);
                         }
                     } else {
-                        last_text_keydown_scancode = event.key.keysym.scancode;
+                        last_text_keydown = { event.key.keysym.scancode, to_modifiers(event.key.keysym.mod) };
                     }
                     break;
                 }
                 case SDL_KEYUP: {
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
                     if (key != 0) {
-                        if (clear_control_key_held(key)) {
-                            push_key(key, false);
+                        KeyboardKeyData data = make_key_data(key, to_modifiers(event.key.keysym.mod));
+                        if (clear_control_key_held(data)) {
+                            push_key(data, false);
                         }
                     } else {
                         release_text_key(event.key.keysym.scancode);
@@ -336,15 +369,16 @@ void sdl_input_pump() {
                 case SDL_TEXTINPUT:
                     // ASCII only
                     if (static_cast<uint8_t>(event.text.text[0]) < 0x80) {
-                        const uint32_t key = static_cast<uint8_t>(event.text.text[0]);
-                        if (hold_text_key(last_text_keydown_scancode, key)) {
+                        const KeyboardKeyData data = make_key_data(static_cast<uint8_t>(event.text.text[0]), last_text_keydown.modifiers);
+                        const KeyboardKeyData* held = hold_text_key(last_text_keydown.scancode, data);
+                        if (held != nullptr) {
                             // Held until the physical key comes up, like a control key
-                            push_key(key, true);
+                            push_key(*held, true);
                         } else {
                             // No KEYDOWN to pair with or no free slot: fall back to an
                             // instantaneous tap
-                            push_key(key, true);
-                            push_key(key, false);
+                            push_key(data, true);
+                            push_key(data, false);
                         }
                     }
                     break;
@@ -394,31 +428,31 @@ void sdl_input_get_pointer_state(SdlPointerState* out_state) {
     map_to_view(&out_state->x, &out_state->y);
 }
 
-bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed) {
+bool sdl_input_pop_key(KeyboardKeyData* out_data) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (key_queue_count == 0) {
+    KeyQueue& queue = key_queue();
+    if (queue.count == 0) {
         return false;
     }
-    *out_key = key_queue[key_queue_head];
-    *out_pressed = key_pressed_queue[key_queue_head];
-    key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
-    key_queue_count--;
+    *out_data = queue.events[queue.head];
+    queue.head = (queue.head + 1) % KEY_QUEUE_CAPACITY;
+    queue.count--;
     return true;
 }
 
 bool sdl_input_has_queued_key() {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return key_queue_count > 0;
+    return key_queue().count > 0;
 }
 
-bool sdl_input_get_held_key(uint32_t* out_key) {
+bool sdl_input_get_held_key(KeyboardKeyData* out_data) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (!last_reported_pressed || last_reported_key == 0) {
+    if (!last_reported.pressed || last_reported.key == 0) {
         return false;
     }
     for (const HeldControlKey& slot : held_control_keys) {
-        if (slot.key == last_reported_key) {
-            *out_key = slot.key;
+        if (slot.data.key == last_reported.key) {
+            *out_data = last_reported;
             return true;
         }
     }
