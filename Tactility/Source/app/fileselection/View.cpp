@@ -27,7 +27,9 @@ View::View(uint32_t appInstanceId, const ::std::shared_ptr<State>& state, ::std:
     appInstanceId(appInstanceId),
     state(state),
     on_file_selected(::std::move(onFileSelected))
-{}
+{
+    nameText = state->getOptions().initialName.c_str();
+}
 
 // region Directory
 

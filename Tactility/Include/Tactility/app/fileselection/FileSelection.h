@@ -23,6 +23,8 @@ struct Options {
     std::vector<std::string> extensions;
     /** The directory that is shown first. Empty starts at the root of the data (paths_get_root_path()). */
     std::string initialPath;
+    /** Pre-fills the name field. Only used with allowNewFile. */
+    std::string initialName;
 };
 
 /**
