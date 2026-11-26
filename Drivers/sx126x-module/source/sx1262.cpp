@@ -352,6 +352,7 @@ static error_t start(Device* device) {
 
     const Sx1262Radio::Settings settings = {
         .device = device,
+        .antenna_switch = config->antenna_switch,
         .spi_controller = parent,
         .spi_host = spi_config->host,
         .spi_frequency_hz = (int)config->spi_frequency_khz * 1000,
@@ -497,12 +498,7 @@ static error_t api_is_receiving(Device* device, bool* receiving) {
 static error_t api_set_antenna(Device* device, uint32_t antenna) {
     auto* radio = get_radio(device);
     if (radio == nullptr) return ERROR_INVALID_STATE;
-
-    const auto* config = GET_CONFIG(device);
-    if (config->antenna_switch == nullptr) return ERROR_NOT_SUPPORTED;
-    if (!device_is_ready(config->antenna_switch)) return ERROR_INVALID_STATE;
-    if (radio->getState() != RADIO_STATE_OFF) return ERROR_INVALID_STATE;
-    return antenna_switch_set_antenna(config->antenna_switch, antenna);
+    return radio->setAntenna(antenna);
 }
 
 static error_t api_get_antenna(Device* device, uint32_t* antenna) {

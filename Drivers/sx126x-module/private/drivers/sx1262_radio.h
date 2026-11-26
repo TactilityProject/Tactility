@@ -34,6 +34,8 @@ public:
     struct Settings {
         /** The kernel device, passed to callbacks */
         Device* device;
+        /** Optional antenna switch associated with the radio */
+        Device* antenna_switch;
         /** The parent SPI controller device, for the SPI controller bus lock */
         Device* spi_controller;
         spi_host_device_t spi_host;
@@ -168,6 +170,7 @@ public:
 
     enum RadioState getState() const;
     error_t setEnabled(bool enabled);
+    error_t setAntenna(uint32_t antenna);
     error_t setModulation(enum RadioModulation newModulation);
     enum RadioModulation getModulation() const;
 
