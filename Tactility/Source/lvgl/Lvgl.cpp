@@ -230,7 +230,7 @@ void start() {
             .on_start = onLvglStarted,
             .on_stop = onLvglStopped,
             .task_priority = THREAD_PRIORITY_HIGHER,
-            .task_stack_size = 9120,
+            .task_stack_size = 10144,
 #ifdef ESP_PLATFORM
             .task_affinity = getCpuAffinityConfiguration().graphics
 #endif
