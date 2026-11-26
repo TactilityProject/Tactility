@@ -20,3 +20,6 @@ msgstr "Die Pfade sind zu lang, um sie zurückzugeben. Wähle weniger Elemente."
 
 msgid "Enter filename"
 msgstr "Dateiname eingeben"
+
+msgid "Failed to open the folder"
+msgstr "Der Ordner konnte nicht geöffnet werden"

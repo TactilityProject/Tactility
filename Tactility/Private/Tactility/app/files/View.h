@@ -94,6 +94,8 @@ class View final {
     void onDirectoryLoaded(const ::std::string& path, error_t error);
     /** Whether the entry of the current directory is an executable */
     bool isExecutable(const ::std::string& name) const;
+    /** Whether the entry menu offers to open the entry */
+    bool canOpen(const dirent& dir_entry) const;
 
     /** Shows the menu dialog with @a actions. Runs on the LVGL task. */
     void showMenu(const ::std::string& title, const ::std::vector<MenuAction>& actions);
@@ -135,8 +137,9 @@ class View final {
     /**
      * Reads the directory on the file operations task, then shows it. Runs on the LVGL task.
      * @param[in] selectFirst select the first entry, or the nearest path bar segment when the directory is empty
+     * @param[in] focusParentSegment then select the path bar segment of the parent of the new directory
      */
-    void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst);
+    void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst, bool focusParentSegment = false);
     /** Reads the current directory again, after it changed. Runs on any task. */
     void reload();
 

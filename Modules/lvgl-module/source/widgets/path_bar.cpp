@@ -185,10 +185,22 @@ void rebuild(PathBar* self) {
         build(first);
     }
     // Shortens the name of the current directory when that is still not enough
-    const int32_t excess = getOverflow(self->toolbar);
-    if (excess > 0) {
-        lv_obj_t* label = lv_obj_get_child(self->widgets.back(), 0);
-        lv_obj_set_width(label, std::max<int32_t>(lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)), lv_obj_get_width(label) - excess));
+    auto shorten = [self](lv_obj_t* segment) {
+        const int32_t excess = getOverflow(self->toolbar);
+        if (excess > 0) {
+            lv_obj_t* label = lv_obj_get_child(segment, 0);
+            lv_obj_set_width(label, std::max<int32_t>(lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)), lv_obj_get_width(label) - excess));
+        }
+    };
+    shorten(self->widgets.back());
+    // Then the name of the parent, which is left out when even that is not enough
+    if (names.size() >= 2) {
+        const auto parent = self->widgets.end() - 2;
+        shorten(*parent);
+        if (getOverflow(self->toolbar) > 0) {
+            lv_obj_delete(*parent);
+            self->widgets.erase(parent);
+        }
     }
     self->builtWidth = lv_obj_get_width(self->toolbar);
 

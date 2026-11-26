@@ -140,6 +140,7 @@ int http_client_read(HttpClient* client, void* buffer, size_t size) {
         return -1;
     }
     if (client->backend == nullptr) {
+        client->failure = HTTP_CLIENT_FAILURE_NOT_OPEN;
         return -1;
     }
     const int result = client->backend->read(*client, buffer, std::min<size_t>(size, INT32_MAX));

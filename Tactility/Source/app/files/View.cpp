@@ -242,7 +242,7 @@ void View::updateBusySpinner() {
     lvgl_unlock();
 }
 
-void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirst) {
+void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirst, bool focusParentSegment) {
     if (files == nullptr) {
         return;
     }
@@ -251,6 +251,7 @@ void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirs
         return;
     }
     pendingPath = path;
+    selectParentSegment = focusParentSegment;
     if (!navigationPending) {
         navigationPending = true;
         beginOperation();
@@ -281,6 +282,7 @@ void View::onDirectoryLoaded(const ::std::string& path, error_t error) {
     }
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to read %s", path.c_str());
+        selectParentSegment = false;
         // The shown directory stays, so it gets the refresh that waited for this navigation
         if (refreshDeferred && !lvgl_files_is_loading(files)) {
             refreshDeferred = false;
@@ -560,9 +562,14 @@ void View::onDirEntryLongPressed(const ::std::string& name) {
     showEntryMenu(dir_entry);
 }
 
+bool View::canOpen(const dirent& dir_entry) const {
+    const ::std::string name = dir_entry.d_name;
+    return dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR ||
+        isSupportedAppFile(name) || isSupportedImageFile(name) || isSupportedTextFile(name) || isExecutable(name);
+}
+
 void View::showEntryMenu(const dirent& dir_entry) {
     const ::std::string name = dir_entry.d_name;
-    const bool is_directory = dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR;
     ::std::vector<MenuAction> actions;
 
     if (state->getCurrentPath() == "/") {
@@ -573,8 +580,7 @@ void View::showEntryMenu(const dirent& dir_entry) {
         }
         actions = { MenuAction::Open, MenuAction::Eject };
     } else {
-        const bool can_open = is_directory || isSupportedAppFile(name) || isSupportedImageFile(name) || isSupportedTextFile(name) || isExecutable(name);
-        if (can_open) {
+        if (canOpen(dir_entry)) {
             actions.push_back(MenuAction::Open);
         }
         actions.push_back(MenuAction::Select);
@@ -597,7 +603,8 @@ void View::showEntryMenu(const dirent& dir_entry) {
 void View::showSelectionMenu() {
     const auto entries = state->getSelectedEntries();
     ::std::vector<MenuAction> actions;
-    if (entries.size() == 1) {
+    dirent single_entry;
+    if (entries.size() == 1 && findDirent(entries.front(), single_entry) && canOpen(single_entry)) {
         actions.push_back(MenuAction::Open);
     }
     actions.push_back(MenuAction::Copy);
@@ -873,8 +880,7 @@ void View::onEjectPressed() {
 void View::onPathSegmentPressed(lv_obj_t*, const char* path, bool fromKeys, void* userData) {
     auto* view = static_cast<View*>(userData);
     view->onNavigate();
-    view->selectParentSegment = fromKeys;
-    view->navigateTo(path, true, false);
+    view->navigateTo(path, true, false, fromKeys);
 }
 
 // The grid can still hold a deleted segment, as the fallback of a selection that waits for the repopulate
@@ -953,9 +959,10 @@ void View::onDialogResult() {
     const DialogOwner owner = dialogOwner;
     const int32_t result = dialogResult;
     const ::std::string installPath = installAppPath;
-    dialogOwner = DialogOwner::None;
     if (owner == DialogOwner::Menu) {
         lvgl_lock();
+        // Reset under the lock, so a new menu can't replace the actions before this result is handled
+        dialogOwner = DialogOwner::None;
         // The widgets are gone while another window covers this one
         if (toolbar == nullptr) {
             state->clearSelectedEntries();
@@ -969,6 +976,7 @@ void View::onDialogResult() {
         lvgl_unlock();
         return;
     }
+    dialogOwner = DialogOwner::None;
     if (owner == DialogOwner::Install) {
         if (result == 0) {
             app_install(installPath.c_str());

@@ -28,6 +28,7 @@ enum HttpClientFailure {
     HTTP_CLIENT_FAILURE_PROTOCOL, // the server sent an invalid or incomplete response
     HTTP_CLIENT_FAILURE_CANCELLED,
     HTTP_CLIENT_FAILURE_MEMORY,
+    HTTP_CLIENT_FAILURE_NOT_OPEN, // there is no open response to read
 };
 
 struct HttpClient;

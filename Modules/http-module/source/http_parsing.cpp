@@ -102,8 +102,9 @@ bool http_is_valid_header_name(const char* name) {
     if (name == nullptr || *name == '\0') {
         return false;
     }
+    constexpr std::string_view TOKEN_SYMBOLS = "!#$%&'*+-.^_`|~";
     for (const char* c = name; *c != '\0'; c++) {
-        if (static_cast<unsigned char>(*c) <= ' ' || static_cast<unsigned char>(*c) >= 127 || *c == ':') {
+        if (!std::isalnum(static_cast<unsigned char>(*c)) && TOKEN_SYMBOLS.find(*c) == std::string_view::npos) {
             return false;
         }
     }

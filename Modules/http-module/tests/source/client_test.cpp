@@ -29,5 +29,8 @@ TEST_CASE("http_client rejects bad headers and URLs") {
     CHECK_EQ(http_client_set_header(client, "Host", "x"), ERROR_INVALID_ARGUMENT);
     CHECK_EQ(http_client_open(client, "file:///etc/passwd"), ERROR_INVALID_ARGUMENT);
     CHECK_EQ(http_client_get_failure(client), HTTP_CLIENT_FAILURE_URL);
+    char buffer[4];
+    CHECK_EQ(http_client_read(client, buffer, sizeof(buffer)), -1);
+    CHECK_EQ(http_client_get_failure(client), HTTP_CLIENT_FAILURE_NOT_OPEN);
     http_client_free(client);
 }

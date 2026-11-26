@@ -10,6 +10,7 @@
 #include <tactility/log.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cstring>
 #include <new>
 #include <string>
@@ -106,7 +107,8 @@ void readWork(void* context) {
         job->error = ERROR_NOT_FOUND;
     } else {
         dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
+        // readdir() returns null at the end and on failure, and only a failure sets errno
+        while ((errno = 0, entry = readdir(dir)) != nullptr) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
@@ -115,6 +117,10 @@ void readWork(void* context) {
             }
             const uint32_t kind = job->callbacks.classify != nullptr ? job->callbacks.classify(job->path.c_str(), entry, job->callbacks.user_data) : 0;
             job->entries.push_back({ *entry, kind });
+        }
+        if (errno != 0) {
+            LOG_E(TAG, "Failed to read %s", job->path.c_str());
+            job->error = ERROR_RESOURCE;
         }
         closedir(dir);
         // Directories first, then by name
@@ -134,7 +140,12 @@ void readWork(void* context) {
         delete job;
     } else {
         job->done = true;
-        lv_async_call(applyJob, job);
+        if (lv_async_call(applyJob, job) != LV_RESULT_OK) {
+            // Reported from here, as the read has to end
+            LOG_E(TAG, "Failed to schedule showing %s", job->path.c_str());
+            job->error = ERROR_OUT_OF_MEMORY;
+            applyJob(job);
+        }
     }
     lvgl_unlock();
 }
@@ -322,6 +333,11 @@ lv_obj_t* lvgl_files_create(lv_obj_t* parent, const LvglFilesConfig* config) {
         .page = config != nullptr ? config->page : 0,
     };
     self->grid = lvgl_tile_grid_create(obj, &gridConfig);
+    if (self->grid == nullptr) {
+        // Frees the state through the delete event
+        lv_obj_delete(obj);
+        return nullptr;
+    }
     return obj;
 }
 

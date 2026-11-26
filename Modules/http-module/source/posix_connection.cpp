@@ -222,11 +222,15 @@ bool HttpPosixConnection::readLine(std::string& line) {
     while (true) {
         const auto end = pending.find("\r\n");
         if (end != std::string::npos) {
+            if (end > MAX_LINE_LENGTH) {
+                return false;
+            }
             line = pending.substr(0, end);
             pending.erase(0, end + 2);
             return true;
         }
-        if (pending.size() > MAX_LINE_LENGTH) {
+        // A line of the maximum length can have received only the CR of its terminator
+        if (pending.size() > MAX_LINE_LENGTH && !(pending.size() == MAX_LINE_LENGTH + 1 && pending.back() == '\r')) {
             return false;
         }
         char buffer[BUFFER_SIZE];

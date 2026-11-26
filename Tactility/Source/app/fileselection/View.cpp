@@ -39,6 +39,11 @@ void View::navigateTo(const ::std::string& path, bool selectFirst) {
     const bool firstPage = !state->isLoaded() || path != state->getCurrentPath();
     if (lvgl_files_set_path(files, path.c_str(), firstPage, selectFirst) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
+        // Nothing is shown and no read is pending, so the user has to know why
+        if (!state->isLoaded() && load_error_label == nullptr) {
+            load_error_label = lv_label_create(lv_obj_get_parent(files));
+            lv_label_set_text(load_error_label, tr("Failed to open the folder"));
+        }
     }
 }
 
@@ -54,6 +59,11 @@ void View::onDirectoryLoaded(const ::std::string& path, error_t error) {
             navigateTo("/", !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
         }
         return;
+    }
+
+    if (load_error_label != nullptr) {
+        lv_obj_delete(load_error_label);
+        load_error_label = nullptr;
     }
 
     const auto& options = state->getOptions();
@@ -289,6 +299,7 @@ void View::destroyWidgets() {
     path_bar = nullptr;
     select_button = nullptr;
     files = nullptr;
+    load_error_label = nullptr;
     path_textarea = nullptr;
     selectParentSegment = false;
 }

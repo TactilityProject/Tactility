@@ -11,14 +11,18 @@
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/page_indicator.h>
 
+#include <tactility/Memory.hpp>
+#include <tactility/log.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <new>
-#include <string>
-#include <vector>
 
 namespace {
+
+constexpr auto* TAG = "lvgl_tile_grid";
 
 // Minimum label width, as a multiple of the label's font size
 constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
@@ -26,8 +30,8 @@ constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
 constexpr uint32_t CARD_WIDTH_IN_FONT_SIZES = 12;
 
 struct StoredItem {
-    std::string id;
-    std::string name;
+    tt::std::string id;
+    tt::std::string name;
     /** Its id and name point into the strings above */
     LvglTileGridItem item;
 };
@@ -45,13 +49,17 @@ struct TileGrid {
     const LvglTileGridPaging* paging = nullptr;
 
     /** Tiles point at the items, so they are only replaced after the tiles are deleted */
-    std::vector<StoredItem> items;
+    tt::std::vector<StoredItem> items;
     bool collecting = false;
 
     /** Where the pointer was pressed on a tile, which tells a tap from a swipe when it is released */
     lv_point_t pressPoint = {};
     uint32_t page = 0;
     uint32_t pageCount = 1;
+    /** The next rebuild shows the first page. The page above is the shown one until then. */
+    bool firstPagePending = false;
+    /** Whether a rebuild is queued */
+    bool repopulatePending = false;
     bool keepSelectionOnRepopulate = true;
     bool selectFirstOnRepopulate = false;
     lv_obj_t* emptyFallback = nullptr;
@@ -228,6 +236,10 @@ void placePageIndicator(lv_obj_t* indicator, lv_obj_t* tiles, bool column, bool 
 void populate(TileGrid* self);
 
 void goToPage(TileGrid* self, bool next) {
+    if (self->firstPagePending) {
+        self->firstPagePending = false;
+        self->page = 0;
+    }
     if (next) {
         self->page = self->page + 1 < self->pageCount ? self->page + 1 : 0;
     } else {
@@ -250,7 +262,9 @@ void onDeferredPreviousPage(void* userData) {
 }
 
 void onDeferredRepopulate(void* userData) {
-    populate(static_cast<TileGrid*>(userData));
+    auto* self = static_cast<TileGrid*>(userData);
+    self->repopulatePending = false;
+    populate(self);
 }
 
 // A layout pass can resize the grid temporarily (e.g. to its content height, before the parent's flex layout grows it again)
@@ -269,7 +283,7 @@ void onDeleted(lv_event_t* e) {
     lv_async_call_cancel(onDeferredNextPage, self);
     lv_async_call_cancel(onDeferredPreviousPage, self);
     reinterpret_cast<TileGridObject*>(self->obj)->grid = nullptr;
-    delete self;
+    tt::deleteObject(self);
 }
 
 // Deferred: page size depends on the size of the tiles container, which is final only after the layout pass that triggered this
@@ -431,18 +445,21 @@ lv_obj_t* createTile(TileGrid* self, const LvglTileGridItem& item, const PageLay
             icon_text = self->callbacks.resolve_icon(self->obj, &item, self->callbacks.user_data);
         }
     }
+    auto getIconColor = [self, frame](lv_obj_t* object) {
+        if (self->iconColor == LVGL_TILE_GRID_ICON_COLOR_PRIMARY) {
+            return lv_theme_get_color_primary(object);
+        }
+        if (self->iconColor == LVGL_TILE_GRID_ICON_COLOR_SECONDARY) {
+            return lv_theme_get_color_secondary(object);
+        }
+        return lv_obj_get_style_text_color(frame, LV_PART_MAIN);
+    };
     if (image_src != nullptr) {
         lv_obj_t* image = lv_image_create(frame);
         lv_image_set_src(image, image_src);
         lv_obj_set_size(image, layout.iconSize, layout.iconSize);
         if (item.image_recolor) {
-            lv_color_t color = lv_obj_get_style_text_color(frame, LV_PART_MAIN);
-            if (self->iconColor == LVGL_TILE_GRID_ICON_COLOR_PRIMARY) {
-                color = lv_theme_get_color_primary(image);
-            } else if (self->iconColor == LVGL_TILE_GRID_ICON_COLOR_SECONDARY) {
-                color = lv_theme_get_color_secondary(image);
-            }
-            lv_obj_set_style_image_recolor(image, color, LV_STATE_DEFAULT);
+            lv_obj_set_style_image_recolor(image, getIconColor(image), LV_STATE_DEFAULT);
             lv_obj_set_style_image_recolor_opa(image, LV_OPA_COVER, LV_STATE_DEFAULT);
         }
     } else {
@@ -465,8 +482,7 @@ lv_obj_t* createTile(TileGrid* self, const LvglTileGridItem& item, const PageLay
             lv_obj_set_style_transform_scale(icon, 256 * layout.iconSize / glyphSize, LV_STATE_DEFAULT);
         }
         lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
-        // A placeholder for an image that isn't loaded yet has the theme's text colour
-        lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(frame, LV_PART_MAIN), LV_STATE_DEFAULT);
+        lv_obj_set_style_text_color(icon, getIconColor(icon), LV_STATE_DEFAULT);
     }
 
     lv_obj_t* label = lv_label_create(tile);
@@ -501,9 +517,9 @@ void populate(TileGrid* self) {
     // Captured before lv_obj_clean() deletes the currently focused tile below: creating
     // replacement tiles doesn't restore the focus, so the item id is remembered here and
     // re-focused on its new tile once rebuilt.
-    std::string focusedId;
+    tt::std::string focusedId;
     const bool keepSelection = self->keepSelectionOnRepopulate;
-    lv_group_t* group = lv_group_get_default();
+    lv_group_t* group = lv_obj_get_group(tiles);
     if (group != nullptr && keepSelection) {
         // Grid navigation focuses the tiles container in the group, and a tile within it
         lv_obj_t* focused = lv_group_get_focused(group) == tiles ? lvgl_grid_navigation_get_focused(tiles) : nullptr;
@@ -516,6 +532,10 @@ void populate(TileGrid* self) {
     lv_obj_t* fallback = self->emptyFallback;
     self->selectFirstOnRepopulate = false;
     self->emptyFallback = nullptr;
+    if (self->firstPagePending) {
+        self->firstPagePending = false;
+        self->page = 0;
+    }
 
     // Old tiles hold pointers into the items, so they are deleted before the items are replaced.
     lv_obj_clean(tiles);
@@ -537,15 +557,21 @@ void populate(TileGrid* self) {
     const int32_t reservedWidth = 2 * columnWidth;
     // A row of dots below the tiles is balanced by the same space above them
     auto getReservedHeight = [&] { return !dotsInColumn && isPagingVisible(self) ? getPageIndicatorRowHeight() : 0; };
+    // Measured without the indicator first, so the result doesn't depend on the previous rebuild
+    const bool wasPagingVisible = isPagingVisible(self);
+    if (wasPagingVisible) {
+        lv_obj_set_hidden(self->pageIndicator, true);
+        lv_obj_update_layout(lv_obj_get_parent(self->obj));
+    }
     PageLayout layout = computePageLayout(tiles, self->style, reservedWidth, getReservedHeight());
     const uint32_t item_count = self->items.size();
     uint32_t page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
 
     // The page indicator and buttons take room from the tiles, and are only shown with multiple pages.
     // Showing them changes the size and so the page size, so the layout is computed again with them in place.
-    const bool wasPagingVisible = isPagingVisible(self);
-    setPagingVisible(self, page_count > 1);
-    if (wasPagingVisible != (page_count > 1)) {
+    const bool paged = page_count > 1;
+    setPagingVisible(self, paged);
+    if (paged || wasPagingVisible) {
         lv_obj_update_layout(lv_obj_get_parent(self->obj));
         layout = computePageLayout(tiles, self->style, reservedWidth, getReservedHeight());
         page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
@@ -634,7 +660,7 @@ uint32_t lvgl_tile_grid_get_card_icon_size(void) {
 }
 
 lv_obj_t* lvgl_tile_grid_create(lv_obj_t* parent, const LvglTileGridConfig* config) {
-    auto* self = new (std::nothrow) TileGrid();
+    auto* self = tt::newObject<TileGrid>();
     if (self == nullptr) {
         return nullptr;
     }
@@ -712,7 +738,7 @@ void lvgl_tile_grid_set_icon_color(lv_obj_t* grid, LvglTileGridIconColor color) 
 
 void lvgl_tile_grid_show_first_page(lv_obj_t* grid) {
     if (TileGrid* self = getGrid(grid)) {
-        self->page = 0;
+        self->firstPagePending = true;
     }
 }
 
@@ -725,8 +751,13 @@ void lvgl_tile_grid_request_repopulate(lv_obj_t* grid, bool keep_selection) {
     self->keepSelectionOnRepopulate = keep_selection;
     self->selectFirstOnRepopulate = false;
     self->emptyFallback = nullptr;
-    lv_async_call_cancel(onDeferredRepopulate, self);
-    lv_async_call(onDeferredRepopulate, self);
+    // A queued rebuild applies the latest request, so it is kept instead of being replaced
+    if (!self->repopulatePending) {
+        self->repopulatePending = lv_async_call(onDeferredRepopulate, self) == LV_RESULT_OK;
+        if (!self->repopulatePending) {
+            LOG_E(TAG, "Failed to queue a rebuild");
+        }
+    }
 }
 
 void lvgl_tile_grid_request_repopulate_selecting_first(lv_obj_t* grid, lv_obj_t* empty_fallback) {

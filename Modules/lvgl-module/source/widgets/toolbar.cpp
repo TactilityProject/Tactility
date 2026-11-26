@@ -74,6 +74,7 @@ static void fitTitle(Toolbar* toolbar) {
     // Only depends on the width, so the resize that a new font causes doesn't change it again
     if (lv_obj_get_style_text_font(label, LV_PART_MAIN) != font) {
         lv_obj_set_style_text_font(label, font, LV_STATE_DEFAULT);
+        lv_obj_set_height(label, lv_font_get_line_height(font));
     }
 }
 
@@ -170,6 +171,8 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     toolbar->title_label = lv_label_create(obj);
     lv_obj_set_style_text_font(toolbar->title_label, getToolbarFont(size), LV_STATE_DEFAULT);
     lv_label_set_text(toolbar->title_label, title);
+    // One line, so a long title is cut off instead of wrapped
+    lv_obj_set_height(toolbar->title_label, lv_font_get_line_height(getToolbarFont(size)));
     lv_label_set_long_mode(toolbar->title_label, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_flex_grow(toolbar->title_label, 1);
     lv_obj_add_event_cb(toolbar->title_label, onTitleSizeChanged, LV_EVENT_SIZE_CHANGED, toolbar);

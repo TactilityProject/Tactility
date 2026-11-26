@@ -51,8 +51,10 @@ typedef struct {
     /**
      * A directory was read and its entries are shown from the next rebuild, which is already requested, or reading it failed.
      * The path stays the one before when it failed.
+     * Normally called on the LVGL task. When that can't be scheduled, it is called on the file operations task with the LVGL lock held.
      * @param[in] path the directory that was read
-     * @param[in] error ERROR_NONE, or ERROR_NOT_FOUND when the directory could not be opened
+     * @param[in] error ERROR_NONE, ERROR_NOT_FOUND when the directory could not be opened, ERROR_RESOURCE when reading it failed,
+     * or ERROR_OUT_OF_MEMORY when it could not be shown
      */
     void (*on_loaded)(lv_obj_t* files, const char* path, error_t error, void* user_data);
     /**
@@ -79,7 +81,7 @@ typedef struct {
  * The view is as wide as its parent and grows in a flex column (flex grow 1). It is empty until a path is set.
  * @param[in] parent the parent object, normally with a flex column layout
  * @param[in] config the configuration, which is copied
- * @return the created view
+ * @return the created view, or NULL when out of memory
  */
 lv_obj_t* lvgl_files_create(lv_obj_t* parent, const LvglFilesConfig* config);
 
@@ -88,8 +90,8 @@ lv_obj_t* lvgl_files_create(lv_obj_t* parent, const LvglFilesConfig* config);
  * A newer call replaces a read that is still pending. Reports the result to on_loaded.
  * @param[in] files the view
  * @param[in] path the directory, which is copied
- * @param[in] first_page show the first page, instead of the page of the selected entry
- * @param[in] select_first select the first entry, like lvgl_tile_grid_request_repopulate_selecting_first(). Otherwise the selection stays.
+ * @param[in] first_page show the first page, instead of the page of the selected entry. Without select_first, no entry stays selected.
+ * @param[in] select_first select the first entry, like lvgl_tile_grid_request_repopulate_selecting_first(). Otherwise the selection stays, unless first_page is set.
  * @retval ERROR_NONE the read is queued
  * @retval ERROR_OUT_OF_MEMORY the read could not be queued
  */

@@ -20,3 +20,6 @@ msgstr "Las rutas son demasiado largas para devolverlas. Selecciona menos elemen
 
 msgid "Enter filename"
 msgstr "Introduce el nombre del archivo"
+
+msgid "Failed to open the folder"
+msgstr "No se pudo abrir la carpeta"

@@ -20,3 +20,6 @@ msgstr "Les chemins sont trop longs à renvoyer. Sélectionnez moins d'élément
 
 msgid "Enter filename"
 msgstr "Saisir le nom du fichier"
+
+msgid "Failed to open the folder"
+msgstr "Impossible d’ouvrir le dossier"

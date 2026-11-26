@@ -26,6 +26,8 @@ class View final {
     /** Picks the selection. Only shown when the selection is valid. */
     lv_obj_t* select_button = nullptr;
     lv_obj_t* files = nullptr;
+    /** Shown when the first directory could not be queued for reading */
+    lv_obj_t* load_error_label = nullptr;
     /** For typing the name of a new file in the directory that is shown, only with Options::allowNewFile */
     lv_obj_t* path_textarea = nullptr;
     /** The text of the name field, kept so the field can be rebuilt and the result doesn't need the widgets */

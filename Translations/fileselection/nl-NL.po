@@ -20,3 +20,6 @@ msgstr "De paden zijn te lang om terug te geven. Selecteer minder items."
 
 msgid "Enter filename"
 msgstr "Voer bestandsnaam in"
+
+msgid "Failed to open the folder"
+msgstr "Kan de map niet openen"

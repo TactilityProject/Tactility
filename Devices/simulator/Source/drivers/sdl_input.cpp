@@ -45,6 +45,8 @@ uint32_t wheel_swipe_last_ms = 0;
 struct HeldControlKey {
     uint32_t key = 0;
     uint8_t ref_count = 0;
+    // The Shift state of the press
+    bool shift = false;
 };
 
 constexpr size_t MAX_HELD_CONTROL_KEYS = 11;
@@ -63,7 +65,11 @@ uint32_t last_reported_key = 0;
 bool last_reported_pressed = false;
 bool last_reported_shift = false;
 
-bool mark_control_key_held(uint32_t key) {
+bool is_shift_down() {
+    return (SDL_GetModState() & KMOD_SHIFT) != 0;
+}
+
+bool mark_control_key_held(uint32_t key, bool shift) {
     for (HeldControlKey& slot : held_control_keys) {
         if (slot.key == key) {
             slot.ref_count++;
@@ -74,15 +80,17 @@ bool mark_control_key_held(uint32_t key) {
         if (slot.ref_count == 0) {
             slot.key = key;
             slot.ref_count = 1;
+            slot.shift = shift;
             return true;
         }
     }
     return true; // unreachable
 }
 
-bool clear_control_key_held(uint32_t key) {
+bool clear_control_key_held(uint32_t key, bool& shift) {
     for (HeldControlKey& slot : held_control_keys) {
         if (slot.key == key) {
+            shift = slot.shift;
             slot.ref_count--;
             if (slot.ref_count == 0) {
                 slot.key = 0;
@@ -94,16 +102,16 @@ bool clear_control_key_held(uint32_t key) {
     return true;
 }
 
-uint32_t find_any_held_control_key() {
+const HeldControlKey* find_any_held_control_key() {
     for (const HeldControlKey& slot : held_control_keys) {
         if (slot.key != 0) {
-            return slot.key;
+            return &slot;
         }
     }
-    return 0;
+    return nullptr;
 }
 
-void push_key(uint32_t key, bool pressed) {
+void push_key(uint32_t key, bool pressed, bool shift) {
     if (key == 0) {
         return;
     }
@@ -127,7 +135,6 @@ void push_key(uint32_t key, bool pressed) {
     }
     size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
     key_queue[idx] = key;
-    const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
     key_pressed_queue[idx] = pressed;
     key_shift_queue[idx] = shift;
     key_queue_count++;
@@ -136,10 +143,11 @@ void push_key(uint32_t key, bool pressed) {
     last_reported_shift = shift;
 
     if (!pressed) {
-        uint32_t other_held_key = find_any_held_control_key();
-        if (other_held_key != 0) {
-            last_reported_key = other_held_key;
+        const HeldControlKey* other_held_key = find_any_held_control_key();
+        if (other_held_key != nullptr) {
+            last_reported_key = other_held_key->key;
             last_reported_pressed = true;
+            last_reported_shift = other_held_key->shift;
         }
     }
 }
@@ -151,7 +159,7 @@ bool hold_text_key(SDL_Scancode scancode, uint32_t key) {
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode == scancode) {
             if (slot.key != key) {
-                push_key(slot.key, false);
+                push_key(slot.key, false, is_shift_down());
             }
             slot.key = key;
             return true;
@@ -172,7 +180,7 @@ void release_text_key(SDL_Scancode scancode) {
         if (slot.scancode == scancode) {
             const uint32_t key = slot.key;
             slot = HeldTextKey {};
-            push_key(key, false);
+            push_key(key, false, is_shift_down());
             return;
         }
     }
@@ -184,15 +192,16 @@ void release_all_held_keys() {
     for (HeldControlKey& slot : held_control_keys) {
         if (slot.key != 0) {
             const uint32_t key = slot.key;
+            const bool shift = slot.shift;
             slot = HeldControlKey {};
-            push_key(key, false);
+            push_key(key, false, shift);
         }
     }
     for (HeldTextKey& slot : held_text_keys) {
         if (slot.scancode != SDL_SCANCODE_UNKNOWN) {
             const uint32_t key = slot.key;
             slot = HeldTextKey {};
-            push_key(key, false);
+            push_key(key, false, is_shift_down());
         }
     }
     last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
@@ -320,8 +329,9 @@ void sdl_input_pump() {
                         if (event.key.repeat) {
                             break;
                         }
-                        if (mark_control_key_held(key)) {
-                            push_key(key, true);
+                        const bool shift = (event.key.keysym.mod & KMOD_SHIFT) != 0;
+                        if (mark_control_key_held(key, shift)) {
+                            push_key(key, true, shift);
                         }
                     } else {
                         last_text_keydown_scancode = event.key.keysym.scancode;
@@ -331,8 +341,9 @@ void sdl_input_pump() {
                 case SDL_KEYUP: {
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
                     if (key != 0) {
-                        if (clear_control_key_held(key)) {
-                            push_key(key, false);
+                        bool shift = (event.key.keysym.mod & KMOD_SHIFT) != 0;
+                        if (clear_control_key_held(key, shift)) {
+                            push_key(key, false, shift);
                         }
                     } else {
                         release_text_key(event.key.keysym.scancode);
@@ -345,12 +356,12 @@ void sdl_input_pump() {
                         const uint32_t key = static_cast<uint8_t>(event.text.text[0]);
                         if (hold_text_key(last_text_keydown_scancode, key)) {
                             // Held until the physical key comes up, like a control key
-                            push_key(key, true);
+                            push_key(key, true, is_shift_down());
                         } else {
                             // No KEYDOWN to pair with or no free slot: fall back to an
                             // instantaneous tap
-                            push_key(key, true);
-                            push_key(key, false);
+                            push_key(key, true, is_shift_down());
+                            push_key(key, false, is_shift_down());
                         }
                     }
                     break;

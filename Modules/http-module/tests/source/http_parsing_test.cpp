@@ -88,3 +88,11 @@ TEST_CASE("http_is_chunked matches the last coding in any case") {
     CHECK_FALSE(http_is_chunked("chunked, gzip"));
     CHECK_FALSE(http_is_chunked("notchunked"));
 }
+
+TEST_CASE("http_is_valid_header_name accepts tokens only") {
+    CHECK(http_is_valid_header_name("X-Test"));
+    CHECK(http_is_valid_header_name("X_Test"));
+    CHECK_FALSE(http_is_valid_header_name("X/Test"));
+    CHECK_FALSE(http_is_valid_header_name("X(Test)"));
+    CHECK_FALSE(http_is_valid_header_name("X=Test"));
+}

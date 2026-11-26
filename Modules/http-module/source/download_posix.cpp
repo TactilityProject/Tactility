@@ -3,6 +3,8 @@
 #include <http/private/http_parsing.h>
 #include <http/private/posix_connection.h>
 
+#include <psa/crypto.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <string>
@@ -55,6 +57,9 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
     HttpUrl parsedUrl;
     if (!http_parse_https_url(url, parsedUrl)) {
         return http_download_make_error_event("Unsupported URL");
+    }
+    if (psa_crypto_init() != PSA_SUCCESS) {
+        return http_download_make_error_event("Failed to initialize crypto");
     }
     HttpPosixConnection connection;
     if (!connection.loadCertificate(certPem)) {
