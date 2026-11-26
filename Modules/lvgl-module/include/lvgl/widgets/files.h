@@ -32,8 +32,15 @@ typedef struct {
      * @return a value that is kept with the entry and passed to the other callbacks, e.g. a file type. 0 without this callback.
      */
     uint32_t (*classify)(const char* directory, const struct dirent* entry, void* user_data);
+    /**
+     * Runs on the file operations task for every entry while a directory is read, before classify. It must not use LVGL.
+     * @return false to leave the entry out. Without this callback, every entry is shown.
+     */
+    bool (*filter)(const char* directory, const struct dirent* entry, void* user_data);
     /** Sets the icon of an entry. Without this callback, directories have a folder, links a link and files a document. */
     void (*get_icon)(lv_obj_t* files, const struct dirent* entry, uint32_t kind, LvglFilesIcon* icon, void* user_data);
+    /** Whether the tile of an entry is shown checked (LV_STATE_CHECKED) when it is built, e.g. because it is selected */
+    bool (*is_checked)(lv_obj_t* files, const struct dirent* entry, uint32_t kind, void* user_data);
     /** An entry was clicked (not swiped) */
     void (*on_clicked)(lv_obj_t* files, const struct dirent* entry, uint32_t kind, void* user_data);
     void (*on_long_pressed)(lv_obj_t* files, const struct dirent* entry, uint32_t kind, void* user_data);
@@ -48,6 +55,10 @@ typedef struct {
      * @param[in] error ERROR_NONE, or ERROR_NOT_FOUND when the directory could not be opened
      */
     void (*on_loaded)(lv_obj_t* files, const char* path, error_t error, void* user_data);
+    /**
+     * Passed to the callbacks. A directory read that is pending when the view is deleted still calls classify and filter,
+     * so what they use must stay valid until then: work that is queued with file_ops_queue() after it runs when it completed.
+     */
     void* user_data;
 } LvglFilesCallbacks;
 

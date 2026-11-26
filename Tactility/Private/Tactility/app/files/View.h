@@ -72,14 +72,9 @@ class View final {
     ::std::atomic<int> pendingOperations = 0;
 
     lv_obj_t* toolbar = nullptr;
-    /** The path bar: the buttons of the path segments that fit, and an ellipsis in front when the path is cut off */
-    ::std::vector<lv_obj_t*> pathBarWidgets;
-    /** The path that each segment button of the path bar navigates to */
-    ::std::vector<::std::string> pathBarPaths;
-    /** Set when a path segment was pressed: the path bar then selects the segment of the parent of the new directory */
+    lv_obj_t* path_bar = nullptr;
+    /** Set when keys pressed a path segment: the path bar then selects the segment of the parent of the new directory */
     bool selectParentSegment = false;
-    /** The toolbar width that the path bar was built for */
-    int32_t pathBarWidth = 0;
     lv_obj_t* overflow_button = nullptr;
 
     ::std::string installAppPath = { 0 };
@@ -89,7 +84,7 @@ class View final {
     static void onEntryClicked(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
     static void onEntryLongPressed(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
     static void onEntryKey(lv_obj_t* files, const dirent* entry, uint32_t kind, uint32_t key, void* userData);
-    static void onPageChanged(lv_obj_t* files, void* userData);
+    static bool isEntryChecked(lv_obj_t* files, const dirent* entry, uint32_t kind, void* userData);
     static void onLoaded(lv_obj_t* files, const char* path, error_t error, void* userData);
     /** Shows a directory that was read. Runs on the LVGL task. */
     void onDirectoryLoaded(const ::std::string& path, error_t error);
@@ -131,13 +126,8 @@ class View final {
     void viewFile(const ::std::string&path, const ::std::string&filename);
     void runFile(const ::std::string& file_path);
     void onNavigate();
-    /** Rebuilds the path bar for the current path. Runs on the LVGL task. */
-    void updatePathBar();
-    /** @return the path bar segment of the parent of the current directory, or the current directory when it has no pressable parent shown */
-    lv_obj_t* getParentPathSegment() const;
-    static void onPathSegmentPressed(lv_event_t* event);
-    static void onToolbarSizeChanged(lv_event_t* event);
-    static void onDeferredPathBarUpdate(void* userData);
+    static void onPathSegmentPressed(lv_obj_t* bar, const char* path, bool fromKeys, void* userData);
+    static void onPathBarRebuilt(lv_obj_t* bar, void* userData);
     /**
      * Reads the directory on the file operations task, then shows it. Runs on the LVGL task.
      * @param[in] selectFirst select the first entry, or the nearest path bar segment when the directory is empty

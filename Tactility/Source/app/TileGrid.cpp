@@ -82,6 +82,7 @@ void addTileGridItems(lv_obj_t* grid, const std::vector<TileGridItem>& items) {
             .image = item.image,
             .image_recolor = item.imageRecolor,
             .user_data = nullptr,
+            .checked = false,
         };
         lvgl_tile_grid_add_item(grid, &gridItem);
     }

@@ -110,6 +110,9 @@ void readWork(void* context) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
+            if (job->callbacks.filter != nullptr && !job->callbacks.filter(job->path.c_str(), entry, job->callbacks.user_data)) {
+                continue;
+            }
             const uint32_t kind = job->callbacks.classify != nullptr ? job->callbacks.classify(job->path.c_str(), entry, job->callbacks.user_data) : 0;
             job->entries.push_back({ *entry, kind });
         }
@@ -215,6 +218,7 @@ void collect(lv_obj_t* grid, void* userData) {
             .image = icon.image,
             .image_recolor = icon.image_recolor,
             .user_data = nullptr,
+            .checked = self->callbacks.is_checked != nullptr && self->callbacks.is_checked(self->obj, &entry.entry, entry.kind, self->callbacks.user_data),
         };
         lvgl_tile_grid_add_item(grid, &item);
     }

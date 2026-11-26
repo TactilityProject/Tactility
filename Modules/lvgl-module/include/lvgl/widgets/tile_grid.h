@@ -53,6 +53,8 @@ typedef struct {
     bool image_recolor;
     /** For the owner of the grid, e.g. an index into its own data */
     void* user_data;
+    /** The tile starts with LV_STATE_CHECKED, e.g. for a selection that is kept across rebuilds */
+    bool checked;
 } LvglTileGridItem;
 
 /** What the grid asks of and reports to its owner. Only collect and on_clicked are required. */

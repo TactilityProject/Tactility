@@ -17,7 +17,7 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/files.h>
 #include <lvgl/widgets/icon_button.h>
-#include <lvgl/widgets/pathbar_button.h>
+#include <lvgl/widgets/path_bar.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <generated_assets.h>
@@ -288,9 +288,13 @@ void View::onDirectoryLoaded(const ::std::string& path, error_t error) {
     }
     state->setCurrentPath(path);
     lv_obj_set_hidden(overflow_button, path == "/");
-    updatePathBar();
-    // The nearest segment of the path bar is selected when the directory has no entries
-    lvgl_tile_grid_replace_empty_fallback(lvgl_files_get_tile_grid(files), getParentPathSegment());
+    // Also replaces the fallback of the selection, the nearest segment, for when the directory has no entries
+    lvgl_path_bar_set_path(path_bar, path.c_str());
+    // The pressed segment is gone, so the selection moves to the segment below the new directory
+    if (selectParentSegment) {
+        selectParentSegment = false;
+        lvgl_path_bar_focus_parent_segment(path_bar);
+    }
 }
 
 namespace {
@@ -428,13 +432,9 @@ void View::onEntryKey(lv_obj_t*, const dirent* entry, uint32_t, uint32_t key, vo
     static_cast<View*>(userData)->onDirEntryKeyPressed(entry->d_name, key);
 }
 
-void View::onPageChanged(lv_obj_t*, void* userData) {
-    auto* view = static_cast<View*>(userData);
-    const auto entries = view->state->getSelectedEntries();
-    // The selection stays, and the tiles of the new page that are selected show it
-    for (const auto& name : entries) {
-        view->setTileChecked(name, true);
-    }
+bool View::isEntryChecked(lv_obj_t*, const dirent* entry, uint32_t, void* userData) {
+    // The selection is kept when the tiles are rebuilt, e.g. on another page
+    return static_cast<View*>(userData)->state->isSelectedEntry(entry->d_name);
 }
 
 bool View::isExecutable(const ::std::string& name) const {
@@ -857,161 +857,18 @@ void View::onEjectPressed() {
     navigateTo(state->getCurrentPath(), false, false);
 }
 
-lv_obj_t* View::getParentPathSegment() const {
-    if (pathBarWidgets.size() >= 2 && lv_obj_is_clickable(pathBarWidgets[pathBarWidgets.size() - 2])) {
-        return pathBarWidgets[pathBarWidgets.size() - 2];
-    }
-    return pathBarWidgets.back();
-}
-
-void View::onPathSegmentPressed(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    const auto index = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event)));
-    if (index < view->pathBarPaths.size()) {
-        view->onNavigate();
-        // Only when keys selected the segment, as a touch doesn't show a selection
-        view->selectParentSegment = lv_obj_has_state(lv_event_get_target_obj(event), LV_STATE_FOCUS_KEY);
-        view->navigateTo(view->pathBarPaths[index], true, false);
-    }
-}
-
-void View::onDeferredPathBarUpdate(void* userData) {
+void View::onPathSegmentPressed(lv_obj_t*, const char* path, bool fromKeys, void* userData) {
     auto* view = static_cast<View*>(userData);
-    if (view->toolbar != nullptr) {
-        view->updatePathBar();
-    }
+    view->onNavigate();
+    view->selectParentSegment = fromKeys;
+    view->navigateTo(path, true, false);
 }
 
-// The toolbar can change size when the system bars change. The path bar is rebuilt after the layout pass.
-void View::onToolbarSizeChanged(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    if (lv_obj_get_width(view->toolbar) != view->pathBarWidth) {
-        lv_async_call_cancel(onDeferredPathBarUpdate, view);
-        lv_async_call(onDeferredPathBarUpdate, view);
-    }
-}
-
-void View::updatePathBar() {
-    for (auto* widget : pathBarWidgets) {
-        lv_obj_delete(widget);
-    }
-    pathBarWidgets.clear();
-    pathBarPaths.clear();
-
-    // The root, and a path for every directory of the current path
-    ::std::vector<::std::string> names = { "/" };
-    pathBarPaths.push_back("/");
-    const auto& current_path = state->getCurrentPath();
-    ::std::string accumulated;
-    size_t start = 0;
-    while (start < current_path.size()) {
-        if (current_path[start] == '/') {
-            start++;
-            continue;
-        }
-        size_t end = current_path.find('/', start);
-        if (end == ::std::string::npos) {
-            end = current_path.size();
-        }
-        names.push_back(current_path.substr(start, end - start));
-        accumulated += "/" + names.back();
-        pathBarPaths.push_back(accumulated);
-        start = end;
-    }
-
-    lv_obj_update_layout(toolbar);
-
-    // Shows the segments from the first one that is given, and an ellipsis in front of the first one when the path is cut off.
-    // The current directory is disabled and can't be pressed.
-    auto build = [&](size_t first) {
-        size_t index = 1;
-        if (first > 0) {
-            auto* ellipsis = lv_label_create(toolbar);
-            lv_label_set_text(ellipsis, "..");
-            lv_obj_move_to_index(ellipsis, static_cast<int32_t>(index++));
-            pathBarWidgets.push_back(ellipsis);
-        }
-        for (size_t i = first; i < names.size(); i++) {
-            auto* segment = lvgl_pathbar_button_create(toolbar);
-            // The button fits the height of the toolbar, with its focus ring inside, as the toolbar clips what is outside of it
-            lv_obj_set_style_margin_ver(segment, 0, LV_STATE_DEFAULT);
-            lv_obj_set_flex_flow(segment, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(segment, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_add_state(segment, LV_STATE_FOCUS_KEY);
-            const int32_t ring_width = lv_obj_get_style_outline_width(segment, LV_PART_MAIN);
-            lv_obj_remove_state(segment, LV_STATE_FOCUS_KEY);
-            lv_obj_set_style_outline_pad(segment, -ring_width, LV_STATE_FOCUS_KEY);
-            if (lvgl_theme_is_mono()) {
-                // The ring has the colour of the chip's border, so the selected chip is inverted instead
-                lv_obj_set_style_bg_color(segment, lv_obj_get_style_text_color(segment, LV_PART_MAIN), LV_STATE_FOCUS_KEY);
-                lv_obj_set_style_bg_opa(segment, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
-                lv_obj_set_style_text_color(segment, lv_obj_get_style_bg_color(segment, LV_PART_MAIN), LV_STATE_FOCUS_KEY);
-            }
-            lv_obj_t* label = lv_label_create(segment);
-            lv_label_set_text(label, names[i].c_str());
-            // One line with the width of the name. A content size would make the label wrap to the room that is left.
-            lv_point_t text_size;
-            lv_text_get_size(&text_size, names[i].c_str(), lv_obj_get_style_text_font(label, LV_PART_MAIN), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-            lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
-            lv_obj_set_size(label, text_size.x, text_size.y);
-            lv_obj_set_user_data(segment, reinterpret_cast<void*>(i));
-            if (i + 1 == names.size()) {
-                lv_obj_add_state(segment, LV_STATE_DISABLED);
-                lv_obj_set_click_focusable(segment, false);
-            } else {
-                lv_obj_add_event_cb(segment, onPathSegmentPressed, LV_EVENT_SHORT_CLICKED, this);
-            }
-            lv_obj_move_to_index(segment, static_cast<int32_t>(index++));
-            pathBarWidgets.push_back(segment);
-        }
-    };
-
-    // How much wider the visible children of the toolbar are than the toolbar, with the gaps between them. 0 or less when they fit.
-    auto overflow = [&] {
-        lv_obj_update_layout(toolbar);
-        int32_t used = 0;
-        int32_t count = 0;
-        const uint32_t child_count = lv_obj_get_child_count(toolbar);
-        for (uint32_t i = 0; i < child_count; i++) {
-            lv_obj_t* child = lv_obj_get_child(toolbar, static_cast<int32_t>(i));
-            if (!lv_obj_is_hidden(child)) {
-                // The margin of a chip, for its focus ring, takes room too
-                used += lv_obj_get_width(child) + lv_obj_get_style_margin_left(child, LV_PART_MAIN) + lv_obj_get_style_margin_right(child, LV_PART_MAIN);
-                count++;
-            }
-        }
-        used += (count - 1) * lv_obj_get_style_pad_column(toolbar, LV_PART_MAIN);
-        return used - lv_obj_get_content_width(toolbar);
-    };
-
-    size_t first = 0;
-    build(first);
-    // Drops the leftmost segments until the path fits, keeping at least the current directory and its parent
-    while (overflow() > 0 && first + 2 < names.size()) {
-        for (auto* widget : pathBarWidgets) {
-            lv_obj_delete(widget);
-        }
-        pathBarWidgets.clear();
-        first++;
-        build(first);
-    }
-    // Shortens the name of the current directory when that is still not enough
-    const int32_t excess = overflow();
-    if (excess > 0) {
-        lv_obj_t* label = lv_obj_get_child(pathBarWidgets.back(), 0);
-        lv_obj_set_width(label, ::std::max<int32_t>(lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)), lv_obj_get_width(label) - excess));
-    }
-    pathBarWidth = lv_obj_get_width(toolbar);
-    // The grid can still hold the chip that was deleted, as the fallback of a selection that waits for the repopulate
-    if (files != nullptr) {
-        lvgl_tile_grid_replace_empty_fallback(lvgl_files_get_tile_grid(files), getParentPathSegment());
-    }
-
-    // The pressed segment is gone, so the selection moves to the segment below the new directory
-    if (selectParentSegment) {
-        selectParentSegment = false;
-        lv_group_focus_obj(toolbar);
-        lv_gridnav_set_focused(toolbar, getParentPathSegment(), LV_ANIM_OFF);
+// The grid can still hold a deleted segment, as the fallback of a selection that waits for the repopulate
+void View::onPathBarRebuilt(lv_obj_t* bar, void* userData) {
+    auto* view = static_cast<View*>(userData);
+    if (view->files != nullptr) {
+        lvgl_tile_grid_replace_empty_fallback(lvgl_files_get_tile_grid(view->files), lvgl_path_bar_get_parent_segment(bar));
     }
 }
 
@@ -1031,18 +888,18 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     overflow_button = lvgl_toolbar_add_text_button_action(toolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressedCallback, this);
     lv_obj_set_style_text_font(overflow_button, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_obj_set_hidden(overflow_button, is_root);
-    pathBarWidth = 0;
-    updatePathBar();
-    lv_obj_add_event_cb(toolbar, onToolbarSizeChanged, LV_EVENT_SIZE_CHANGED, this);
+    path_bar = lvgl_path_bar_create(toolbar, onPathSegmentPressed, onPathBarRebuilt, this);
+    lvgl_path_bar_set_path(path_bar, state->getCurrentPath().c_str());
 
     const LvglFilesConfig config = {
         .callbacks = {
             .classify = classifyEntry,
             .get_icon = getEntryIcon,
+            .is_checked = isEntryChecked,
             .on_clicked = onEntryClicked,
             .on_long_pressed = onEntryLongPressed,
             .on_key = onEntryKey,
-            .on_page_changed = onPageChanged,
+            .on_page_changed = nullptr,
             .on_loaded = onLoaded,
             .user_data = this,
         },
@@ -1061,10 +918,9 @@ void View::destroyWidgets() {
     state->clearSelectedEntries();
     selectionMode = false;
     busy_spinner = nullptr;
-    lv_async_call_cancel(onDeferredPathBarUpdate, this);
     toolbar = nullptr;
-    pathBarWidgets.clear();
-    pathBarPaths.clear();
+    path_bar = nullptr;
+    selectParentSegment = false;
     overflow_button = nullptr;
     // The read of the deleted widget won't report back
     if (navigationPending) {

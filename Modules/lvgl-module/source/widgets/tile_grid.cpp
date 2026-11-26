@@ -396,6 +396,10 @@ lv_obj_t* createTile(TileGrid* self, const LvglTileGridItem& item, const PageLay
     lv_obj_set_click_focusable(tile, true);
     lv_obj_set_scrollable(tile, false);
     lv_obj_set_user_data(tile, const_cast<LvglTileGridItem*>(&item));
+    if (item.checked) {
+        // A card shows it itself, and the icon frame of a tile gets it below
+        lv_obj_add_state(tile, LV_STATE_CHECKED);
+    }
 
     lv_obj_t* frame = lvgl_icon_button_create(tile);
     lv_obj_set_size(frame, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -412,6 +416,9 @@ lv_obj_t* createTile(TileGrid* self, const LvglTileGridItem& item, const PageLay
         lv_obj_set_style_bg_color(tile, lv_color_mix(lv_obj_get_style_text_color(tile, LV_PART_MAIN), lv_obj_get_style_bg_color(tile, LV_PART_MAIN), LV_OPA_20), LV_STATE_PRESSED);
     } else {
         lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);
+        if (item.checked) {
+            lv_obj_add_state(frame, LV_STATE_CHECKED);
+        }
     }
 
     const lv_image_dsc_t* image_src = item.image;

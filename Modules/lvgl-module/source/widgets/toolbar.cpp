@@ -51,6 +51,36 @@ typedef struct {
     lv_event_cb_t nav_action_callback;
 } Toolbar;
 
+/** The large font when the title fits in it, else the regular font, in which it is cut off with an ellipsis when it doesn't fit */
+static void fitTitle(Toolbar* toolbar) {
+    lv_obj_t* label = toolbar->title_label;
+    const int32_t width = lv_obj_get_content_width(label);
+    if (width <= 0) {
+        // Not laid out yet: the size change fits it
+        return;
+    }
+    const lv_font_t* preferred = getToolbarFont(lvgl_theme_get_size());
+    const lv_font_t* regular = lvgl_get_text_font(FONT_SIZE_DEFAULT);
+    const lv_font_t* font = preferred;
+    if (preferred != regular) {
+        lv_point_t size;
+        const char* text = lv_label_get_text(label);
+        const int32_t letter_space = lv_obj_get_style_text_letter_space(label, LV_PART_MAIN);
+        lv_text_get_size(&size, text, preferred, letter_space, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (size.x > width) {
+            font = regular;
+        }
+    }
+    // Only depends on the width, so the resize that a new font causes doesn't change it again
+    if (lv_obj_get_style_text_font(label, LV_PART_MAIN) != font) {
+        lv_obj_set_style_text_font(label, font, LV_STATE_DEFAULT);
+    }
+}
+
+static void onTitleSizeChanged(lv_event_t* event) {
+    fitTitle(static_cast<Toolbar*>(lv_event_get_user_data(event)));
+}
+
 /** The keys always enter the toolbar at the close button, whatever side or row they came from */
 static void onToolbarFocused(lv_event_t* event) {
     lv_indev_t* indev = lv_indev_active();
@@ -140,8 +170,9 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     toolbar->title_label = lv_label_create(obj);
     lv_obj_set_style_text_font(toolbar->title_label, getToolbarFont(size), LV_STATE_DEFAULT);
     lv_label_set_text(toolbar->title_label, title);
-    lv_label_set_long_mode(toolbar->title_label, LV_LABEL_LONG_MODE_SCROLL);
+    lv_label_set_long_mode(toolbar->title_label, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_flex_grow(toolbar->title_label, 1);
+    lv_obj_add_event_cb(toolbar->title_label, onTitleSizeChanged, LV_EVENT_SIZE_CHANGED, toolbar);
 
     lvgl_toolbar_set_nav_action(obj, LV_SYMBOL_CLOSE, &default_nav_action, nullptr);
 
@@ -160,6 +191,7 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
 void lvgl_toolbar_set_title(lv_obj_t* obj, const char* title) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
     lv_label_set_text(toolbar->title_label, title);
+    fitTitle(toolbar);
 }
 
 void lvgl_toolbar_set_nav_action(lv_obj_t* obj, const char* icon, lv_event_cb_t callback, void* user_data) {

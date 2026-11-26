@@ -12,14 +12,11 @@ msgstr "« {} » n'existe pas."
 msgid "Can't select"
 msgstr "Sélection impossible"
 
-msgid "Select ({})"
-msgstr "Choisir ({})"
-
-msgid "Select File"
-msgstr "Choisir un fichier"
-
 msgid "Selection too long"
 msgstr "Sélection trop longue"
 
 msgid "The paths are too long to return. Select fewer items."
 msgstr "Les chemins sont trop longs à renvoyer. Sélectionnez moins d'éléments."
+
+msgid "Enter filename"
+msgstr "Saisir le nom du fichier"

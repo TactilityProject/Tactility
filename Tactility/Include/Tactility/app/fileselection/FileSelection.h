@@ -21,6 +21,8 @@ struct Options {
     bool multiple = false;
     /** Allowed file extensions, with or without leading dot, case-insensitive. Empty allows every file. */
     std::vector<std::string> extensions;
+    /** The directory that is shown first. Empty starts at the root of the data (paths_get_root_path()). */
+    std::string initialPath;
 };
 
 /**

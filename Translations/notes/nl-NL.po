@@ -11,3 +11,15 @@ msgstr "Notities..."
 
 msgid "Untitled"
 msgstr "Naamloos"
+
+msgid "New"
+msgstr "Nieuw"
+
+msgid "Save"
+msgstr "Opslaan"
+
+msgid "Save as"
+msgstr "Opslaan als"
+
+msgid "Open"
+msgstr "Openen"

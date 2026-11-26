@@ -11,3 +11,15 @@ msgstr "Notas..."
 
 msgid "Untitled"
 msgstr "Sin título"
+
+msgid "New"
+msgstr "Nuevo"
+
+msgid "Save"
+msgstr "Guardar"
+
+msgid "Save as"
+msgstr "Guardar como"
+
+msgid "Open"
+msgstr "Abrir"

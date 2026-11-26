@@ -24,6 +24,7 @@
 #include <lvgl/widgets/page_indicator.h>
 #include <lvgl/widgets/tile_grid.h>
 #include <lvgl/widgets/files.h>
+#include <lvgl/widgets/path_bar.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl/widgets/qr.h>
 #include <lvgl/ui_assets.h>
@@ -196,6 +197,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_files_get_tile_grid),
     DEFINE_MODULE_SYMBOL(lvgl_files_entry_is_directory),
     DEFINE_MODULE_SYMBOL(lvgl_files_entry_is_link),
+    // lvgl_path_bar
+    DEFINE_MODULE_SYMBOL(lvgl_path_bar_create),
+    DEFINE_MODULE_SYMBOL(lvgl_path_bar_set_path),
+    DEFINE_MODULE_SYMBOL(lvgl_path_bar_get_parent_segment),
+    DEFINE_MODULE_SYMBOL(lvgl_path_bar_focus_parent_segment),
     // lvgl_list
     DEFINE_MODULE_SYMBOL(lvgl_list_create),
     DEFINE_MODULE_SYMBOL(lvgl_list_add_text),
