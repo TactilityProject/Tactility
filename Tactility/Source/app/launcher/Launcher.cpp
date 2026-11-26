@@ -171,7 +171,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     const auto& mode = getLauncherMode(ctx->mode);
-    system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
     const LvglTileGridConfig config = {
         .style = mode.tileStyle,
         .icon_color = getIconColor(mode),
@@ -191,13 +190,20 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         .page = ctx->page,
     };
     ctx->grid = lvgl_tile_grid_create(parent, &config);
+    if (ctx->grid == nullptr) {
+        LOG_E(TAG, "Failed to create the grid");
+        return;
+    }
+    system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
     ctx->widgetsExist = true;
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->widgetsExist = false;
-    ctx->page = lvgl_tile_grid_get_page(ctx->grid);
+    if (ctx->grid != nullptr) {
+        ctx->page = lvgl_tile_grid_get_page(ctx->grid);
+    }
     ctx->grid = nullptr;
 }
 

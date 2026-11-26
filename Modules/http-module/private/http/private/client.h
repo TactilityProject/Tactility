@@ -29,14 +29,19 @@ struct HttpClient {
     /** Names in lower case */
     HttpHeaders responseHeaders;
     size_t responseHeaderBytes = 0;
+    size_t framingHeaderBytes = 0;
+    /** A header that frames the body didn't fit, so the response can't be read */
+    bool framingHeaderDropped = false;
     int statusCode = 0;
     int64_t contentLength = -1;
     uint32_t timeoutMs = 10000;
     HttpClientFailure failure = HTTP_CLIENT_FAILURE_NONE;
     std::atomic<bool> cancelled = false;
 
-    /** Keeps a response header, up to a total size limit. Repeated headers are joined with ", ". */
+    /** Keeps a response header, up to a total size limit. The headers that frame the body have a limit of their own. Repeated headers are joined with ", ". */
     void addResponseHeader(const std::string& name, const std::string& value);
+
+    void clearResponseHeaders();
 };
 
 /** Implemented per platform */

@@ -27,6 +27,10 @@ class View final {
     uint32_t pasteBit = 0;
     /** True from queueing a directory read until it was shown, while the busy spinner counts it. Only used on the LVGL task. */
     bool navigationPending = false;
+    /** The directory of the last queued read. Only used on the LVGL task. */
+    ::std::string pendingPath;
+    /** Set when the shown directory changed while another one was being read. Only used on the LVGL task. */
+    bool refreshDeferred = false;
     /** Signalled on the event group when a dialog was closed, after its result was stored in dialogResult and dialogText */
     uint32_t dialogBit = 0;
     /**

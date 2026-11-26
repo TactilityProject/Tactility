@@ -27,7 +27,7 @@ class PosixBackend final : public HttpClientBackend {
             std::string value;
             size_t headerBytes = 0;
             while (true) {
-                if (!connection.readLine(line)) {
+                if (!connection.readLine(line) || client.cancelled) {
                     return HTTP_CLIENT_FAILURE_PROTOCOL;
                 }
                 if (line.empty()) {
@@ -35,7 +35,7 @@ class PosixBackend final : public HttpClientBackend {
                 }
                 // Stops a server that never ends its headers
                 headerBytes += line.size();
-                if (headerBytes > 65536 || client.cancelled) {
+                if (headerBytes > 65536) {
                     return HTTP_CLIENT_FAILURE_PROTOCOL;
                 }
                 if (client.statusCode >= 200 && http_parse_header_line(line, name, value)) {
@@ -44,6 +44,22 @@ class PosixBackend final : public HttpClientBackend {
             }
         } while (client.statusCode < 200);
         return HTTP_CLIENT_FAILURE_NONE;
+    }
+
+    // The optional trailers after the last chunk end with an empty line
+    bool readTrailers() {
+        std::string line;
+        size_t trailerBytes = 0;
+        while (connection.readLine(line)) {
+            if (line.empty()) {
+                return true;
+            }
+            trailerBytes += line.size();
+            if (trailerBytes > 8192) {
+                break;
+            }
+        }
+        return false;
     }
 
 public:
@@ -80,7 +96,7 @@ public:
         }
 
         const char* encoding = http_client_get_header(&client, "transfer-encoding");
-        chunked = encoding != nullptr && std::string(encoding).find("chunked") != std::string::npos;
+        chunked = encoding != nullptr && http_is_chunked(encoding);
         const char* length = http_client_get_header(&client, "content-length");
         // A chunked body ignores the Content-Length
         if (!chunked && length != nullptr) {
@@ -110,6 +126,9 @@ public:
                 return -1;
             }
             if (chunkSize == 0) {
+                if (!readTrailers()) {
+                    return -1;
+                }
                 done = true;
                 return 0;
             }

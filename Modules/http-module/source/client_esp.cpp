@@ -20,10 +20,18 @@ class EspBackend final : public HttpClientBackend {
     esp_http_client_handle_t handle = nullptr;
     HttpClient* owner = nullptr;
     bool done = false;
+    /** Whether the headers of the final response are complete, as interim (1xx) ones come before it */
+    bool finalHead = false;
 
     static esp_err_t onEvent(esp_http_client_event_t* event) {
+        auto* self = static_cast<EspBackend*>(event->user_data);
         if (event->event_id == HTTP_EVENT_ON_HEADER) {
-            static_cast<EspBackend*>(event->user_data)->owner->addResponseHeader(event->header_key, event->header_value);
+            self->owner->addResponseHeader(event->header_key, event->header_value);
+        } else if (event->event_id == HTTP_EVENT_ON_HEADERS_COMPLETE) {
+            self->finalHead = esp_http_client_get_status_code(event->client) >= 200;
+            if (!self->finalHead) {
+                self->owner->clearResponseHeaders();
+            }
         }
         return ESP_OK;
     }
@@ -57,7 +65,9 @@ public:
             return HTTP_CLIENT_FAILURE_MEMORY;
         }
         for (const auto& header : client.requestHeaders) {
-            esp_http_client_set_header(handle, header.first.c_str(), header.second.c_str());
+            if (esp_http_client_set_header(handle, header.first.c_str(), header.second.c_str()) != ESP_OK) {
+                return HTTP_CLIENT_FAILURE_MEMORY;
+            }
         }
 
         const esp_err_t result = esp_http_client_open(handle, 0);
@@ -72,9 +82,15 @@ public:
             return HTTP_CLIENT_FAILURE_CANCELLED;
         }
 
-        const int64_t length = esp_http_client_fetch_headers(handle);
-        if (length < 0) {
-            return HTTP_CLIENT_FAILURE_PROTOCOL;
+        int64_t length = 0;
+        while (!finalHead) {
+            length = esp_http_client_fetch_headers(handle);
+            if (length < 0) {
+                return HTTP_CLIENT_FAILURE_PROTOCOL;
+            }
+            if (client.cancelled) {
+                return HTTP_CLIENT_FAILURE_CANCELLED;
+            }
         }
         client.statusCode = esp_http_client_get_status_code(handle);
         const bool hasLength = !esp_http_client_is_chunked_response(handle) && http_client_get_header(&client, "content-length") != nullptr;

@@ -250,6 +250,7 @@ void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirs
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
         return;
     }
+    pendingPath = path;
     if (!navigationPending) {
         navigationPending = true;
         beginOperation();
@@ -259,7 +260,12 @@ void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirs
 void View::reload() {
     lvgl_lock();
     if (files != nullptr) {
-        navigateTo(state->getCurrentPath(), false, false);
+        // A read of the shown directory would replace a pending navigation
+        if (navigationPending && pendingPath != state->getCurrentPath()) {
+            refreshDeferred = true;
+        } else {
+            navigateTo(state->getCurrentPath(), false, false);
+        }
     }
     lvgl_unlock();
 }
@@ -275,12 +281,19 @@ void View::onDirectoryLoaded(const ::std::string& path, error_t error) {
     }
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to read %s", path.c_str());
+        // The shown directory stays, so it gets the refresh that waited for this navigation
+        if (refreshDeferred && !lvgl_files_is_loading(files)) {
+            refreshDeferred = false;
+            navigateTo(state->getCurrentPath(), false, false);
+            return;
+        }
         // The data directory doesn't exist yet, e.g. without an SD card
         if (!state->isLoaded() && path != "/") {
             navigateTo("/", true, !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
         }
         return;
     }
+    refreshDeferred = false;
     LOG_I(TAG, "%s has %u entries", path.c_str(), static_cast<unsigned>(lvgl_files_get_entry_count(files)));
     if (path != state->getCurrentPath()) {
         // The selection belongs to the previous directory
@@ -927,6 +940,7 @@ void View::destroyWidgets() {
         navigationPending = false;
         endOperation();
     }
+    refreshDeferred = false;
     page = lvgl_tile_grid_get_page(lvgl_files_get_tile_grid(files));
     files = nullptr;
 }

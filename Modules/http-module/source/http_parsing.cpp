@@ -167,6 +167,15 @@ bool http_parse_content_length(const std::string& value, long& length) {
     return true;
 }
 
+bool http_is_chunked(const std::string& transferEncoding) {
+    const auto comma = transferEncoding.rfind(',');
+    std::string coding = trim(comma == std::string::npos ? transferEncoding : transferEncoding.substr(comma + 1));
+    for (auto& c : coding) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return coding == "chunked";
+}
+
 bool http_parse_chunk_size(const std::string& line, size_t& size) {
     const std::string digits = trim(line.substr(0, line.find(';')));
     if (digits.empty() || digits.size() > sizeof(size_t) * 2) {
@@ -179,6 +188,10 @@ bool http_parse_chunk_size(const std::string& line, size_t& size) {
         }
         const char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         result = result * 16 + static_cast<size_t>(lower <= '9' ? lower - '0' : lower - 'a' + 10);
+    }
+    // Larger sizes would turn negative in the signed counters of the readers
+    if (result > static_cast<unsigned long long>(LLONG_MAX)) {
+        return false;
     }
     size = result;
     return true;

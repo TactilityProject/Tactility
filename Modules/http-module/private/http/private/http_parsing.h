@@ -34,5 +34,8 @@ bool http_parse_header_line(const std::string& line, std::string& name, std::str
 /** Parses a Content-Length value: decimal digits only, without sign or overflow */
 bool http_parse_content_length(const std::string& value, long& length);
 
+/** True when the last coding of a Transfer-Encoding value is "chunked", in any case */
+bool http_is_chunked(const std::string& transferEncoding);
+
 /** Parses the size line of a chunk in a chunked body, e.g. "1a2b" or "1a2b;name=value" */
 bool http_parse_chunk_size(const std::string& line, size_t& size);

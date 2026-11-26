@@ -10,6 +10,7 @@
 namespace {
 
 constexpr size_t MAX_RESPONSE_HEADER_BYTES = 8192;
+constexpr size_t MAX_FRAMING_HEADER_BYTES = 256;
 
 std::string to_lower(std::string text) {
     for (auto& c : text) {
@@ -21,11 +22,14 @@ std::string to_lower(std::string text) {
 }
 
 void HttpClient::addResponseHeader(const std::string& name, const std::string& value) {
-    if (responseHeaderBytes + name.size() + value.size() > MAX_RESPONSE_HEADER_BYTES) {
+    const std::string lowerName = to_lower(name);
+    const bool framing = lowerName == "content-length" || lowerName == "transfer-encoding";
+    size_t& usedBytes = framing ? framingHeaderBytes : responseHeaderBytes;
+    if (usedBytes + name.size() + value.size() > (framing ? MAX_FRAMING_HEADER_BYTES : MAX_RESPONSE_HEADER_BYTES)) {
+        framingHeaderDropped = framingHeaderDropped || framing;
         return;
     }
-    responseHeaderBytes += name.size() + value.size();
-    const std::string lowerName = to_lower(name);
+    usedBytes += name.size() + value.size();
     for (auto& header : responseHeaders) {
         if (header.first == lowerName) {
             header.second += ", " + value;
@@ -33,6 +37,13 @@ void HttpClient::addResponseHeader(const std::string& name, const std::string& v
         }
     }
     responseHeaders.emplace_back(lowerName, value);
+}
+
+void HttpClient::clearResponseHeaders() {
+    responseHeaders.clear();
+    responseHeaderBytes = 0;
+    framingHeaderBytes = 0;
+    framingHeaderDropped = false;
 }
 
 extern "C" {
@@ -69,8 +80,7 @@ void http_client_set_timeout(HttpClient* client, uint32_t timeout_ms) {
 
 void http_client_close(HttpClient* client) {
     client->backend = nullptr;
-    client->responseHeaders.clear();
-    client->responseHeaderBytes = 0;
+    client->clearResponseHeaders();
     client->statusCode = 0;
     client->contentLength = -1;
 }
@@ -90,7 +100,14 @@ error_t http_client_open(HttpClient* client, const char* url) {
     }
 
     client->backend = http_client_create_backend();
-    const HttpClientFailure failure = client->backend == nullptr ? HTTP_CLIENT_FAILURE_MEMORY : client->backend->open(*client, url);
+    HttpClientFailure failure = client->backend == nullptr ? HTTP_CLIENT_FAILURE_MEMORY : client->backend->open(*client, url);
+    if (failure == HTTP_CLIENT_FAILURE_NONE) {
+        if (client->cancelled) {
+            failure = HTTP_CLIENT_FAILURE_CANCELLED;
+        } else if (client->framingHeaderDropped) {
+            failure = HTTP_CLIENT_FAILURE_PROTOCOL;
+        }
+    }
     if (failure != HTTP_CLIENT_FAILURE_NONE) {
         http_client_close(client);
         client->failure = client->cancelled ? HTTP_CLIENT_FAILURE_CANCELLED : failure;
@@ -126,8 +143,14 @@ int http_client_read(HttpClient* client, void* buffer, size_t size) {
         return -1;
     }
     const int result = client->backend->read(*client, buffer, std::min<size_t>(size, INT32_MAX));
+    if (client->cancelled) {
+        // The bytes that were consumed are lost, so the response can't be read any further
+        client->backend = nullptr;
+        client->failure = HTTP_CLIENT_FAILURE_CANCELLED;
+        return -1;
+    }
     if (result < 0) {
-        client->failure = client->cancelled ? HTTP_CLIENT_FAILURE_CANCELLED : HTTP_CLIENT_FAILURE_PROTOCOL;
+        client->failure = HTTP_CLIENT_FAILURE_PROTOCOL;
     }
     return result;
 }

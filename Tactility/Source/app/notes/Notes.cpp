@@ -40,6 +40,7 @@ struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
 
+    // Null while the window has no widgets. Accessed with the LVGL lock held.
     lv_obj_t* uiToolbar = nullptr;
     lv_obj_t* uiNoteText = nullptr;
 
@@ -64,7 +65,9 @@ struct Context {
 /** The toolbar shows the name of the file, without its directory */
 void updateTitle(Context* ctx) {
     const auto name = ctx->filePath.empty() ? std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath);
-    lvgl_toolbar_set_title(ctx->uiToolbar, name.c_str());
+    if (ctx->uiToolbar != nullptr) {
+        lvgl_toolbar_set_title(ctx->uiToolbar, name.c_str());
+    }
 }
 
 void resetFileContent(Context* ctx) {
@@ -78,9 +81,12 @@ void openFile(Context* ctx, const std::string& path) {
     auto data = file::readString(path);
     if (data != nullptr) {
         lvgl_lock();
-        lv_textarea_set_text(ctx->uiNoteText, reinterpret_cast<const char*>(data.get()));
+        // Without widgets, the file is read again when they are created
         ctx->filePath = path;
-        updateTitle(ctx);
+        if (ctx->uiNoteText != nullptr) {
+            lv_textarea_set_text(ctx->uiNoteText, reinterpret_cast<const char*>(data.get()));
+            updateTitle(ctx);
+        }
         lvgl_unlock();
         LOG_I(TAG, "Loaded from %s", path.c_str());
     }
@@ -116,13 +122,19 @@ enum MenuAction { MENU_NEW, MENU_SAVE, MENU_SAVE_AS, MENU_OPEN };
 
 void newFile(Context* ctx) {
     lvgl_lock();
-    resetFileContent(ctx);
+    if (ctx->uiNoteText != nullptr) {
+        resetFileContent(ctx);
+    }
     lvgl_unlock();
 }
 
 void save(Context* ctx) {
     // The file operations task writes it
     lvgl_lock();
+    if (ctx->uiNoteText == nullptr) {
+        lvgl_unlock();
+        return;
+    }
     auto* job = new (::std::nothrow) SaveJob { ctx->filePath, lv_textarea_get_text(ctx->uiNoteText) };
     lvgl_unlock();
     if (job == nullptr || file_ops_queue(saveInBackground, job, nullptr) != ERROR_NONE) {
@@ -133,6 +145,10 @@ void save(Context* ctx) {
 
 void saveAs(Context* ctx) {
     lvgl_lock();
+    if (ctx->uiNoteText == nullptr) {
+        lvgl_unlock();
+        return;
+    }
     ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
     lvgl_unlock();
     ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
@@ -221,6 +237,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     }
 }
 
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->uiToolbar = nullptr;
+    ctx->uiNoteText = nullptr;
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
 
@@ -238,7 +260,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {

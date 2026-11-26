@@ -214,6 +214,10 @@ void onDeleted(lv_event_t* event) {
     auto* self = static_cast<PathBar*>(lv_event_get_user_data(event));
     lv_async_call_cancel(onDeferredRebuild, self);
     lv_obj_remove_event_cb_with_user_data(self->toolbar, onToolbarSizeChanged, self);
+    // The segments call back into the bar. A toolbar that is being deleted deletes them itself.
+    if (!self->toolbar->is_deleting) {
+        clearWidgets(self);
+    }
     reinterpret_cast<PathBarObject*>(self->obj)->bar = nullptr;
     delete self;
 }

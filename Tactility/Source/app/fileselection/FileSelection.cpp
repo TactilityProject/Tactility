@@ -19,6 +19,7 @@
 #include <lvgl/lvgl.h>
 
 #include <tactility/check.h>
+#include <tactility/delay.h>
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/fs.h>
 
@@ -140,6 +141,10 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
+    // Subscribed up front, as the teardown has to wait for pending file operations
+    FileOpsSubscription fileOpsSub {};
+    check(file_ops_subscribe(&fileOpsSub, &event_group) == ERROR_NONE);
+
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     while (true) {
@@ -165,13 +170,15 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     // A directory read that was pending when the widgets were deleted still filters its entries with the view.
     // The file operations run in order, so it has completed when work that is queued after it has.
-    FileOpsSubscription fileOpsSub {};
-    if (file_ops_subscribe(&fileOpsSub, &event_group) == ERROR_NONE) {
-        if (file_ops_queue([](void*) {}, nullptr, &fileOpsSub) == ERROR_NONE) {
-            file_ops_await(&fileOpsSub, portMAX_DELAY);
-        }
-        file_ops_unsubscribe(&fileOpsSub);
+    // Other failures than a lack of memory only happen when nothing is queued, so no read is pending then
+    error_t queueError;
+    while ((queueError = file_ops_queue([](void*) {}, nullptr, &fileOpsSub)) == ERROR_OUT_OF_MEMORY) {
+        delay_millis(10);
     }
+    if (queueError == ERROR_NONE) {
+        file_ops_await(&fileOpsSub, portMAX_DELAY);
+    }
+    file_ops_unsubscribe(&fileOpsSub);
     // The view releases its event group bit when it is destroyed, so it ends before the event group does
     ctx.view.reset();
     task_event_group_release_bit(&event_group, ctx.pickedBit);
