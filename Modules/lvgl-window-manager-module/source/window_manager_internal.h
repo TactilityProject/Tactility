@@ -3,6 +3,7 @@
 
 #include <app/instance.h>
 #include <lvgl.h>
+#include <tactility/Memory.hpp>
 #include <tactility/error.h>
 
 #include <memory>
@@ -35,8 +36,15 @@ public:
     virtual void deliver(bool confirmed) = 0;
 };
 
+/** For content that was created with tt::newObject() */
+struct DialogContentDeleter {
+    void operator()(DialogContent* content) const { tt::deleteObject(content); }
+};
+
+using DialogContentPtr = std::unique_ptr<DialogContent, DialogContentDeleter>;
+
 /** Shows a dialog with the content, which is freed when the dialog is gone or on failure. Errors like the other dialogs. */
-error_t dialog_start_content(AppInstanceId app_instance_id, std::unique_ptr<DialogContent> content);
+error_t dialog_start_content(AppInstanceId app_instance_id, DialogContentPtr content);
 
 /** Makes the dialog task call DialogContent::work() */
 void dialog_content_post_work(void* handle);

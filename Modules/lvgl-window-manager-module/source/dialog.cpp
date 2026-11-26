@@ -61,7 +61,7 @@ struct Dialog {
     void* userData = nullptr;
 
     // Only for DialogKind::Content
-    std::unique_ptr<DialogContent> content;
+    DialogContentPtr content;
     /** Set when the content has work for the dialog task */
     std::atomic<bool> workPending { false };
     /** The hidden backdrop of a closed content dialog, which the dialog task deletes. Guarded by the LVGL lock. */
@@ -639,7 +639,7 @@ int32_t dialog_main(void* context) {
     m.finishedThreads.push_back(thread);
     mutex_unlock(&m.mutex);
     vSemaphoreDelete(dialog->closedSignal);
-    delete dialog;
+    tt::deleteObject(dialog);
     return 0;
 }
 
@@ -654,7 +654,7 @@ error_t start_dialog(Dialog* dialog) {
 
     dialog->closedSignal = xSemaphoreCreateBinary();
     if (dialog->closedSignal == nullptr) {
-        delete dialog;
+        tt::deleteObject(dialog);
         return ERROR_OUT_OF_MEMORY;
     }
 
@@ -676,7 +676,7 @@ error_t start_dialog(Dialog* dialog) {
     lvgl_unlock();
     if (!has_window || overlay_shown || busy || canceled) {
         vSemaphoreDelete(dialog->closedSignal);
-        delete dialog;
+        tt::deleteObject(dialog);
         return has_window && !canceled ? ERROR_RESOURCE_BUSY : ERROR_INVALID_STATE;
     }
 
@@ -695,7 +695,7 @@ error_t start_dialog(Dialog* dialog) {
     if (dialog->thread == nullptr) {
         rollback_admission();
         vSemaphoreDelete(dialog->closedSignal);
-        delete dialog;
+        tt::deleteObject(dialog);
         return ERROR_OUT_OF_MEMORY;
     }
 
@@ -703,7 +703,7 @@ error_t start_dialog(Dialog* dialog) {
         rollback_admission();
         vSemaphoreDelete(dialog->closedSignal);
         thread_free(dialog->thread);
-        delete dialog;
+        tt::deleteObject(dialog);
         LOG_E(TAG, "Failed to start the dialog task");
         return ERROR_OUT_OF_MEMORY;
     }
@@ -714,8 +714,8 @@ error_t start_dialog(Dialog* dialog) {
 
 // region Internal
 
-error_t dialog_start_content(AppInstanceId app_instance_id, std::unique_ptr<DialogContent> content) {
-    auto* dialog = new(std::nothrow) Dialog();
+error_t dialog_start_content(AppInstanceId app_instance_id, DialogContentPtr content) {
+    auto* dialog = tt::newObject<Dialog>();
     if (dialog == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -829,7 +829,7 @@ error_t window_manager_alert_dialog(
     if (app_instance_id == 0 || title == nullptr || message == nullptr || button_labels == nullptr || button_count == 0) {
         return ERROR_INVALID_ARGUMENT;
     }
-    auto* dialog = new(std::nothrow) Dialog();
+    auto* dialog = tt::newObject<Dialog>();
     if (dialog == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -839,7 +839,7 @@ error_t window_manager_alert_dialog(
     dialog->message = message;
     for (uint32_t i = 0; i < button_count; i++) {
         if (button_labels[i] == nullptr) {
-            delete dialog;
+            tt::deleteObject(dialog);
             return ERROR_INVALID_ARGUMENT;
         }
         dialog->buttonLabels.emplace_back(button_labels[i]);
@@ -862,7 +862,7 @@ error_t window_manager_input_dialog(
     if (app_instance_id == 0 || title == nullptr || message == nullptr || ok_label == nullptr || cancel_label == nullptr) {
         return ERROR_INVALID_ARGUMENT;
     }
-    auto* dialog = new(std::nothrow) Dialog();
+    auto* dialog = tt::newObject<Dialog>();
     if (dialog == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -900,7 +900,7 @@ error_t window_manager_selection_dialog_with_icons(
     if (app_instance_id == 0 || title == nullptr || items == nullptr || item_count == 0) {
         return ERROR_INVALID_ARGUMENT;
     }
-    auto* dialog = new(std::nothrow) Dialog();
+    auto* dialog = tt::newObject<Dialog>();
     if (dialog == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -909,7 +909,7 @@ error_t window_manager_selection_dialog_with_icons(
     dialog->title = title;
     for (uint32_t i = 0; i < item_count; i++) {
         if (items[i] == nullptr) {
-            delete dialog;
+            tt::deleteObject(dialog);
             return ERROR_INVALID_ARGUMENT;
         }
         dialog->buttonLabels.emplace_back(items[i]);

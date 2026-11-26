@@ -17,6 +17,7 @@
 #include <lvgl_window_manager/dialog.h>
 #include <lvgl_window_manager/window_manager.h>
 
+#include <tactility/Allocator.hpp>
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/concurrent/thread.h>
@@ -122,7 +123,10 @@ struct Context {
 
     /** Signaled by the file dialog, which stores the path or an empty one in selectedPath first */
     uint32_t fileResultBit = 0;
-    std::string selectedPath;
+    /** Prefers external memory. tt::std::string would make std:: resolve to tt::std in this file. */
+    std::basic_string<char, std::char_traits<char>, tt::OptExternalAllocator<char>> selectedPath;
+    /** Set from showing the file dialog until its result was used, so that its slot stays. Only used by the app task. */
+    bool filePending = false;
     /** The colour that the selection dialog is for */
     size_t selectColorIndex = 0;
     /** Signaled by the colour selection dialog, which stores the selected index in colorResult first */
@@ -930,11 +934,10 @@ void finishApply(Context* ctx) {
 }
 
 void startFileSelection(Context* ctx, FontSlot slot) {
-    if (ctx->applying) {
+    if (ctx->filePending || ctx->applying) {
         return;
     }
-    // Fails while another dialog is shown, whose slot then stays
-    const auto previous_slot = ctx->selectSlot;
+    ctx->filePending = true;
     ctx->selectSlot = slot;
     const error_t error = window_manager_file_dialog(ctx->appInstanceId, nullptr, [](const char* const* paths, uint32_t path_count, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
@@ -942,7 +945,7 @@ void startFileSelection(Context* ctx, FontSlot slot) {
         task_event_group_signal(ctx->eventGroup, ctx->fileResultBit);
     }, ctx);
     if (error != ERROR_NONE) {
-        ctx->selectSlot = previous_slot;
+        ctx->filePending = false;
     }
 }
 
@@ -980,7 +983,8 @@ void onColorSelectionResult(Context* ctx) {
 }
 
 void onFileSelectionResult(Context* ctx) {
-    const auto selected_path = ctx->selectedPath;
+    const std::string selected_path = ctx->selectedPath.c_str();
+    ctx->filePending = false;
     if (selected_path.empty()) {
         return;
     }

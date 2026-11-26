@@ -62,7 +62,9 @@ struct Context {
     uint32_t fileBit = 0;
     /** Whether the file dialog picks where to save, instead of what to open */
     bool fileSaving = false;
-    ::std::string pickedPath;
+    tt::std::string pickedPath;
+    /** Set from showing the file dialog until its result was used, so that the mode and the save buffer stay. Only used by the app task. */
+    bool filePending = false;
 };
 
 
@@ -163,12 +165,17 @@ void selectFile(Context* ctx, bool saving) {
         .extension_count = 0,
     };
     ctx->fileSaving = saving;
+    ctx->filePending = true;
     if (window_manager_file_dialog(ctx->appInstanceId, &options, onFileDialogClosed, ctx) != ERROR_NONE) {
+        ctx->filePending = false;
         LOG_E(TAG, "Failed to show the file dialog");
     }
 }
 
 void saveAs(Context* ctx) {
+    if (ctx->filePending) {
+        return;
+    }
     lvgl_lock();
     if (ctx->uiNoteText == nullptr) {
         lvgl_unlock();
@@ -180,12 +187,15 @@ void saveAs(Context* ctx) {
 }
 
 void open(Context* ctx) {
-    selectFile(ctx, false);
+    if (!ctx->filePending) {
+        selectFile(ctx, false);
+    }
 }
 
 /** Runs on the app task */
 void onFileResult(Context* ctx) {
-    const auto path = ctx->pickedPath;
+    const ::std::string path = ctx->pickedPath.c_str();
+    ctx->filePending = false;
     if (path.empty()) {
         return;
     }

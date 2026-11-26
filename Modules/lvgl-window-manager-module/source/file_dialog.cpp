@@ -14,6 +14,11 @@
 #include <lvgl/widgets/path_bar.h>
 #include <lvgl/widgets/toolbar.h>
 
+#include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
+#include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/fs.h>
@@ -22,42 +27,43 @@
 
 #include <algorithm>
 #include <cctype>
-#include <new>
-#include <string>
 #include <unistd.h>
-#include <vector>
 
 namespace {
 
 constexpr auto* TAG = "file_dialog";
 
+// The paths prefer external memory
+using String = tt::std::string;
+using Strings = tt::std::vector<String>;
+
 // region Paths
 
-std::string lowercase(std::string text) {
+String lowercase(String text) {
     for (auto& character : text) {
         character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
     return text;
 }
 
-std::string child_path(const std::string& directory, const std::string& name) {
+String child_path(const String& directory, const String& name) {
     return directory.empty() || directory.back() == '/' ? directory + name : directory + "/" + name;
 }
 
-std::string last_segment(const std::string& path) {
+String last_segment(const String& path) {
     return path.substr(path.find_last_of('/') + 1);
 }
 
 /** Resolves a path against the working directory, without "." and ".." segments */
-std::string absolute_path(const std::string& path) {
+String absolute_path(const String& path) {
     char working_directory[FILE_MAX_PATH_STRING_LENGTH];
-    const std::string base = getcwd(working_directory, sizeof(working_directory)) != nullptr ? working_directory : "/";
-    const std::string joined = path.front() == '/' ? path : base + "/" + path;
-    std::string result;
+    const String base = getcwd(working_directory, sizeof(working_directory)) != nullptr ? working_directory : "/";
+    const String joined = path.front() == '/' ? path : base + "/" + path;
+    String result;
     size_t start = 0;
     while (start < joined.size()) {
         size_t end = joined.find('/', start);
-        if (end == std::string::npos) {
+        if (end == String::npos) {
             end = joined.size();
         }
         const auto segment = joined.substr(start, end - start);
@@ -128,10 +134,10 @@ const LvglTileGridPaging PAGING = {
 class FileDialog final : public DialogContent {
 
     uint32_t flags = 0;
-    std::string initialPath;
-    std::string initialName;
+    String initialPath;
+    String initialName;
     /** Without dot and in lower case */
-    std::vector<std::string> extensions;
+    Strings extensions;
     WindowFileDialogResultFn onResult;
     void* userData;
 
@@ -142,16 +148,16 @@ class FileDialog final : public DialogContent {
     lv_obj_t* errorLabel = nullptr;
     lv_obj_t* nameField = nullptr;
     /** The directory that is shown, empty until one was read */
-    std::string currentPath;
-    std::vector<std::string> selectedPaths;
+    String currentPath;
+    Strings selectedPaths;
     /** Wait for the dialog task to check them */
-    std::vector<std::string> pickedPaths;
-    std::vector<std::string> result;
+    Strings pickedPaths;
+    Strings result;
     bool selectParentSegment = false;
 
     bool has(uint32_t flag) const { return (flags & flag) != 0; }
 
-    bool isSelectableFile(const std::string& path) const {
+    bool isSelectableFile(const String& path) const {
         if (has(WINDOW_FILE_DIALOG_NO_FILES)) {
             return false;
         }
@@ -160,21 +166,21 @@ class FileDialog final : public DialogContent {
         }
         const auto name = last_segment(path);
         const auto dot = name.find_last_of('.');
-        return dot != std::string::npos && std::find(extensions.begin(), extensions.end(), lowercase(name.substr(dot + 1))) != extensions.end();
+        return dot != String::npos && std::find(extensions.begin(), extensions.end(), lowercase(name.substr(dot + 1))) != extensions.end();
     }
 
-    bool isSelected(const std::string& path) const {
+    bool isSelected(const String& path) const {
         return std::find(selectedPaths.begin(), selectedPaths.end(), path) != selectedPaths.end();
     }
 
     /** What the select button returns, or nothing when the selection isn't valid */
-    std::vector<std::string> getResultPaths() const {
+    Strings getResultPaths() const {
         // The name field: a file in the directory that is shown. Without a name, the directory itself when folders are allowed.
-        auto typed = [this]() -> std::vector<std::string> {
+        auto typed = [this]() -> Strings {
             if (currentPath.empty()) {
                 return {};
             }
-            const std::string name = nameField != nullptr ? lv_textarea_get_text(nameField) : "";
+            const String name = nameField != nullptr ? lv_textarea_get_text(nameField) : "";
             if (!name.empty()) {
                 return { child_path(currentPath, name) };
             }
@@ -225,7 +231,7 @@ class FileDialog final : public DialogContent {
         }
     }
 
-    void navigateTo(const std::string& path, bool selectFirst) {
+    void navigateTo(const String& path, bool selectFirst) {
         if (files == nullptr) {
             return;
         }
@@ -235,7 +241,7 @@ class FileDialog final : public DialogContent {
         }
     }
 
-    void onLoaded(const std::string& path, error_t error) {
+    void onLoaded(const String& path, error_t error) {
         if (files == nullptr) {
             return;
         }
@@ -266,14 +272,14 @@ class FileDialog final : public DialogContent {
         }
     }
 
-    void setTileChecked(const std::string& name, bool checked) {
+    void setTileChecked(const String& name, bool checked) {
         lv_obj_t* tile = lvgl_files_find_tile(files, name.c_str());
         if (tile != nullptr) {
             lv_obj_set_state(tile, LV_STATE_CHECKED, checked);
         }
     }
 
-    void onTapFile(const std::string& path) {
+    void onTapFile(const String& path) {
         const auto name = last_segment(path);
         if (has(WINDOW_FILE_DIALOG_MULTIPLE)) {
             const auto found = std::find(selectedPaths.begin(), selectedPaths.end(), path);
@@ -460,7 +466,7 @@ public:
         }
 
         // The view falls back to the root when the directory can't be read
-        std::string path;
+        String path;
         if (!initialPath.empty()) {
             path = absolute_path(initialPath);
         } else {
@@ -520,19 +526,20 @@ public:
         TaskEventGroup eventGroup {};
         task_event_group_construct(&eventGroup);
         FileOpsSubscription subscription {};
-        if (file_ops_subscribe(&subscription, &eventGroup) == ERROR_NONE) {
-            error_t error;
-            // Other failures than a lack of memory only happen when nothing is queued, so no read is pending then
-            while ((error = file_ops_queue([](void*) {}, nullptr, &subscription)) == ERROR_OUT_OF_MEMORY) {
-                vTaskDelay(pdMS_TO_TICKS(10));
-            }
-            if (error == ERROR_NONE) {
-                file_ops_await(&subscription, portMAX_DELAY);
-            }
-            file_ops_unsubscribe(&subscription);
-        } else {
-            LOG_E(TAG, "Failed to subscribe to file operations");
+        error_t error;
+        // A new event group has free bits, so only a lack of memory fails this. Not waiting would free what a read still uses.
+        while ((error = file_ops_subscribe(&subscription, &eventGroup)) == ERROR_OUT_OF_MEMORY) {
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
+        check(error == ERROR_NONE);
+        // Other failures than a lack of memory only happen when nothing is queued, so no read is pending then
+        while ((error = file_ops_queue([](void*) {}, nullptr, &subscription)) == ERROR_OUT_OF_MEMORY) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (error == ERROR_NONE) {
+            file_ops_await(&subscription, portMAX_DELAY);
+        }
+        file_ops_unsubscribe(&subscription);
         task_event_group_destruct(&eventGroup);
     }
 
@@ -568,7 +575,7 @@ extern "C" error_t window_manager_file_dialog(
             return ERROR_INVALID_ARGUMENT;
         }
     }
-    std::unique_ptr<DialogContent> content(new(std::nothrow) FileDialog(used, on_result, user_data));
+    DialogContentPtr content(tt::newObject<FileDialog>(used, on_result, user_data));
     if (content == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
