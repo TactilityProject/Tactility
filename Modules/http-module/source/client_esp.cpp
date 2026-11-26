@@ -25,7 +25,8 @@ class EspBackend final : public HttpClientBackend {
 
     static esp_err_t onEvent(esp_http_client_event_t* event) {
         auto* self = static_cast<EspBackend*>(event->user_data);
-        if (event->event_id == HTTP_EVENT_ON_HEADER) {
+        // Chunked trailers are reported as headers too, and must not change the ones that the caller already has
+        if (event->event_id == HTTP_EVENT_ON_HEADER && !self->finalHead) {
             self->owner->addResponseHeader(event->header_key, event->header_value);
         } else if (event->event_id == HTTP_EVENT_ON_HEADERS_COMPLETE) {
             self->finalHead = esp_http_client_get_status_code(event->client) >= 200;

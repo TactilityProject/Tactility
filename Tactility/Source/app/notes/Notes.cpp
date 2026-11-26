@@ -25,10 +25,12 @@
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
 
+#include <atomic>
 #include <new>
 #include <vector>
 
 // Included last, as it makes std:: resolve to tt::std
+#include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
 namespace tt::app::notes {
@@ -47,14 +49,16 @@ struct Context {
     lv_obj_t* uiToolbar = nullptr;
     lv_obj_t* uiNoteText = nullptr;
 
-    ::std::string filePath;
-    ::std::string saveBuffer;
+    tt::std::string filePath;
+    tt::std::string saveBuffer;
 
     /** Signalled when the menu dialog closed, as its result arrives on the dialog's task */
     uint32_t menuBit = 0;
     int32_t menuResult = WINDOW_DIALOG_DISMISSED;
     /** The actions of the items of the menu that is shown */
     tt::std::vector<int> menuActions;
+    /** Set from showing the menu until its result was read, so that no other menu replaces the result or the actions */
+    ::std::atomic<bool> menuPending = false;
 
     uint32_t loadFileLaunchId = 0;
     uint32_t saveFileLaunchId = 0;
@@ -67,7 +71,7 @@ struct Context {
 
 /** The toolbar shows the name of the file, without its directory */
 void updateTitle(Context* ctx) {
-    const auto name = ctx->filePath.empty() ? ::std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath);
+    const auto name = ctx->filePath.empty() ? ::std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath.c_str());
     if (ctx->uiToolbar != nullptr) {
         lvgl_toolbar_set_title(ctx->uiToolbar, name.c_str());
     }
@@ -85,7 +89,7 @@ void openFile(Context* ctx, const ::std::string& path) {
     if (data != nullptr) {
         lvgl_lock();
         // Without widgets, the file is read again when they are created
-        ctx->filePath = path;
+        ctx->filePath = path.c_str();
         if (ctx->uiNoteText != nullptr) {
             lv_textarea_set_text(ctx->uiNoteText, reinterpret_cast<const char*>(data.get()));
             updateTitle(ctx);
@@ -99,7 +103,7 @@ bool saveFile(Context* ctx, const ::std::string& path) {
     bool result = false;
     if (file::writeString(path, ctx->saveBuffer.c_str())) {
         LOG_I(TAG, "Saved to %s", path.c_str());
-        ctx->filePath = path;
+        ctx->filePath = path.c_str();
         result = true;
     }
     return result;
@@ -138,7 +142,7 @@ void save(Context* ctx) {
         lvgl_unlock();
         return;
     }
-    auto* job = new (::std::nothrow) SaveJob { ctx->filePath, lv_textarea_get_text(ctx->uiNoteText) };
+    auto* job = new (::std::nothrow) SaveJob { ctx->filePath.c_str(), lv_textarea_get_text(ctx->uiNoteText) };
     lvgl_unlock();
     if (job == nullptr || file_ops_queue(saveInBackground, job, nullptr) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue saving %s", ctx->filePath.c_str());
@@ -173,10 +177,10 @@ void onMenuClosed(int32_t item, void* userData) {
 /** Runs on the app task */
 void onMenuResult(Context* ctx) {
     const int32_t result = ctx->menuResult;
-    if (result < 0 || static_cast<size_t>(result) >= ctx->menuActions.size()) {
-        return;
-    }
-    switch (ctx->menuActions[result]) {
+    const bool selected = result >= 0 && static_cast<size_t>(result) < ctx->menuActions.size();
+    const int action = selected ? ctx->menuActions[result] : -1;
+    ctx->menuPending = false;
+    switch (action) {
         case MENU_NEW:
             newFile(ctx);
             break;
@@ -196,6 +200,9 @@ void onMenuResult(Context* ctx) {
 
 void onOverflowPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    if (ctx->menuPending) {
+        return;
+    }
     ::std::vector<::std::string> labels;
     ::std::vector<const char*> icons;
     ctx->menuActions.clear();
@@ -211,7 +218,9 @@ void onOverflowPressed(lv_event_t* e) {
     }
     add(MENU_SAVE_AS, tr("Save as"), LVGL_ICON_SHARED_SAVE_AS);
     add(MENU_OPEN, tr("Open"), LVGL_ICON_SHARED_FOLDER_OPEN);
+    ctx->menuPending = true;
     if (dialog::selection(ctx->appInstanceId, tr("Notes"), labels, icons, onMenuClosed, ctx) != ERROR_NONE) {
+        ctx->menuPending = false;
         LOG_E(TAG, "Failed to show the menu");
     }
 }
@@ -236,7 +245,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_textarea_set_placeholder_text(ctx->uiNoteText, tr("Notes..."));
 
     if (!ctx->filePath.empty()) {
-        openFile(ctx, ctx->filePath);
+        openFile(ctx, ctx->filePath.c_str());
     }
 }
 

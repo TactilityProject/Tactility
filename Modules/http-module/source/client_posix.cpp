@@ -47,10 +47,10 @@ class PosixBackend final : public HttpClientBackend {
     }
 
     // The optional trailers after the last chunk end with an empty line
-    bool readTrailers() {
+    bool readTrailers(const HttpClient& client) {
         std::string line;
         size_t trailerBytes = 0;
-        while (connection.readLine(line)) {
+        while (connection.readLine(line) && !client.cancelled) {
             if (line.empty()) {
                 return true;
             }
@@ -111,7 +111,7 @@ public:
         return HTTP_CLIENT_FAILURE_NONE;
     }
 
-    int read(HttpClient&, void* buffer, size_t size) override {
+    int read(HttpClient& client, void* buffer, size_t size) override {
         if (done || size == 0) {
             return 0;
         }
@@ -126,7 +126,7 @@ public:
                 return -1;
             }
             if (chunkSize == 0) {
-                if (!readTrailers()) {
+                if (!readTrailers(client)) {
                     return -1;
                 }
                 done = true;

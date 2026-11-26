@@ -9,12 +9,12 @@
 #include <tactility/Memory.hpp>
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
+#include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
-#include <string>
 
 constexpr auto* TAG = "lvgl_files";
 
@@ -36,7 +36,7 @@ struct Files;
 struct LoadJob {
     /** The view that wants the result, or nullptr when it doesn't anymore. Guarded by the LVGL lock. */
     Files* files;
-    std::string path;
+    tt::std::string path;
     bool firstPage;
     bool selectFirst;
     /** Whether the result is ready and the apply is scheduled. Guarded by the LVGL lock. */
@@ -50,7 +50,7 @@ struct Files {
     lv_obj_t* obj = nullptr;
     lv_obj_t* grid = nullptr;
     LvglFilesCallbacks callbacks = {};
-    std::string path;
+    tt::std::string path;
     tt::std::vector<Entry> entries;
     /** The read that the view waits for */
     LoadJob* pendingJob = nullptr;
@@ -186,7 +186,7 @@ void applyJob(void* context) {
             lvgl_tile_grid_request_repopulate(self->grid, !job->firstPage);
         }
     }
-    const std::string path = job->path;
+    const tt::std::string path = job->path;
     const error_t error = job->error;
     tt::deleteObject(job);
     if (self->callbacks.on_loaded != nullptr) {
@@ -272,7 +272,7 @@ void onPageChanged(lv_obj_t*, void* userData) {
 
 // endregion
 
-error_t queueRead(Files* self, const std::string& path, bool firstPage, bool selectFirst) {
+error_t queueRead(Files* self, const tt::std::string& path, bool firstPage, bool selectFirst) {
     auto* job = tt::newObject<LoadJob>(self, path, firstPage, selectFirst);
     if (job == nullptr) {
         return ERROR_OUT_OF_MEMORY;
