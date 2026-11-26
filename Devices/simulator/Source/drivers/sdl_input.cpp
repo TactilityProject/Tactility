@@ -87,7 +87,11 @@ KeyboardKeyData make_key_data(uint32_t key, uint8_t modifiers) {
 
 // The modifiers of an SDL event, which are the ones from when the key was pressed rather than the current ones
 uint8_t to_modifiers(uint16_t sdl_modifiers) {
-    return (sdl_modifiers & KMOD_SHIFT) != 0 ? KEYBOARD_MODIFIER_SHIFT : 0;
+    uint8_t modifiers = 0;
+    if ((sdl_modifiers & KMOD_CTRL) != 0) modifiers |= KEYBOARD_MODIFIER_CTRL;
+    if ((sdl_modifiers & KMOD_ALT) != 0) modifiers |= KEYBOARD_MODIFIER_ALT;
+    if ((sdl_modifiers & KMOD_SHIFT) != 0) modifiers |= KEYBOARD_MODIFIER_SHIFT;
+    return modifiers;
 }
 
 bool mark_control_key_held(const KeyboardKeyData& data) {
