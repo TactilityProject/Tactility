@@ -7,5 +7,5 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 tactility_add_module(lvgl-window-manager-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel lvgl-module app-module
+    REQUIRES TactilityKernel lvgl-module app-module localisation-module
 )

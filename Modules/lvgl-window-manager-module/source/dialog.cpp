@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl_window_manager/dialog.h>
 #include <lvgl_window_manager/window_manager.h>
+#include "system_bars_internal.h"
 #include "window_manager_internal.h"
 
 #include <lvgl/devices/indev.h>
@@ -26,6 +27,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include <new>
 #include <string>
 #include <vector>
@@ -39,8 +41,10 @@ constexpr size_t DIALOG_TASK_STACK_SIZE = 6144;
 /** The narrowest landscape display that gets a narrower dialog, in pixels */
 constexpr int32_t WIDE_DISPLAY_MIN_WIDTH = 600;
 constexpr TickType_t WAIT_FOR_APP_TIMEOUT_MS = 3000;
+/** Content dialogs fill displays that are lower than this, in pixels */
+constexpr int32_t COMPACT_DISPLAY_HEIGHT = 400;
 
-enum class DialogKind { Alert, Input, Selection };
+enum class DialogKind { Alert, Input, Selection, Content };
 
 struct Dialog {
     DialogKind kind = DialogKind::Alert;
@@ -55,6 +59,16 @@ struct Dialog {
     WindowInputDialogResultFn onInputResult = nullptr;
     WindowSelectionDialogResultFn onSelectionResult = nullptr;
     void* userData = nullptr;
+
+    // Only for DialogKind::Content
+    std::unique_ptr<DialogContent> content;
+    /** Set when the content has work for the dialog task */
+    std::atomic<bool> workPending { false };
+    /** The hidden backdrop of a closed content dialog, which the dialog task deletes. Guarded by the LVGL lock. */
+    lv_obj_t* retired = nullptr;
+    /** What the page bar did before the dialog, and whether content was built. Guarded by the LVGL lock. */
+    SystemBarsPageState pageState {};
+    bool contentBuilt = false;
 
     Thread* thread = nullptr;
     /** Given by the close path, so the task can continue */
@@ -129,6 +143,10 @@ void cancel_backdrop_deletion(lv_event_t* event) {
     lv_async_call_cancel(delete_backdrop, lv_event_get_current_target_obj(event));
 }
 
+void on_retired_deleted(lv_event_t* event) {
+    static_cast<Dialog*>(lv_event_get_user_data(event))->retired = nullptr;
+}
+
 // Call with the LVGL lock held
 void close_dialog_locked(Dialog* dialog, int32_t result, bool confirmed) {
     if (dialog->closed) {
@@ -139,6 +157,13 @@ void close_dialog_locked(Dialog* dialog, int32_t result, bool confirmed) {
     dialog->confirmed = confirmed;
     if (confirmed && dialog->textarea != nullptr) {
         dialog->text = lv_textarea_get_text(dialog->textarea);
+    }
+
+    if (dialog->contentBuilt) {
+        dialog->contentBuilt = false;
+        dialog->content->detach();
+        // Does nothing when the window of the app was deleted since, as what it set is gone then
+        system_bars_page_state_restore(&dialog->pageState);
     }
 
     if (dialog->group != nullptr) {
@@ -159,8 +184,14 @@ void close_dialog_locked(Dialog* dialog, int32_t result, bool confirmed) {
         lv_obj_remove_event_cb_with_user_data(dialog->backdrop, on_backdrop_clicked, dialog);
         // Deleted asynchronously, as this may run inside an event of one of its widgets
         lv_obj_set_hidden(dialog->backdrop, true);
-        lv_obj_add_event_cb(dialog->backdrop, cancel_backdrop_deletion, LV_EVENT_DELETE, nullptr);
-        lv_async_call(delete_backdrop, dialog->backdrop);
+        if (dialog->kind == DialogKind::Content) {
+            // The widgets refer to the content, so the dialog task deletes them before it frees the content
+            dialog->retired = dialog->backdrop;
+            lv_obj_add_event_cb(dialog->backdrop, on_retired_deleted, LV_EVENT_DELETE, dialog);
+        } else {
+            lv_obj_add_event_cb(dialog->backdrop, cancel_backdrop_deletion, LV_EVENT_DELETE, nullptr);
+            lv_async_call(delete_backdrop, dialog->backdrop);
+        }
         dialog->backdrop = nullptr;
     }
     dialog->textarea = nullptr;
@@ -300,6 +331,34 @@ bool build_dialog_locked(Dialog* dialog) {
     lv_obj_set_scrollable(backdrop, false);
     lv_obj_add_event_cb(backdrop, on_backdrop_clicked, LV_EVENT_CLICKED, dialog);
     lv_obj_add_event_cb(backdrop, on_backdrop_deleted, LV_EVENT_DELETE, dialog);
+
+    if (dialog->kind == DialogKind::Content) {
+        // The content fills the card. Small displays can't spare a margin.
+        const bool compact = display_height < COMPACT_DISPLAY_HEIGHT;
+        // A plain object instead of a card: it has the background of the app's windows and of toolbars, and the content has its own
+        lv_obj_t* content_card = lv_obj_create(backdrop);
+        lv_obj_set_size(content_card, lv_pct(compact ? 100 : (wide ? 80 : 95)), lv_pct(compact ? 100 : 90));
+        lv_obj_center(content_card);
+        lv_obj_set_flex_flow(content_card, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_all(content_card, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_row(content_card, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_clip_corner(content_card, true, LV_STATE_DEFAULT);
+        if (compact) {
+            lv_obj_set_style_radius(content_card, 0, LV_STATE_DEFAULT);
+        }
+        lv_obj_set_scrollable(content_card, false);
+        system_bars_page_state_take(&dialog->pageState);
+        dialog->contentBuilt = true;
+        dialog->content->build(dialog, content_card, group);
+        const uint32_t content_count = lv_group_get_obj_count(group);
+        for (uint32_t i = 0; i < content_count; i++) {
+            lv_obj_add_event_cb(lv_group_get_obj_by_index(group, static_cast<int32_t>(i)), on_key, LV_EVENT_KEY, dialog);
+        }
+        if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+            lvgl_focus_hide_key_selection(group);
+        }
+        return true;
+    }
 
     lv_obj_t* card = lvgl_card_create(backdrop);
     lv_obj_set_width(card, lv_pct(wide ? 60 : 90));
@@ -536,7 +595,26 @@ int32_t dialog_main(void* context) {
     }
     lvgl_unlock();
 
-    xSemaphoreTake(dialog->closedSignal, portMAX_DELAY);
+    // The signal is given when the dialog closes, and when the content has work
+    bool closed = false;
+    while (!closed) {
+        xSemaphoreTake(dialog->closedSignal, portMAX_DELAY);
+        if (dialog->workPending.exchange(false)) {
+            dialog->content->work();
+        }
+        lvgl_lock();
+        closed = dialog->closed;
+        lvgl_unlock();
+    }
+
+    if (dialog->content != nullptr) {
+        lvgl_lock();
+        if (dialog->retired != nullptr) {
+            lv_obj_delete(dialog->retired);
+        }
+        lvgl_unlock();
+        dialog->content->release();
+    }
 
     if (!dialog->canceled.load()) {
         if (dialog->kind == DialogKind::Alert) {
@@ -547,6 +625,8 @@ int32_t dialog_main(void* context) {
             if (dialog->onSelectionResult != nullptr) {
                 dialog->onSelectionResult(dialog->result, dialog->userData);
             }
+        } else if (dialog->kind == DialogKind::Content) {
+            dialog->content->deliver(dialog->confirmed);
         } else if (dialog->onInputResult != nullptr) {
             dialog->onInputResult(dialog->confirmed, dialog->confirmed ? dialog->text.c_str() : "", dialog->userData);
         }
@@ -633,6 +713,27 @@ error_t start_dialog(Dialog* dialog) {
 } // namespace
 
 // region Internal
+
+error_t dialog_start_content(AppInstanceId app_instance_id, std::unique_ptr<DialogContent> content) {
+    auto* dialog = new(std::nothrow) Dialog();
+    if (dialog == nullptr) {
+        return ERROR_OUT_OF_MEMORY;
+    }
+    dialog->kind = DialogKind::Content;
+    dialog->appInstanceId = app_instance_id;
+    dialog->content = std::move(content);
+    return start_dialog(dialog);
+}
+
+void dialog_content_post_work(void* handle) {
+    auto* dialog = static_cast<Dialog*>(handle);
+    dialog->workPending.store(true);
+    xSemaphoreGive(dialog->closedSignal);
+}
+
+void dialog_content_close_locked(void* handle, bool confirmed) {
+    close_dialog_locked(static_cast<Dialog*>(handle), confirmed ? 0 : WINDOW_DIALOG_DISMISSED, confirmed);
+}
 
 void dialog_allow_for_app(AppInstanceId app_instance_id) {
     auto& m = manager();

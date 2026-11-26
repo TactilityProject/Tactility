@@ -1,6 +1,5 @@
 #define L10N_APP "appearancesettings"
 #include <Tactility/i18n/AppDomain.h>
-#include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/file/File.h>
 #include <Tactility/lvgl/Fonts.h>
@@ -12,11 +11,10 @@
 #include <Tactility/settings/LauncherSettings.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-#include <app/stream.h>
 
+#include <lvgl_window_manager/dialog.h>
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
@@ -122,15 +120,15 @@ struct Context {
     lvgl::FontConfiguration applyConfiguration;
     std::atomic<bool> cacheUpdateSucceeded = false;
 
-    uint32_t selectLaunchId = 0;
+    /** Signaled by the file dialog, which stores the path or an empty one in selectedPath first */
+    uint32_t fileResultBit = 0;
+    std::string selectedPath;
     /** The colour that the selection dialog is for */
     size_t selectColorIndex = 0;
     /** Signaled by the colour selection dialog, which stores the selected index in colorResult first */
     uint32_t colorResultBit = 0;
     int32_t colorResult = WINDOW_DIALOG_DISMISSED;
     FontSlot selectSlot = FontSlot::Regular;
-    AppStream selectStream {};
-    uint8_t selectBuffer[256] {};
 
     /** The scroll position of the content, kept while e.g. a selection dialog covers the window. Accessed with the LVGL lock held. */
     int32_t contentScrollY = 0;
@@ -932,11 +930,20 @@ void finishApply(Context* ctx) {
 }
 
 void startFileSelection(Context* ctx, FontSlot slot) {
-    if (ctx->selectLaunchId != 0 || ctx->applying) {
+    if (ctx->applying) {
         return;
     }
+    // Fails while another dialog is shown, whose slot then stays
+    const auto previous_slot = ctx->selectSlot;
     ctx->selectSlot = slot;
-    ctx->selectLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->selectStream, ctx->selectBuffer, sizeof(ctx->selectBuffer), ctx->eventGroup);
+    const error_t error = window_manager_file_dialog(ctx->appInstanceId, nullptr, [](const char* const* paths, uint32_t path_count, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->selectedPath = path_count > 0 ? paths[0] : "";
+        task_event_group_signal(ctx->eventGroup, ctx->fileResultBit);
+    }, ctx);
+    if (error != ERROR_NONE) {
+        ctx->selectSlot = previous_slot;
+    }
 }
 
 void startColorSelection(Context* ctx) {
@@ -972,25 +979,17 @@ void onColorSelectionResult(Context* ctx) {
     }
 }
 
-void onFileSelectionResult(Context* ctx, const AppEvent& event) {
-    ctx->selectLaunchId = 0;
-    if (event.result.result == 0 /* Ok */) {
-        char path[sizeof(ctx->selectBuffer)];
-        const size_t length = app_stream_read(&ctx->selectStream, path, sizeof(path));
-        app_stream_unsubscribe(&ctx->selectStream);
-        if (length > 0) {
-            const auto selected_path = std::string(path, length);
-            const size_t character_count = getCharacterCount(selected_path);
-            lvgl_lock();
-            getFontPath(ctx->pendingSettings, ctx->selectSlot) = selected_path;
-            getCharacterCount(ctx, ctx->selectSlot) = character_count;
-            updateWidgets(ctx);
-            lvgl_unlock();
-        }
-    } else {
-        app_stream_unsubscribe(&ctx->selectStream);
+void onFileSelectionResult(Context* ctx) {
+    const auto selected_path = ctx->selectedPath;
+    if (selected_path.empty()) {
+        return;
     }
-    app_manager_stop(event.result.launch_id);
+    const size_t character_count = getCharacterCount(selected_path);
+    lvgl_lock();
+    getFontPath(ctx->pendingSettings, ctx->selectSlot) = selected_path;
+    getCharacterCount(ctx, ctx->selectSlot) = character_count;
+    updateWidgets(ctx);
+    lvgl_unlock();
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -1008,6 +1007,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&event_group, &ctx.selectMonoBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectColorBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.colorResultBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.fileResultBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.applyBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.cacheUpdatedBit) == ERROR_NONE);
 
@@ -1033,6 +1033,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.colorResultBit) {
             onColorSelectionResult(&ctx);
         }
+        if (flags & ctx.fileResultBit) {
+            onFileSelectionResult(&ctx);
+        }
         if (flags & ctx.applyBit) {
             startApply(&ctx);
         }
@@ -1044,8 +1047,6 @@ int32_t appMain(int argc, char* argv[]) {
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
             if (event.type == APP_EVENT_CLOSE) {
                 should_close = true;
-            } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.selectLaunchId) {
-                onFileSelectionResult(&ctx, event);
             }
         }
     }

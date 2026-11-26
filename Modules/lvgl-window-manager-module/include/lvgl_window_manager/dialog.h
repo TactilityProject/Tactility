@@ -36,6 +36,36 @@ typedef void (*WindowInputDialogResultFn)(bool confirmed, const char* text, void
  */
 typedef void (*WindowSelectionDialogResultFn)(int32_t item_index, void* user_data);
 
+/**
+ * @param[in] paths the picked paths, valid during the call. NULL when the dialog was dismissed.
+ * @param[in] path_count the number of paths, 0 when the dialog was dismissed
+ * @param[in] user_data the value that was passed when the dialog was shown
+ */
+typedef void (*WindowFileDialogResultFn)(const char* const* paths, uint32_t path_count, void* user_data);
+
+/** Allows picking a path that doesn't exist yet, for "save as" flows */
+#define WINDOW_FILE_DIALOG_NEW_FILE (1U << 0)
+/** Allows picking a folder: the folder that is shown */
+#define WINDOW_FILE_DIALOG_FOLDER (1U << 1)
+/** Doesn't allow picking files */
+#define WINDOW_FILE_DIALOG_NO_FILES (1U << 2)
+/** Allows picking more than one file */
+#define WINDOW_FILE_DIALOG_MULTIPLE (1U << 3)
+
+/** A zeroed struct picks one existing file, starting at the root of the data */
+struct WindowFileDialogOptions {
+    /** WINDOW_FILE_DIALOG_* */
+    uint32_t flags;
+    /** The directory that is shown first, or NULL for the root of the data */
+    const char* path;
+    /** The text that the name field starts with, or NULL. Only used with WINDOW_FILE_DIALOG_NEW_FILE. */
+    const char* name;
+    /** The allowed file extensions, with or without leading dot, case-insensitive */
+    const char* const* extensions;
+    /** The number of extensions. 0 allows every file. */
+    uint32_t extension_count;
+};
+
 /*
  * Dialogs are modals over the root container of an app. They have their own focus group while they are shown,
  * so the keyboard and encoder can't reach the widgets of the app, and a pointer can't reach them through the dimmed backdrop.
@@ -143,6 +173,27 @@ error_t window_manager_selection_dialog_with_icons(
     const char* const* icons,
     uint32_t item_count,
     WindowSelectionDialogResultFn on_result,
+    void* user_data
+);
+
+/**
+ * Shows a dialog to pick files or folders, or to name a new file.
+ * While it is shown, it uses the page buttons of the system bars.
+ * Doesn't block, so it can be called from any task, including LVGL event callbacks.
+ * @param[in] app_instance_id the app that the dialog is shown over. It must have a window that is topmost.
+ * @param[in] options what can be picked, or NULL for one existing file. It is copied.
+ * @param[in] on_result called when the dialog is closed. May be NULL.
+ * @param[in] user_data passed to @a on_result
+ * @retval ERROR_NONE the dialog is being shown
+ * @retval ERROR_INVALID_ARGUMENT no app or a missing extension
+ * @retval ERROR_INVALID_STATE the app has no topmost window
+ * @retval ERROR_RESOURCE_BUSY a dialog is already shown
+ * @retval ERROR_OUT_OF_MEMORY there is no memory for the dialog or its task
+ */
+error_t window_manager_file_dialog(
+    AppInstanceId app_instance_id,
+    const struct WindowFileDialogOptions* options,
+    WindowFileDialogResultFn on_result,
     void* user_data
 );
 

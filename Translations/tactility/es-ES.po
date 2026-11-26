@@ -123,3 +123,12 @@ msgstr "Reiniciar"
 
 msgid "Power off"
 msgstr "Apagar"
+
+msgid "Enter filename"
+msgstr "Introduce el nombre del archivo"
+
+msgid "Can't select this"
+msgstr "No se puede seleccionar"
+
+msgid "Failed to open the folder"
+msgstr "No se pudo abrir la carpeta"

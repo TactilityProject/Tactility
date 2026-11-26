@@ -21,6 +21,7 @@
 #include <tactility/check.h>
 #include <tactility/delay.h>
 #include <tactility/file_ops.h>
+#include <tactility/log.h>
 #include <tactility/filesystem/fs.h>
 
 #include <cstdint>
@@ -109,6 +110,7 @@ void destroyWidgets(void* userData) {
 }
 
 int32_t appMain(int argc, char* argv[]) {
+    LOG_W(TAG, "This app is deprecated and will be removed: use window_manager_file_dialog()");
     uint32_t appInstanceId = app_scheduler_current_app_id();
     // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>", "--path=<directory>", "--name=<file name>" and "--ext=<extension>" (repeatable)
     Options options;

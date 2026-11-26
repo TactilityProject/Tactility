@@ -323,6 +323,46 @@ TEST_CASE("cancellation records survive overlapping removals and are isolated by
     CHECK_FALSE(dialog_is_app_canceled(271));
 }
 
+TEST_CASE("a dismissed file dialog reports no paths and frees the modal slot") {
+    Fixture fixture;
+    REQUIRE(fixture.start());
+    REQUIRE_NE(fixture.create_window(281), 0);
+
+    static std::atomic<bool> delivered { false };
+    static std::atomic<uint32_t> delivered_count { 1 };
+    delivered.store(false);
+    const auto on_result = [](const char* const*, uint32_t count, void*) {
+        delivered_count.store(count);
+        delivered.store(true);
+    };
+    REQUIRE_EQ(window_manager_file_dialog(281, nullptr, on_result, nullptr), ERROR_NONE);
+    const char* labels[] = { "OK" };
+    CHECK_EQ(window_manager_alert_dialog(281, "Test", "Busy", labels, 1, nullptr, nullptr), ERROR_RESOURCE_BUSY);
+    // Lets the widgets be built and the directory be read
+    delay_millis(200);
+    window_manager_dialog_dismiss();
+    REQUIRE(wait_for(delivered, 5000));
+    CHECK_EQ(delivered_count.load(), 0);
+    CHECK_EQ(window_manager_alert_dialog(281, "Test", "Free", labels, 1, nullptr, nullptr), ERROR_NONE);
+    window_manager_dialog_dismiss();
+}
+
+TEST_CASE("removing the window suppresses the result of a file dialog") {
+    Fixture fixture;
+    REQUIRE(fixture.start());
+    const WindowId window_id = fixture.create_window(291);
+    REQUIRE_NE(window_id, 0);
+
+    static std::atomic<bool> delivered { false };
+    delivered.store(false);
+    const WindowFileDialogOptions options = { WINDOW_FILE_DIALOG_NEW_FILE, "/", "name.txt", nullptr, 0 };
+    REQUIRE_EQ(window_manager_file_dialog(291, &options, [](const char* const*, uint32_t, void*) { delivered.store(true); }, nullptr), ERROR_NONE);
+    delay_millis(200);
+    REQUIRE(fixture.start_removal(window_id));
+    REQUIRE_EQ(fixture.join_removal(), ERROR_NONE);
+    CHECK_FALSE(delivered.load());
+}
+
 #ifdef DIALOG_START_WRAPPING
 TEST_CASE("dialog task startup failures release the modal slot") {
     Fixture fixture;

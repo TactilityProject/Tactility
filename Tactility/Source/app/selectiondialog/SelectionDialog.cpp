@@ -116,6 +116,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 }
 
 int32_t appMain(int argc, char* argv[]) {
+    LOG_W(TAG, "This app is deprecated and will be removed: use window_manager_selection_dialog()");
     AppInstanceId appInstanceId = app_scheduler_current_app_id();
     Context ctx { appInstanceId };
     ctx.argc = argc;
