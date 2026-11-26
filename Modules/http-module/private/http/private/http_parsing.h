@@ -9,7 +9,18 @@ struct HttpUrl {
     std::string port;
     /** The path and query, "/" when the URL has none */
     std::string path;
+    /** True for https:// */
+    bool secure = true;
 };
+
+/** Parses an http:// or https:// URL. The port is 80 or 443 when the URL has none. */
+bool http_parse_url(const std::string& url, HttpUrl& out);
+
+/** True when the name can be sent as a request header name */
+bool http_is_valid_header_name(const char* name);
+
+/** True when the value has no line breaks or other control characters */
+bool http_is_valid_header_value(const char* value);
 
 /** Parses an https:// URL. The port is 443 when the URL has none. */
 bool http_parse_https_url(const std::string& url, HttpUrl& out);

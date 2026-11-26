@@ -10,6 +10,7 @@
 
 ## Medium Priority
 
+- Apps should be able to register compatible file extensions that they can open.
 - Power management API to expose suspend/(deep)sleep(and auto-wake with timer)/power off.
 - Check if main mesh task stack (8kB) can move to external RAM when available. Shift file IO to file_ops?
 - SystemInfo is causing stack overflow when clicking on task to see its details

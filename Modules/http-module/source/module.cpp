@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <http/client.h>
 #include <http/download.h>
 #include <http/module.h>
 
@@ -62,6 +63,19 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(http_download_poll),
     DEFINE_MODULE_SYMBOL(http_download_start),
     DEFINE_MODULE_SYMBOL(http_download_cancel),
+    DEFINE_MODULE_SYMBOL(http_client_alloc),
+    DEFINE_MODULE_SYMBOL(http_client_free),
+    DEFINE_MODULE_SYMBOL(http_client_set_header),
+    DEFINE_MODULE_SYMBOL(http_client_set_timeout),
+    DEFINE_MODULE_SYMBOL(http_client_open),
+    DEFINE_MODULE_SYMBOL(http_client_get_status_code),
+    DEFINE_MODULE_SYMBOL(http_client_get_content_length),
+    DEFINE_MODULE_SYMBOL(http_client_get_header),
+    DEFINE_MODULE_SYMBOL(http_client_read),
+    DEFINE_MODULE_SYMBOL(http_client_get_failure),
+    DEFINE_MODULE_SYMBOL(http_client_cancel),
+    DEFINE_MODULE_SYMBOL(http_client_reset),
+    DEFINE_MODULE_SYMBOL(http_client_close),
     DEFINE_MODULE_SYMBOL(http_server_alloc),
     DEFINE_MODULE_SYMBOL(http_server_free),
     DEFINE_MODULE_SYMBOL(http_server_start),

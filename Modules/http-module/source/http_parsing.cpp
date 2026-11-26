@@ -32,10 +32,26 @@ bool is_digits(const std::string& text) {
 }
 
 bool http_parse_https_url(const std::string& url, HttpUrl& out) {
-    constexpr std::string_view scheme = "https://";
-    if (url.compare(0, scheme.size(), scheme) != 0) {
+    HttpUrl parsed;
+    if (!http_parse_url(url, parsed) || !parsed.secure) {
         return false;
     }
+    out = parsed;
+    return true;
+}
+
+bool http_parse_url(const std::string& url, HttpUrl& out) {
+    // Spaces and control characters would break the request line apart
+    for (const char c : url) {
+        if (static_cast<unsigned char>(c) <= ' ' || c == 127) {
+            return false;
+        }
+    }
+    const bool secure = url.compare(0, 8, "https://") == 0;
+    if (!secure && url.compare(0, 7, "http://") != 0) {
+        return false;
+    }
+    const std::string_view scheme = secure ? "https://" : "http://";
 
     const auto authorityStart = scheme.size();
     const auto pathStart = url.find_first_of("/?#", authorityStart);
@@ -63,7 +79,7 @@ bool http_parse_https_url(const std::string& url, HttpUrl& out) {
         return false;
     }
 
-    std::string port = "443";
+    std::string port = secure ? "443" : "80";
     if (!rest.empty()) {
         if (rest[0] != ':' || !is_digits(rest.substr(1))) {
             return false;
@@ -78,7 +94,31 @@ bool http_parse_https_url(const std::string& url, HttpUrl& out) {
         path.insert(0, "/");
     }
 
-    out = { .host = host, .port = port, .path = path };
+    out = { .host = host, .port = port, .path = path, .secure = secure };
+    return true;
+}
+
+bool http_is_valid_header_name(const char* name) {
+    if (name == nullptr || *name == '\0') {
+        return false;
+    }
+    for (const char* c = name; *c != '\0'; c++) {
+        if (static_cast<unsigned char>(*c) <= ' ' || static_cast<unsigned char>(*c) >= 127 || *c == ':') {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool http_is_valid_header_value(const char* value) {
+    if (value == nullptr) {
+        return false;
+    }
+    for (const char* c = value; *c != '\0'; c++) {
+        if ((static_cast<unsigned char>(*c) < ' ' && *c != '\t') || *c == 127) {
+            return false;
+        }
+    }
     return true;
 }
 

@@ -15,10 +15,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         lwip
         mbedtls
     )
-    list(FILTER SOURCE_FILES EXCLUDE REGEX ".*download_posix\\.cpp$")
+    list(FILTER SOURCE_FILES EXCLUDE REGEX ".*(download_posix|client_posix|posix_connection)\\.cpp$")
 else ()
     list(APPEND REQUIRES_LIST mbedtls)
-    list(FILTER SOURCE_FILES EXCLUDE REGEX ".*download_esp\\.cpp$")
+    list(FILTER SOURCE_FILES EXCLUDE REGEX ".*(download_esp|client_esp)\\.cpp$")
 endif ()
 
 tactility_add_module(http-module

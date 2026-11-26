@@ -437,6 +437,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_image_opa),
     DEFINE_MODULE_SYMBOL(lv_obj_get_style_text_color),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_max_width),
+    DEFINE_MODULE_SYMBOL(lv_obj_get_style_text_font),
     DEFINE_MODULE_SYMBOL(lv_obj_add_style),
     DEFINE_MODULE_SYMBOL(lv_obj_remove_style),
     DEFINE_MODULE_SYMBOL(lv_obj_check_type),
