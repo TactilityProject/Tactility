@@ -21,7 +21,10 @@ struct AntennaSwitchApi {
 /** @retval ERROR_OUT_OF_RANGE when the index cannot be represented by the switch */
 error_t antenna_switch_set_antenna(struct Device* device, uint32_t antenna);
 
-/** @param[out] antenna receives the currently selected zero-based antenna index */
+/**
+ * @param[out] antenna receives the currently selected zero-based antenna index
+ * @retval ERROR_INVALID_STATE if the selection is unknown after a failed switch operation
+ */
 error_t antenna_switch_get_antenna(struct Device* device, uint32_t* antenna);
 
 extern const struct DeviceType ANTENNA_SWITCH_TYPE;

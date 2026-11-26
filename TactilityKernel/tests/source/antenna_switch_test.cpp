@@ -13,17 +13,18 @@ namespace {
 
 struct FakeGpioController {
     bool levels[4] {};
+    int fail_pin = -1;
 };
 
 error_t fake_gpio_set_level(GpioDescriptor* descriptor, bool high) {
     auto* context = static_cast<FakeGpioController*>(gpio_controller_get_controller_context(descriptor->controller));
+    if (descriptor->pin == context->fail_pin) return ERROR_RESOURCE;
     context->levels[descriptor->pin] = high;
     return ERROR_NONE;
 }
 
-error_t fake_gpio_get_level(GpioDescriptor* descriptor, bool* high) {
-    auto* context = static_cast<FakeGpioController*>(gpio_controller_get_controller_context(descriptor->controller));
-    *high = context->levels[descriptor->pin];
+error_t fake_gpio_get_level(GpioDescriptor*, bool* high) {
+    *high = false;
     return ERROR_NONE;
 }
 
@@ -152,4 +153,22 @@ TEST_CASE("GPIO antenna switch selects and reports binary antenna indices") {
     CHECK_EQ(antenna, 2);
 
     CHECK_EQ(antenna_switch_set_antenna(&fixture.switch_device, 4), ERROR_OUT_OF_RANGE);
+    CHECK_EQ(antenna_switch_get_antenna(&fixture.switch_device, &antenna), ERROR_NONE);
+    CHECK_EQ(antenna, 2);
+}
+
+TEST_CASE("GPIO antenna switch reports unknown selection after a failed write") {
+    AntennaSwitchFixture fixture;
+    REQUIRE_EQ(fixture.start(), ERROR_NONE);
+
+    fixture.gpio_context.fail_pin = 1;
+    CHECK_EQ(antenna_switch_set_antenna(&fixture.switch_device, 2), ERROR_RESOURCE);
+    uint32_t antenna = 99;
+    CHECK_EQ(antenna_switch_get_antenna(&fixture.switch_device, &antenna), ERROR_INVALID_STATE);
+    CHECK_EQ(antenna, 99);
+
+    fixture.gpio_context.fail_pin = -1;
+    CHECK_EQ(antenna_switch_set_antenna(&fixture.switch_device, 2), ERROR_NONE);
+    CHECK_EQ(antenna_switch_get_antenna(&fixture.switch_device, &antenna), ERROR_NONE);
+    CHECK_EQ(antenna, 2);
 }

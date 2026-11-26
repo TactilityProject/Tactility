@@ -22,6 +22,8 @@ struct GpioAntennaSwitchInternal {
     Mutex mutex {};
     GpioDescriptor* gpios[MAX_SELECTOR_GPIO_COUNT] {};
     uint8_t gpio_count = 0;
+    uint32_t selected_antenna = 0;
+    bool selection_valid = false;
 
     GpioAntennaSwitchInternal() {
         mutex_construct(&mutex);
@@ -54,10 +56,13 @@ static error_t set_antenna(Device* device, uint32_t antenna) {
         const error_t error = gpio_descriptor_set_level(internal->gpios[index], high);
         if (error != ERROR_NONE) {
             LOG_E(TAG, "%s: failed to set selector GPIO %u", device->name, (unsigned)index);
+            internal->selection_valid = false;
             mutex_unlock(&internal->mutex);
             return error;
         }
     }
+    internal->selected_antenna = antenna;
+    internal->selection_valid = true;
     mutex_unlock(&internal->mutex);
     return ERROR_NONE;
 }
@@ -66,20 +71,13 @@ static error_t get_antenna(Device* device, uint32_t* antenna) {
     auto* internal = GET_INTERNAL(device);
     if (internal == nullptr) return ERROR_INVALID_STATE;
 
-    uint32_t selected = 0;
     mutex_lock(&internal->mutex);
-    for (uint8_t index = 0; index < internal->gpio_count; index++) {
-        bool high = false;
-        const error_t error = gpio_descriptor_get_level(internal->gpios[index], &high);
-        if (error != ERROR_NONE) {
-            LOG_E(TAG, "%s: failed to read selector GPIO %u", device->name, (unsigned)index);
-            mutex_unlock(&internal->mutex);
-            return error;
-        }
-        if (high) selected |= (uint32_t{1} << index);
+    if (!internal->selection_valid) {
+        mutex_unlock(&internal->mutex);
+        return ERROR_INVALID_STATE;
     }
+    *antenna = internal->selected_antenna;
     mutex_unlock(&internal->mutex);
-    *antenna = selected;
     return ERROR_NONE;
 }
 

@@ -9,6 +9,7 @@
 extern "C" {
 #endif
 
+/** Readback reports the last successful selection, not the physical GPIO levels. */
 struct GpioAntennaSwitchConfig {
     struct GpioPinSpec* gpios;
     uint8_t gpios_count;
