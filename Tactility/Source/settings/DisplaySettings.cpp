@@ -318,7 +318,7 @@ bool backlightSupportsBrightness(Device* backlight) {
 int32_t backlightPercentToBrightness(Device* backlight, int32_t percent) {
     const int32_t min = backlight_get_min_brightness(backlight);
     const int32_t range = backlight_get_max_brightness(backlight) - min;
-    const int32_t brightness = min + (std::clamp(percent, BACKLIGHT_MIN_PERCENT, 100) * range + 50) / 100;
+    const int32_t brightness = min + (std::clamp<int32_t>(percent, BACKLIGHT_MIN_PERCENT, 100) * range + 50) / 100;
     // A brightness of 0 turns the backlight off
     return brightness < 1 ? 1 : brightness;
 }
