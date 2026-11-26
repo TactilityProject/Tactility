@@ -33,3 +33,7 @@ properties:
     type: text
     required: true
     description: Panel name. Supported values are "gdeq031t10".
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

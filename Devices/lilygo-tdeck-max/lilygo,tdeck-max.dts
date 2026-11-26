@@ -185,6 +185,20 @@
 		pwm = <&keyboard_backlight_pwm>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 41 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <1>;
+		ledc-channel = <1>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
@@ -206,6 +220,7 @@
 			pin-cs = <&gpio0 34 GPIO_FLAG_NONE>;
 			clock-speed-hz = <10000000>;
 			panel-type = "gdeq031t10";
+			backlight = <&display_backlight>;
 		};
 
 		sdcard@1 {
