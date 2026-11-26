@@ -38,9 +38,7 @@ public:
         Device* spi_controller;
         spi_host_device_t spi_host;
         int spi_frequency_hz;
-        // CS/RESET/BUSY are native SoC GPIO numbers: the RadioLib HAL drives them directly
-        // through ESP-IDF, so they can't sit behind an IO expander (unlike enable/antenna-select,
-        // which the driver-registration layer resolves through the GPIO descriptor API).
+        // CS/RESET/BUSY are native SoC GPIO numbers driven directly by the RadioLib HAL.
         gpio_num_t pin_cs;
         gpio_num_t pin_reset;
         gpio_num_t pin_busy;

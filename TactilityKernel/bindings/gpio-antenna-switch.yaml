@@ -1,0 +1,15 @@
+description: GPIO-controlled binary antenna selector
+
+compatible: "tactility,gpio-antenna-switch"
+
+properties:
+  gpios:
+    type: phandle-array
+    element-type: "struct GpioPinSpec"
+    required: true
+    description: GPIOs encode the antenna index in binary, least-significant bit first
+  default-antenna:
+    type: int
+    default: 0
+    min: 0
+    description: Antenna index selected when the switch starts

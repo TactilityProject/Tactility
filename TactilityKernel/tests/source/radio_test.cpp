@@ -235,8 +235,11 @@ TEST_CASE("radio optional API returns ERROR_NOT_SUPPORTED when not implemented")
     FakeRadioFixture fixture;
     float rssi;
     bool receiving;
+    uint32_t antenna;
     CHECK_EQ(radio_get_rssi(&fixture.device, &rssi), ERROR_NOT_SUPPORTED);
     CHECK_EQ(radio_is_receiving(&fixture.device, &receiving), ERROR_NOT_SUPPORTED);
+    CHECK_EQ(radio_set_antenna(&fixture.device, 0), ERROR_NOT_SUPPORTED);
+    CHECK_EQ(radio_get_antenna(&fixture.device, &antenna), ERROR_NOT_SUPPORTED);
 }
 
 TEST_CASE("radio region bands") {

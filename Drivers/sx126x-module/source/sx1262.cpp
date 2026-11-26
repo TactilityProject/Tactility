@@ -4,6 +4,7 @@
 #include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/antenna_switch.h>
 #include <tactility/drivers/esp32_spi.h>
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -221,11 +222,12 @@ static error_t detect_chip(Device* device) {
     Sx1262Internal pins;
     pins.pin_reset = acquire_probe_pin(config->pin_reset, GPIO_FLAG_DIRECTION_OUTPUT);
     pins.pin_busy = acquire_probe_pin(config->pin_busy, GPIO_FLAG_DIRECTION_INPUT);
-    // The control pins keep their polarity, so active and inactive mean the same as when the radio runs
-    pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_antenna_select.flags & GPIO_FLAG_ACTIVE_LOW));
+    if (config->antenna_switch == nullptr) {
+        pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_antenna_select.flags & GPIO_FLAG_ACTIVE_LOW));
+    }
     pins.pin_enable = acquire_probe_pin(config->pin_enable, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_enable.flags & GPIO_FLAG_ACTIVE_LOW));
     const bool acquired = pins.pin_reset != nullptr && pins.pin_busy != nullptr &&
-        (pins.pin_antenna_select != nullptr || config->pin_antenna_select.gpio_controller == nullptr) &&
+        (pins.pin_antenna_select != nullptr || config->antenna_switch != nullptr || config->pin_antenna_select.gpio_controller == nullptr) &&
         (pins.pin_enable != nullptr || config->pin_enable.gpio_controller == nullptr);
 
     bool found = false;
@@ -276,6 +278,14 @@ static error_t start(Device* device) {
     }
 
     auto* config = GET_CONFIG(device);
+    if (config->antenna_switch != nullptr && config->pin_antenna_select.gpio_controller != nullptr) {
+        LOG_E(TAG, "%s: configure either antenna-switch or pin-antenna-select, not both", device->name);
+        return ERROR_INVALID_STATE;
+    }
+    if (config->antenna_switch != nullptr && !device_is_ready(config->antenna_switch)) {
+        LOG_E(TAG, "%s: antenna switch is not ready", device->name);
+        return ERROR_INVALID_STATE;
+    }
 
     // The chip-select lookup uses the node's unit address; reg exists to satisfy the
     // devicetree convention for addressed nodes, so reject a board definition where
@@ -318,8 +328,6 @@ static error_t start(Device* device) {
         }
     }
 
-    // Select the antenna path first, then power the module: the RF switch should
-    // never be indeterminate while the radio is powered.
     if (acquire_and_drive_pin(config->pin_antenna_select, "pin-antenna-select", true, &data->pin_antenna_select) != ERROR_NONE ||
         acquire_and_drive_pin(config->pin_enable, "pin-enable", true, &data->pin_enable) != ERROR_NONE) {
         data->release_pins();
@@ -383,7 +391,6 @@ static error_t start(Device* device) {
     // surfacing later as an opaque RadioLib error on the radio thread.
     if (data->radio->probe() != ERROR_NONE) {
         tt::deleteObject(data->radio);
-        // Power down first, then release the antenna path (mirror of the start order)
         set_pin_active(data->pin_enable, false);
         set_pin_active(data->pin_antenna_select, false);
         data->release_pins();
@@ -405,7 +412,6 @@ static error_t stop(Device* device) {
     tt::deleteObject(data->radio);
     data->radio = nullptr;
 
-    // Power down first, then release the antenna path (mirror of the start order)
     set_pin_active(data->pin_enable, false);
     set_pin_active(data->pin_antenna_select, false);
 
@@ -488,6 +494,26 @@ static error_t api_is_receiving(Device* device, bool* receiving) {
     return radio->isReceiving(receiving);
 }
 
+static error_t api_set_antenna(Device* device, uint32_t antenna) {
+    auto* radio = get_radio(device);
+    if (radio == nullptr) return ERROR_INVALID_STATE;
+
+    const auto* config = GET_CONFIG(device);
+    if (config->antenna_switch == nullptr) return ERROR_NOT_SUPPORTED;
+    if (!device_is_ready(config->antenna_switch)) return ERROR_INVALID_STATE;
+    if (radio->getState() != RADIO_STATE_OFF) return ERROR_INVALID_STATE;
+    return antenna_switch_set_antenna(config->antenna_switch, antenna);
+}
+
+static error_t api_get_antenna(Device* device, uint32_t* antenna) {
+    if (get_radio(device) == nullptr) return ERROR_INVALID_STATE;
+
+    const auto* config = GET_CONFIG(device);
+    if (config->antenna_switch == nullptr) return ERROR_NOT_SUPPORTED;
+    if (!device_is_ready(config->antenna_switch)) return ERROR_INVALID_STATE;
+    return antenna_switch_get_antenna(config->antenna_switch, antenna);
+}
+
 static const struct RadioApi sx1262_radio_api = {
     .get_radio_state = api_get_radio_state,
     .set_enabled = api_set_enabled,
@@ -500,6 +526,8 @@ static const struct RadioApi sx1262_radio_api = {
     .transmit = api_transmit,
     .get_rssi = api_get_rssi,
     .is_receiving = api_is_receiving,
+    .set_antenna = api_set_antenna,
+    .get_antenna = api_get_antenna,
 };
 
 // endregion

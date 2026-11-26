@@ -511,6 +511,18 @@ error_t radio_is_receiving(struct Device* device, bool* receiving) {
     return api->is_receiving(device, receiving);
 }
 
+error_t radio_set_antenna(struct Device* device, uint32_t antenna) {
+    const auto* api = RADIO_API(device);
+    if (api->set_antenna == nullptr) return ERROR_NOT_SUPPORTED;
+    return api->set_antenna(device, antenna);
+}
+
+error_t radio_get_antenna(struct Device* device, uint32_t* antenna) {
+    const auto* api = RADIO_API(device);
+    if (api->get_antenna == nullptr) return ERROR_NOT_SUPPORTED;
+    return api->get_antenna(device, antenna);
+}
+
 // region Ownership
 
 error_t radio_acquire(struct Device* device, const char* owner) {

@@ -7,13 +7,19 @@ Kernel driver for the Semtech SX1262 sub-GHz LoRa and (G)FSK transceiver, built 
 The device is a child of an SPI controller. The chip-select line comes from the parent's
 `cs-gpios` entry matching the node's unit address; the `reg` property must match that
 unit address (checked at device start). The reset, busy and DIO1 lines must be
-SoC GPIOs (the RadioLib HAL drives them directly); the optional enable and antenna-select
-lines can live on any GPIO controller, including IO expanders, and are driven to their
-active level while the device is started.
+SoC GPIOs (the RadioLib HAL drives them directly). The optional enable line can live on any
+GPIO controller, including IO expanders. Antenna selection is provided by an antenna-switch
+device referenced from the radio node.
 
 Example (LilyGO T-Deck Max):
 
 ```dts
+rf_switch: rf-switch {
+    compatible = "tactility,gpio-antenna-switch";
+    gpios = <&xl9555 4 GPIO_FLAG_NONE>;
+    default-antenna = <0>; // External is low, internal is high.
+};
+
 spi0 {
     compatible = "espressif,esp32-spi";
     cs-gpios = <&gpio0 34 GPIO_FLAG_NONE>, // 0: EPD display
@@ -28,7 +34,7 @@ spi0 {
         pin-dio1 = <&gpio0 5 GPIO_FLAG_NONE>;
         pin-busy = <&gpio0 6 GPIO_FLAG_NONE>;
         pin-enable = <&xl9555 1 GPIO_FLAG_NONE>;
-        pin-antenna-select = <&xl9555 4 GPIO_FLAG_NONE>;
+        antenna-switch = <&rf_switch>;
         tcxo-millivolts = <2400>;
         dio2-as-rf-switch;
     };
@@ -37,7 +43,11 @@ spi0 {
 
 Notes:
 
-- Starting the device selects the antenna path, powers the module and runs a GPIO-only
+- Existing device trees can keep using `pin-antenna-select`; it retains its start/stop behavior.
+  New designs should use `antenna-switch` for runtime antenna selection.
+- The antenna-switch device selects its default antenna when it starts. Use
+  `radio_set_antenna()` to change it while the radio is off, and `radio_get_antenna()` to read
+  the selected index. Starting the radio device powers the module and runs a GPIO-only
   probe (reset pulse, then wait for the chip to drive BUSY low), so an absent or
   unpowered module fails at device start. The modem itself is initialized when the
   radio is enabled via `radio_set_enabled()`, which requires a modulation to be set first.

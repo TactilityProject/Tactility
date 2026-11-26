@@ -317,6 +317,8 @@ const RadioApi radioApi = {
     .transmit = apiTransmit,
     .get_rssi = nullptr,
     .is_receiving = nullptr,
+    .set_antenna = nullptr,
+    .get_antenna = nullptr,
 };
 
 // endregion

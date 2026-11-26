@@ -23,8 +23,10 @@ struct Sx1262Config {
     struct GpioPinSpec pin_dio1;
     /** Optional module power enable, driven active while the device is started */
     struct GpioPinSpec pin_enable;
-    /** Optional antenna select, driven active while the device is started */
+    /** Legacy optional antenna select, driven active while the device is started */
     struct GpioPinSpec pin_antenna_select;
+    /** Optional antenna switch device */
+    struct Device* antenna_switch;
     /** TCXO reference voltage on DIO3 in millivolts, 0 when no TCXO is fitted */
     uint32_t tcxo_millivolts;
     /** Use the LDO regulator instead of the DC-DC converter */
