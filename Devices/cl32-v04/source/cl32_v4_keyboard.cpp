@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "cl32_v4.h"
 #include "cl32_v4_keyboard.h"
+#include <tactility/Memory.hpp>
 #include <tactility/device.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
-
-#include <new>
 
 extern Module cl32_v04_module;
 
@@ -322,7 +321,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    auto* internal = new(std::nothrow) Cl32V4KeyboardInternal();
+    auto* internal = tt::newObject<Cl32V4KeyboardInternal>();
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -332,7 +331,7 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     auto* internal = static_cast<Cl32V4KeyboardInternal*>(device_get_driver_data(device));
-    delete internal;
+    tt::deleteObject(internal);
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }

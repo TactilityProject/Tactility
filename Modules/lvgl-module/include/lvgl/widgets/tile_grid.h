@@ -38,7 +38,10 @@ typedef enum {
     LVGL_TILE_GRID_INDICATOR_RIGHT,
 } LvglTileGridIndicator;
 
-/** An item of the grid, as it is passed to the callbacks */
+/**
+ * An item of the grid, as it is passed to the callbacks.
+ * The grid owns it: the next rebuild invalidates it, also when an item with the same id remains. Copy what is needed longer.
+ */
 typedef struct {
     /** Identifies the item across rebuilds, e.g. to keep it selected */
     const char* id;
@@ -164,7 +167,7 @@ uint32_t lvgl_tile_grid_get_page(lv_obj_t* grid);
 /** @return the tile of the item with this id on the shown page, or NULL */
 lv_obj_t* lvgl_tile_grid_find_tile(lv_obj_t* grid, const char* id);
 
-/** @return the item of a tile, or NULL when it is not a tile of the grid */
+/** @return the item of a tile, or NULL when it is not a tile of the grid. Valid until the next rebuild. */
 const LvglTileGridItem* lvgl_tile_grid_get_tile_item(lv_obj_t* grid, lv_obj_t* tile);
 
 /** @return the grid navigation container that holds the tiles, which is the focus target in the input group */

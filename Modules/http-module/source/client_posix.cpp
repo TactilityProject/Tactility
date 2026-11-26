@@ -83,7 +83,7 @@ public:
         std::string request = "GET " + parsed.path + " HTTP/1.1\r\nHost: " + (ipv6 ? "[" + parsed.host + "]" : parsed.host) +
             (defaultPort ? "" : ":" + parsed.port) + "\r\nConnection: close\r\n";
         for (const auto& header : client.requestHeaders) {
-            request += header.first + ": " + header.second + "\r\n";
+            request.append(header.first).append(": ").append(header.second).append("\r\n");
         }
         request += "\r\n";
         if (!connection.writeAll(request)) {

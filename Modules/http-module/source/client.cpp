@@ -6,13 +6,15 @@
 #include <cctype>
 #include <cstring>
 #include <new>
+#include <string_view>
 
 namespace {
 
 constexpr size_t MAX_RESPONSE_HEADER_BYTES = 8192;
 constexpr size_t MAX_FRAMING_HEADER_BYTES = 256;
 
-std::string to_lower(std::string text) {
+tt::std::string to_lower(std::string_view input) {
+    tt::std::string text(input);
     for (auto& c : text) {
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
@@ -22,7 +24,7 @@ std::string to_lower(std::string text) {
 }
 
 void HttpClient::addResponseHeader(const std::string& name, const std::string& value) {
-    const std::string lowerName = to_lower(name);
+    const auto lowerName = to_lower(name);
     const bool framing = lowerName == "content-length" || lowerName == "transfer-encoding";
     size_t& usedBytes = framing ? framingHeaderBytes : responseHeaderBytes;
     if (usedBytes + name.size() + value.size() > (framing ? MAX_FRAMING_HEADER_BYTES : MAX_RESPONSE_HEADER_BYTES)) {
@@ -32,11 +34,11 @@ void HttpClient::addResponseHeader(const std::string& name, const std::string& v
     usedBytes += name.size() + value.size();
     for (auto& header : responseHeaders) {
         if (header.first == lowerName) {
-            header.second += ", " + value;
+            header.second.append(", ").append(value);
             return;
         }
     }
-    responseHeaders.emplace_back(lowerName, value);
+    responseHeaders.emplace_back(lowerName, tt::std::string(value));
 }
 
 void HttpClient::clearResponseHeaders() {
@@ -60,7 +62,7 @@ error_t http_client_set_header(HttpClient* client, const char* name, const char*
     if (!http_is_valid_header_name(name) || !http_is_valid_header_value(value)) {
         return ERROR_INVALID_ARGUMENT;
     }
-    const std::string lowerName = to_lower(name);
+    const auto lowerName = to_lower(name);
     if (lowerName == "host" || lowerName == "connection") {
         return ERROR_INVALID_ARGUMENT;
     }
@@ -125,7 +127,7 @@ int64_t http_client_get_content_length(HttpClient* client) {
 }
 
 const char* http_client_get_header(HttpClient* client, const char* name) {
-    const std::string lowerName = to_lower(name);
+    const auto lowerName = to_lower(name);
     for (const auto& header : client->responseHeaders) {
         if (header.first == lowerName) {
             return header.second.c_str();

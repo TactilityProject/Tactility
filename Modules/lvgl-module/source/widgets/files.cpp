@@ -6,15 +6,15 @@
 #include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 
+#include <tactility/Memory.hpp>
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
+#include <tactility/std/vector.hpp>
 
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
-#include <new>
 #include <string>
-#include <vector>
 
 constexpr auto* TAG = "lvgl_files";
 
@@ -42,7 +42,7 @@ struct LoadJob {
     /** Whether the result is ready and the apply is scheduled. Guarded by the LVGL lock. */
     bool done = false;
     LvglFilesCallbacks callbacks;
-    std::vector<Entry> entries;
+    tt::std::vector<Entry> entries;
     error_t error = ERROR_NONE;
 };
 
@@ -51,7 +51,7 @@ struct Files {
     lv_obj_t* grid = nullptr;
     LvglFilesCallbacks callbacks = {};
     std::string path;
-    std::vector<Entry> entries;
+    tt::std::vector<Entry> entries;
     /** The read that the view waits for */
     LoadJob* pendingJob = nullptr;
 };
@@ -137,7 +137,7 @@ void readWork(void* context) {
     lvgl_lock();
     if (job->files == nullptr) {
         // The view was deleted, or a newer read replaced this one
-        delete job;
+        tt::deleteObject(job);
     } else {
         job->done = true;
         if (lv_async_call(applyJob, job) != LV_RESULT_OK) {
@@ -157,7 +157,7 @@ void abandonJob(LoadJob* job) {
     }
     if (job->done) {
         lv_async_call_cancel(applyJob, job);
-        delete job;
+        tt::deleteObject(job);
     } else {
         // The file operations task deletes it when it is done
         job->files = nullptr;
@@ -169,7 +169,7 @@ void applyJob(void* context) {
     auto* job = static_cast<LoadJob*>(context);
     Files* self = job->files;
     if (self == nullptr) {
-        delete job;
+        tt::deleteObject(job);
         return;
     }
     self->pendingJob = nullptr;
@@ -188,7 +188,7 @@ void applyJob(void* context) {
     }
     const std::string path = job->path;
     const error_t error = job->error;
-    delete job;
+    tt::deleteObject(job);
     if (self->callbacks.on_loaded != nullptr) {
         self->callbacks.on_loaded(obj, path.c_str(), error, self->callbacks.user_data);
     }
@@ -198,7 +198,7 @@ void onDeleted(lv_event_t* e) {
     auto* self = static_cast<Files*>(lv_event_get_user_data(e));
     abandonJob(self->pendingJob);
     reinterpret_cast<FilesObject*>(self->obj)->files = nullptr;
-    delete self;
+    tt::deleteObject(self);
 }
 
 // region Tile grid callbacks
@@ -273,7 +273,7 @@ void onPageChanged(lv_obj_t*, void* userData) {
 // endregion
 
 error_t queueRead(Files* self, const std::string& path, bool firstPage, bool selectFirst) {
-    auto* job = new (std::nothrow) LoadJob { self, path, firstPage, selectFirst };
+    auto* job = tt::newObject<LoadJob>(self, path, firstPage, selectFirst);
     if (job == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -283,7 +283,7 @@ error_t queueRead(Files* self, const std::string& path, bool firstPage, bool sel
     if (file_ops_queue(readWork, job, nullptr) != ERROR_NONE) {
         lvgl_unlock();
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
-        delete job;
+        tt::deleteObject(job);
         return ERROR_OUT_OF_MEMORY;
     }
     abandonJob(self->pendingJob);
@@ -297,7 +297,7 @@ error_t queueRead(Files* self, const std::string& path, bool firstPage, bool sel
 extern "C" {
 
 lv_obj_t* lvgl_files_create(lv_obj_t* parent, const LvglFilesConfig* config) {
-    auto* self = new (std::nothrow) Files();
+    auto* self = tt::newObject<Files>();
     if (self == nullptr) {
         return nullptr;
     }

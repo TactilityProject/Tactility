@@ -14,6 +14,7 @@
 #include <lvgl/widgets/list.h>
 
 #include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <tactility/check.h>
@@ -49,7 +50,7 @@ struct Dialog {
     std::string prefilled;
     std::vector<std::string> buttonLabels;
     /** The icon glyphs of the selection items, empty for none. Either empty or one per item. */
-    std::vector<std::string> itemIcons;
+    tt::std::vector<tt::std::string> itemIcons;
     WindowAlertDialogResultFn onAlertResult = nullptr;
     WindowInputDialogResultFn onInputResult = nullptr;
     WindowSelectionDialogResultFn onSelectionResult = nullptr;

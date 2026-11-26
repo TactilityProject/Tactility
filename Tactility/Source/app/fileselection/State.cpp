@@ -60,8 +60,9 @@ State::State(Options options) : options(::std::move(options)) {
         }
         extensions.push_back(toExt(string::lowercase(::std::string(text))));
     }
-    // The extensions are kept in external RAM
+    // The extensions are kept in external RAM, and the initial path isn't needed anymore
     this->options.extensions = {};
+    this->options.initialPath = {};
 }
 
 bool State::isSelectableFile(const ::std::string& path) const {

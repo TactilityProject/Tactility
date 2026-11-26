@@ -2,6 +2,8 @@
 #include "sdl_input.h"
 #include "sdl_display.h"
 
+#include <tactility/Memory.hpp>
+#include <tactility/check.h>
 #include <tactility/drivers/keyboard.h>
 
 #include <SDL2/SDL.h>
@@ -21,11 +23,20 @@ SdlPointerState pointer_state = { 0, 0, false };
 int window_width = 0;
 int window_height = 0;
 
-uint32_t key_queue[KEY_QUEUE_CAPACITY];
-bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
-bool key_shift_queue[KEY_QUEUE_CAPACITY] = {};
-size_t key_queue_head = 0;
-size_t key_queue_count = 0;
+struct KeyQueue {
+    uint32_t key[KEY_QUEUE_CAPACITY] = {};
+    bool pressed[KEY_QUEUE_CAPACITY] = {};
+    bool shift[KEY_QUEUE_CAPACITY] = {};
+    size_t head = 0;
+    size_t count = 0;
+};
+
+// Allocated on first use and never freed. Guarded by state_mutex.
+KeyQueue& key_queue() {
+    static KeyQueue* instance = tt::newObject<KeyQueue>();
+    check(instance != nullptr);
+    return *instance;
+}
 
 bool text_input_started = false;
 
@@ -115,29 +126,30 @@ void push_key(uint32_t key, bool pressed, bool shift) {
     if (key == 0) {
         return;
     }
-    if (key_queue_count >= KEY_QUEUE_CAPACITY) {
+    KeyQueue& queue = key_queue();
+    if (queue.count >= KEY_QUEUE_CAPACITY) {
         size_t evict_offset = 0;
-        for (size_t i = 0; i < key_queue_count; i++) {
-            size_t idx = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
-            if (key_pressed_queue[idx]) {
+        for (size_t i = 0; i < queue.count; i++) {
+            size_t idx = (queue.head + i) % KEY_QUEUE_CAPACITY;
+            if (queue.pressed[idx]) {
                 evict_offset = i;
                 break;
             }
         }
-        for (size_t i = evict_offset; i + 1 < key_queue_count; i++) {
-            size_t dst = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
-            size_t src = (key_queue_head + i + 1) % KEY_QUEUE_CAPACITY;
-            key_queue[dst] = key_queue[src];
-            key_pressed_queue[dst] = key_pressed_queue[src];
-            key_shift_queue[dst] = key_shift_queue[src];
+        for (size_t i = evict_offset; i + 1 < queue.count; i++) {
+            size_t dst = (queue.head + i) % KEY_QUEUE_CAPACITY;
+            size_t src = (queue.head + i + 1) % KEY_QUEUE_CAPACITY;
+            queue.key[dst] = queue.key[src];
+            queue.pressed[dst] = queue.pressed[src];
+            queue.shift[dst] = queue.shift[src];
         }
-        key_queue_count--;
+        queue.count--;
     }
-    size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
-    key_queue[idx] = key;
-    key_pressed_queue[idx] = pressed;
-    key_shift_queue[idx] = shift;
-    key_queue_count++;
+    size_t idx = (queue.head + queue.count) % KEY_QUEUE_CAPACITY;
+    queue.key[idx] = key;
+    queue.pressed[idx] = pressed;
+    queue.shift[idx] = shift;
+    queue.count++;
     last_reported_key = key;
     last_reported_pressed = pressed;
     last_reported_shift = shift;
@@ -413,20 +425,21 @@ void sdl_input_get_pointer_state(SdlPointerState* out_state) {
 
 bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed, bool* out_shift) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (key_queue_count == 0) {
+    KeyQueue& queue = key_queue();
+    if (queue.count == 0) {
         return false;
     }
-    *out_key = key_queue[key_queue_head];
-    *out_pressed = key_pressed_queue[key_queue_head];
-    *out_shift = key_shift_queue[key_queue_head];
-    key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
-    key_queue_count--;
+    *out_key = queue.key[queue.head];
+    *out_pressed = queue.pressed[queue.head];
+    *out_shift = queue.shift[queue.head];
+    queue.head = (queue.head + 1) % KEY_QUEUE_CAPACITY;
+    queue.count--;
     return true;
 }
 
 bool sdl_input_has_queued_key() {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return key_queue_count > 0;
+    return key_queue().count > 0;
 }
 
 bool sdl_input_get_held_key(uint32_t* out_key, bool* out_shift) {

@@ -7,8 +7,11 @@
 #include <lvgl/theme.h>
 #include <lvgl/widgets/pathbar_button.h>
 
+#include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
 #include <algorithm>
-#include <new>
 #include <string>
 #include <vector>
 
@@ -20,12 +23,12 @@ struct PathBar {
     LvglPathBarPressedFn onPressed = nullptr;
     LvglPathBarRebuiltFn onRebuilt = nullptr;
     void* userData = nullptr;
-    std::string path;
+    tt::std::string path;
     bool hasPath = false;
     /** The widgets in the toolbar: the segment buttons that fit, and an ellipsis in front when the path is cut off */
-    std::vector<lv_obj_t*> widgets;
+    tt::std::vector<lv_obj_t*> widgets;
     /** The path that each segment navigates to, by the index in the segment's user data */
-    std::vector<std::string> paths;
+    tt::std::vector<tt::std::string> paths;
     /** The toolbar width that the segments were built for */
     int32_t builtWidth = 0;
 };
@@ -64,7 +67,7 @@ void onSegmentPressed(lv_event_t* event) {
     const auto index = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(segment));
     if (index < self->paths.size() && self->onPressed != nullptr) {
         // Copied, as the callback can rebuild the segments
-        const std::string path = self->paths[index];
+        const tt::std::string path = self->paths[index];
         // Only keys show a selection, a touch doesn't
         const bool fromKeys = lv_obj_has_state(segment, LV_STATE_FOCUS_KEY);
         self->onPressed(self->obj, path.c_str(), fromKeys, self->userData);
@@ -151,9 +154,9 @@ void rebuild(PathBar* self) {
         if (end == std::string::npos) {
             end = current_path.size();
         }
-        names.push_back(current_path.substr(start, end - start));
+        names.emplace_back(current_path.substr(start, end - start).c_str());
         accumulated += "/" + names.back();
-        self->paths.push_back(accumulated);
+        self->paths.emplace_back(accumulated.c_str());
         start = end;
     }
 
@@ -231,7 +234,7 @@ void onDeleted(lv_event_t* event) {
         clearWidgets(self);
     }
     reinterpret_cast<PathBarObject*>(self->obj)->bar = nullptr;
-    delete self;
+    tt::deleteObject(self);
 }
 
 } // namespace
@@ -239,7 +242,7 @@ void onDeleted(lv_event_t* event) {
 extern "C" {
 
 lv_obj_t* lvgl_path_bar_create(lv_obj_t* toolbar, LvglPathBarPressedFn on_pressed, LvglPathBarRebuiltFn on_rebuilt, void* user_data) {
-    auto* self = new (std::nothrow) PathBar();
+    auto* self = tt::newObject<PathBar>();
     if (self == nullptr) {
         return nullptr;
     }

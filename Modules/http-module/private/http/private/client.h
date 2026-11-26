@@ -3,11 +3,13 @@
 
 #include <http/client.h>
 
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
 #include <atomic>
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 /** The platform's part of an HttpClient: one request and its response */
 class HttpClientBackend {
@@ -21,7 +23,7 @@ public:
     virtual int read(struct HttpClient& client, void* buffer, size_t size) = 0;
 };
 
-using HttpHeaders = std::vector<std::pair<std::string, std::string>>;
+using HttpHeaders = tt::std::vector<std::pair<tt::std::string, tt::std::string>>;
 
 struct HttpClient {
     std::unique_ptr<HttpClientBackend> backend;

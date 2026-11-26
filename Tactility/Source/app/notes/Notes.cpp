@@ -28,6 +28,9 @@
 #include <new>
 #include <vector>
 
+// Included last, as it makes std:: resolve to tt::std
+#include <tactility/std/vector.hpp>
+
 namespace tt::app::notes {
 
 constexpr auto* TAG = "Notes";
@@ -44,14 +47,14 @@ struct Context {
     lv_obj_t* uiToolbar = nullptr;
     lv_obj_t* uiNoteText = nullptr;
 
-    std::string filePath;
-    std::string saveBuffer;
+    ::std::string filePath;
+    ::std::string saveBuffer;
 
     /** Signalled when the menu dialog closed, as its result arrives on the dialog's task */
     uint32_t menuBit = 0;
     int32_t menuResult = WINDOW_DIALOG_DISMISSED;
     /** The actions of the items of the menu that is shown */
-    std::vector<int> menuActions;
+    tt::std::vector<int> menuActions;
 
     uint32_t loadFileLaunchId = 0;
     uint32_t saveFileLaunchId = 0;
@@ -64,7 +67,7 @@ struct Context {
 
 /** The toolbar shows the name of the file, without its directory */
 void updateTitle(Context* ctx) {
-    const auto name = ctx->filePath.empty() ? std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath);
+    const auto name = ctx->filePath.empty() ? ::std::string(tr("Untitled")) : file::getLastPathSegment(ctx->filePath);
     if (ctx->uiToolbar != nullptr) {
         lvgl_toolbar_set_title(ctx->uiToolbar, name.c_str());
     }
@@ -77,7 +80,7 @@ void resetFileContent(Context* ctx) {
     updateTitle(ctx);
 }
 
-void openFile(Context* ctx, const std::string& path) {
+void openFile(Context* ctx, const ::std::string& path) {
     auto data = file::readString(path);
     if (data != nullptr) {
         lvgl_lock();
@@ -92,7 +95,7 @@ void openFile(Context* ctx, const std::string& path) {
     }
 }
 
-bool saveFile(Context* ctx, const std::string& path) {
+bool saveFile(Context* ctx, const ::std::string& path) {
     bool result = false;
     if (file::writeString(path, ctx->saveBuffer.c_str())) {
         LOG_I(TAG, "Saved to %s", path.c_str());
@@ -103,8 +106,8 @@ bool saveFile(Context* ctx, const std::string& path) {
 }
 
 struct SaveJob {
-    std::string path;
-    std::string content;
+    ::std::string path;
+    ::std::string content;
 };
 
 /** File operation: it runs on the file operations task, which frees the job */
@@ -193,8 +196,8 @@ void onMenuResult(Context* ctx) {
 
 void onOverflowPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    std::vector<std::string> labels;
-    std::vector<const char*> icons;
+    ::std::vector<::std::string> labels;
+    ::std::vector<const char*> icons;
     ctx->menuActions.clear();
     auto add = [&](MenuAction action, const char* label, const char* icon) {
         ctx->menuActions.push_back(action);
@@ -285,7 +288,7 @@ int32_t appMain(int argc, char* argv[]) {
                             char destination[sizeof(ctx.loadResultBuffer)];
                             size_t length = app_stream_read(&ctx.loadResultStream, destination, sizeof(destination));
                             app_stream_unsubscribe(&ctx.loadResultStream);
-                            auto path = std::string(destination, length);
+                            auto path = ::std::string(destination, length);
                             LOG_I(TAG, "Path: '%s'", path.c_str());
                             if (!path.empty()) {
                                 openFile(&ctx, path);
@@ -299,7 +302,7 @@ int32_t appMain(int argc, char* argv[]) {
                             char destination[sizeof(ctx.saveResultBuffer)];
                             size_t length = app_stream_read(&ctx.saveResultStream, destination, sizeof(destination));
                             app_stream_unsubscribe(&ctx.saveResultStream);
-                            auto path = std::string(destination, length);
+                            auto path = ::std::string(destination, length);
                             // Must re-open file, because the UI was cleared after opening the dialog.
                             LOG_I(TAG, "Path: '%s'", path.c_str());
                             if (!path.empty() && saveFile(&ctx, path)) {
@@ -328,7 +331,7 @@ int32_t appMain(int argc, char* argv[]) {
 
 } // namespace
 
-void start(const std::string& filePath) {
+void start(const ::std::string& filePath) {
     const char* argv[] = { filePath.c_str() };
     uint32_t instanceId = 0;
     AppStartContext context = app_start_context_for_manifest(&manifest);
