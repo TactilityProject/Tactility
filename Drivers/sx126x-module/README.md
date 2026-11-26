@@ -17,7 +17,7 @@ Example (LilyGO T-Deck Max):
 rf_switch: rf-switch {
     compatible = "tactility,gpio-antenna-switch";
     gpios = <&xl9555 4 GPIO_FLAG_NONE>;
-    default-antenna = <0>; // External is low, internal is high.
+    default-antenna = <1>; // Internal is high, external is low.
 };
 
 spi0 {
