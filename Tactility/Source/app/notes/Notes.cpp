@@ -4,16 +4,14 @@
 
 
 #include <Tactility/app/dialog/Dialog.h>
-#include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/file/File.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
-#include <app/stream.h>
 
+#include <lvgl_window_manager/dialog.h>
 #include <lvgl_window_manager/window_manager.h>
 
 #include <lvgl.h>
@@ -60,12 +58,13 @@ struct Context {
     /** Set from showing the menu until its result was read, so that no other menu replaces the result or the actions */
     ::std::atomic<bool> menuPending = false;
 
-    uint32_t loadFileLaunchId = 0;
-    uint32_t saveFileLaunchId = 0;
-    AppStream loadResultStream {};
-    uint8_t loadResultBuffer[256] {};
-    AppStream saveResultStream {};
-    uint8_t saveResultBuffer[256] {};
+    /** Signalled when the file dialog closed, with the picked path or an empty one */
+    uint32_t fileBit = 0;
+    /** Whether the file dialog picks where to save, instead of what to open */
+    bool fileSaving = false;
+    tt::std::string pickedPath;
+    /** Set from showing the file dialog until its result was used, so that the mode and the save buffer stay. Only used by the app task. */
+    bool filePending = false;
 };
 
 
@@ -150,7 +149,33 @@ void save(Context* ctx) {
     }
 }
 
+/** Runs on the dialog's task */
+void onFileDialogClosed(const char* const* paths, uint32_t pathCount, void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->pickedPath = pathCount > 0 ? paths[0] : "";
+    task_event_group_signal(ctx->eventGroup, ctx->fileBit);
+}
+
+void selectFile(Context* ctx, bool saving) {
+    const WindowFileDialogOptions options = {
+        .flags = saving ? WINDOW_FILE_DIALOG_NEW_FILE : 0U,
+        .path = nullptr,
+        .name = nullptr,
+        .extensions = nullptr,
+        .extension_count = 0,
+    };
+    ctx->fileSaving = saving;
+    ctx->filePending = true;
+    if (window_manager_file_dialog(ctx->appInstanceId, &options, onFileDialogClosed, ctx) != ERROR_NONE) {
+        ctx->filePending = false;
+        LOG_E(TAG, "Failed to show the file dialog");
+    }
+}
+
 void saveAs(Context* ctx) {
+    if (ctx->filePending) {
+        return;
+    }
     lvgl_lock();
     if (ctx->uiNoteText == nullptr) {
         lvgl_unlock();
@@ -158,13 +183,30 @@ void saveAs(Context* ctx) {
     }
     ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
     lvgl_unlock();
-    ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
-    LOG_I(TAG, "launched with id %u", ctx->saveFileLaunchId);
+    selectFile(ctx, true);
 }
 
 void open(Context* ctx) {
-    ctx->loadFileLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->loadResultStream, ctx->loadResultBuffer, sizeof(ctx->loadResultBuffer), ctx->eventGroup);
-    LOG_I(TAG, "launched with id %u", ctx->loadFileLaunchId);
+    if (!ctx->filePending) {
+        selectFile(ctx, false);
+    }
+}
+
+/** Runs on the app task */
+void onFileResult(Context* ctx) {
+    const ::std::string path = ctx->pickedPath.c_str();
+    ctx->filePending = false;
+    if (path.empty()) {
+        return;
+    }
+    LOG_I(TAG, "Path: '%s'", path.c_str());
+    if (!ctx->fileSaving) {
+        openFile(ctx, path);
+    } else if (saveFile(ctx, path)) {
+        lvgl_lock();
+        updateTitle(ctx);
+        lvgl_unlock();
+    }
 }
 
 /** Runs on the dialog's task */
@@ -268,6 +310,7 @@ int32_t appMain(int argc, char* argv[]) {
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
     check(task_event_group_claim_bit(&event_group, &ctx.menuBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.fileBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -282,57 +325,23 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.menuBit) {
             onMenuResult(&ctx);
         }
+        if (flags & ctx.fileBit) {
+            onFileResult(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    LOG_I(TAG, "Result for launch id %u = %u", event.result.launch_id, event.result.result);
-                    if (event.result.launch_id == ctx.loadFileLaunchId) {
-                        ctx.loadFileLaunchId = 0;
-                        if (event.result.result == 0 /* Ok */) {
-                            char destination[sizeof(ctx.loadResultBuffer)];
-                            size_t length = app_stream_read(&ctx.loadResultStream, destination, sizeof(destination));
-                            app_stream_unsubscribe(&ctx.loadResultStream);
-                            auto path = ::std::string(destination, length);
-                            LOG_I(TAG, "Path: '%s'", path.c_str());
-                            if (!path.empty()) {
-                                openFile(&ctx, path);
-                            }
-                        } else {
-                            app_stream_unsubscribe(&ctx.loadResultStream);
-                        }
-                    } else if (event.result.launch_id == ctx.saveFileLaunchId) {
-                        ctx.saveFileLaunchId = 0;
-                        if (event.result.result == 0 /* Ok */) {
-                            char destination[sizeof(ctx.saveResultBuffer)];
-                            size_t length = app_stream_read(&ctx.saveResultStream, destination, sizeof(destination));
-                            app_stream_unsubscribe(&ctx.saveResultStream);
-                            auto path = ::std::string(destination, length);
-                            // Must re-open file, because the UI was cleared after opening the dialog.
-                            LOG_I(TAG, "Path: '%s'", path.c_str());
-                            if (!path.empty() && saveFile(&ctx, path)) {
-                                openFile(&ctx, path);
-                            }
-                        } else {
-                            app_stream_unsubscribe(&ctx.saveResultStream);
-                        }
-                    }
-                    app_manager_stop(event.result.launch_id);
-                    break;
-                default:
-                    break;
+            if (event.type == APP_EVENT_CLOSE) {
+                shouldClose = true;
+                break;
             }
-            if (shouldClose) break;
         }
     }
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_release_bit(&event_group, ctx.menuBit);
+    task_event_group_release_bit(&event_group, ctx.fileBit);
     task_event_group_destruct(&event_group);
 
     return 0;

@@ -66,6 +66,9 @@ bool notificationUnread = false;
 // Allocated when the root layout is created and freed when it's detached, so it takes no memory while the system bars aren't shown
 SystemBarsState* state = nullptr;
 
+// Outlives the root layout, so a state that was saved before a restart doesn't apply after it
+uint32_t deletedWindows = 0;
+
 bool isInside(lv_obj_t* obj, lv_obj_t* ancestor) {
     for (lv_obj_t* current = obj; current != nullptr; current = lv_obj_get_parent(current)) {
         if (current == ancestor) {
@@ -578,7 +581,40 @@ void system_bars_window_built() {
     }
 }
 
+void system_bars_page_state_take(SystemBarsPageState* saved) {
+    *saved = {};
+    saved->generation = deletedWindows;
+    if (state == nullptr) {
+        return;
+    }
+    saved->onPrevious = state->onPrevious;
+    saved->onNext = state->onNext;
+    saved->pageUserData = state->pageUserData;
+    saved->previousHidden = lv_obj_is_hidden(state->previousButton);
+    saved->nextHidden = lv_obj_is_hidden(state->nextButton);
+    saved->mainHidden = lv_obj_is_hidden(state->mainButton);
+    state->onPrevious = nullptr;
+    state->onNext = nullptr;
+    state->pageUserData = nullptr;
+    lv_obj_set_hidden(state->mainButton, true);
+    system_bars_set_page_buttons_visible(false);
+}
+
+void system_bars_page_state_restore(const SystemBarsPageState* saved) {
+    if (state == nullptr || saved->generation != deletedWindows) {
+        return;
+    }
+    state->onPrevious = saved->onPrevious;
+    state->onNext = saved->onNext;
+    state->pageUserData = saved->pageUserData;
+    lv_obj_set_hidden(state->previousButton, saved->previousHidden);
+    lv_obj_set_hidden(state->nextButton, saved->nextHidden);
+    lv_obj_set_hidden(state->mainButton, saved->mainHidden);
+    updatePageBarVisibility();
+}
+
 void system_bars_window_deleted() {
+    deletedWindows++;
     if (state == nullptr) {
         return;
     }

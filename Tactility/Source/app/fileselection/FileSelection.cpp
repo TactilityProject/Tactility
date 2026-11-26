@@ -21,6 +21,7 @@
 #include <tactility/check.h>
 #include <tactility/delay.h>
 #include <tactility/file_ops.h>
+#include <tactility/log.h>
 #include <tactility/filesystem/fs.h>
 
 #include <cstdint>
@@ -109,8 +110,9 @@ void destroyWidgets(void* userData) {
 }
 
 int32_t appMain(int argc, char* argv[]) {
+    LOG_W(TAG, "This app is deprecated and will be removed: use window_manager_file_dialog()");
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>", "--path=<directory>" and "--ext=<extension>" (repeatable)
+    // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>", "--path=<directory>", "--name=<file name>" and "--ext=<extension>" (repeatable)
     Options options;
     size_t maxResultBytes = SIZE_MAX;
     for (int i = 0; i < argc; i++) {
@@ -121,6 +123,7 @@ int32_t appMain(int argc, char* argv[]) {
         else if (arg == "--multiple") options.multiple = true;
         else if (arg.starts_with("--ext=")) options.extensions.push_back(arg.substr(6));
         else if (arg.starts_with("--path=")) options.initialPath = arg.substr(7);
+        else if (arg.starts_with("--name=")) options.initialName = arg.substr(7);
         else if (arg.starts_with("--max-bytes=")) maxResultBytes = strtoul(arg.c_str() + 12, nullptr, 10);
     }
 
@@ -211,6 +214,9 @@ uint32_t start(uint32_t callerAppInstanceId, AppStream& stream, void* buffer, si
     }
     if (!options.initialPath.empty()) {
         args.push_back("--path=" + options.initialPath);
+    }
+    if (!options.initialName.empty()) {
+        args.push_back("--name=" + options.initialName);
     }
     args.push_back("--max-bytes=" + ::std::to_string(bufferCapacity));
     ::std::vector<const char*> argv;

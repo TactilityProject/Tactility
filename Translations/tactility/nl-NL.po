@@ -123,3 +123,12 @@ msgstr "Herstarten"
 
 msgid "Power off"
 msgstr "Uitschakelen"
+
+msgid "Enter filename"
+msgstr "Voer bestandsnaam in"
+
+msgid "Can't select this"
+msgstr "Dit kan niet geselecteerd worden"
+
+msgid "Failed to open the folder"
+msgstr "Kan de map niet openen"
