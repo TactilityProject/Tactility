@@ -58,6 +58,105 @@ TEST_CASE("Module registration") {
     CHECK_EQ(module_remove(&module), ERROR_NONE);
 }
 
+static int indexed_symbol_one = 1;
+static int indexed_symbol_two = 2;
+
+static const struct ModuleSymbol indexed_symbols[] = {
+    DEFINE_MODULE_SYMBOL(indexed_symbol_one),
+    {"duplicate_symbol", &indexed_symbol_one},
+    {"duplicate_symbol", &indexed_symbol_two},
+    DEFINE_MODULE_SYMBOL(indexed_symbol_two),
+    MODULE_SYMBOL_TERMINATOR
+};
+
+TEST_CASE("Module symbol indexes are built on demand and keep the first duplicate") {
+    struct Module module = {
+        .name = "indexed_test",
+        .start = test_start,
+        .stop = test_stop,
+        .symbols = indexed_symbols,
+        .internal = nullptr
+    };
+
+    REQUIRE_EQ(module_construct(&module), ERROR_NONE);
+    REQUIRE_EQ(module_add(&module), ERROR_NONE);
+
+    uintptr_t address = 0;
+    // Without an index the linear scan still resolves everything.
+    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_one", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_one));
+
+    module_symbol_index_acquire();
+
+    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
+
+    // A name exported twice keeps the first table entry, like the linear scan does.
+    REQUIRE(module_resolve_symbol(&module, "duplicate_symbol", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_one));
+
+    CHECK_FALSE(module_resolve_symbol(&module, "missing_symbol", &address));
+
+    // The global lookup goes through the same index.
+    REQUIRE(module_resolve_symbol_global("indexed_symbol_two", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
+
+    // Reference counted: a nested acquire/release leaves the index in place.
+    module_symbol_index_acquire();
+    module_symbol_index_release();
+    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_one", &address));
+
+    module_symbol_index_release();
+
+    // Back on the linear scan, resolution still works.
+    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
+
+    // Removing a module while the index is active clears its entry.
+    module_symbol_index_acquire();
+    REQUIRE_EQ(module_remove(&module), ERROR_NONE);
+    CHECK_FALSE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
+    CHECK_FALSE(module_resolve_symbol_global("indexed_symbol_two", &address));
+    module_symbol_index_release();
+
+    CHECK_EQ(module_destruct(&module), ERROR_NONE);
+}
+
+static int late_symbol_target = 0;
+static const struct ModuleSymbol late_symbols[] = {
+    {"late_symbol", &late_symbol_target},
+    MODULE_SYMBOL_TERMINATOR
+};
+
+TEST_CASE("A module added while indexes are active falls back to the scan") {
+    struct Module module = {
+        .name = "late_indexed_test",
+        .start = test_start,
+        .stop = test_stop,
+        .symbols = late_symbols,
+        .internal = nullptr
+    };
+
+    module_symbol_index_acquire();
+    REQUIRE_EQ(module_construct(&module), ERROR_NONE);
+    REQUIRE_EQ(module_add(&module), ERROR_NONE);
+
+    // No room was reserved for it, so this goes through the linear scan.
+    uintptr_t address = 0;
+    REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
+    module_symbol_index_release();
+
+    // The next acquire covers it.
+    module_symbol_index_acquire();
+    REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
+    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
+    module_symbol_index_release();
+
+    REQUIRE_EQ(module_remove(&module), ERROR_NONE);
+    CHECK_EQ(module_destruct(&module), ERROR_NONE);
+}
+
 TEST_CASE("Module lifecycle") {
     start_called = false;
     stop_called = false;

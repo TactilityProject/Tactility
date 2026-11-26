@@ -11,6 +11,15 @@
 
 constexpr auto* TAG = "module";
 
+struct ModuleSymbolIndex {
+    // Power-of-two bucket count, or 0 when the module isn't indexed.
+    size_t bucket_count = 0;
+    // 1-based symbol index per bucket, 0 when the bucket is empty.
+    uint16_t* buckets = nullptr;
+    // 1-based next symbol index in the same bucket, 0 at the end of the chain.
+    uint16_t* chain = nullptr;
+};
+
 struct ModuleInternal {
     bool started = false;
     bool drivers_ready = false;
@@ -23,11 +32,68 @@ struct ModuleInternal {
     bool stopping = false;
     // In the ledger. Its symbols can be resolved from then on, also while it hasn't started yet.
     bool added = false;
+    // Name lookup for this module's symbols, so a global resolve doesn't strcmp every symbol.
+    // Points into the ledger's arena while an ELF is relocated, and is empty otherwise.
+    ModuleSymbolIndex symbol_index;
 };
+
+// FNV-1a. Symbol names are short, and the hash only picks a bucket.
+static uint32_t hash_symbol_name(const char* name) {
+    uint32_t hash = 2166136261u;
+    while (*name != '\0') {
+        hash ^= static_cast<uint8_t>(*name++);
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+// Number of symbols and buckets for a module's index, or false when it shouldn't be indexed.
+static bool symbol_index_shape(const struct ModuleSymbol* symbols, size_t& count, size_t& bucket_count) {
+    if (symbols == nullptr) return false;
+
+    count = 0;
+    while (symbols[count].name != nullptr) count++;
+    if (count == 0 || count > UINT16_MAX) {
+        // Empty, or too large for 16-bit indices: keep the linear scan.
+        return false;
+    }
+
+    size_t requested = count < 64 ? 64 : count;
+    bucket_count = 1;
+    while (bucket_count < requested) bucket_count <<= 1;
+    return true;
+}
+
+static void build_symbol_index(
+    ModuleSymbolIndex& index,
+    const struct ModuleSymbol* symbols,
+    size_t count,
+    size_t bucket_count,
+    uint16_t*& cursor
+) {
+    index.buckets = cursor;
+    cursor += bucket_count;
+    index.chain = cursor;
+    cursor += count;
+    index.bucket_count = bucket_count;
+    memset(index.buckets, 0, bucket_count * sizeof(uint16_t));
+
+    // Built in reverse so a bucket chain follows the table order: if a module exports the same
+    // name twice (an alias), the first one still wins, as it does with the linear scan.
+    for (size_t i = count; i-- > 0;) {
+        const uint32_t bucket = hash_symbol_name(symbols[i].name) & (bucket_count - 1);
+        index.chain[i] = index.buckets[bucket];
+        index.buckets[bucket] = static_cast<uint16_t>(i + 1);
+    }
+}
 
 struct ModuleLedger {
     std::vector<Module*> modules;
     Mutex mutex {};
+    // One allocation for every module index while an ELF is relocated; null when idle.
+    uint16_t* symbol_index_arena = nullptr;
+    // module_symbol_index_acquire()/release() nesting
+    int symbol_index_users = 0;
 
     ModuleLedger() { mutex_construct(&mutex); }
     ~ModuleLedger() { mutex_destruct(&mutex); }
@@ -86,6 +152,8 @@ error_t module_remove(Module* module) {
     ledger.modules.erase(std::remove(ledger.modules.begin(), ledger.modules.end(), module), ledger.modules.end());
     if (module->internal != nullptr) {
         module->internal->added = false;
+        // The index (if any) lives in the ledger's arena, which a later release frees.
+        module->internal->symbol_index = {};
     }
     mutex_unlock(&ledger.mutex);
     return ERROR_NONE;
@@ -302,10 +370,25 @@ void module_put_code(Module* module) {
     mutex_unlock(&ledger.mutex);
 }
 
-bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
+// Callers that already hold the ledger mutex use this; the public wrapper below locks.
+static bool module_resolve_symbol_locked(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
     if (module->internal == nullptr || !module->internal->added) return false;
     auto* symbol_ptr = module->symbols;
     if (symbol_ptr == nullptr) return false;
+
+    const auto& index = module->internal->symbol_index;
+    if (index.buckets != nullptr) {
+        const uint32_t bucket = hash_symbol_name(symbol_name) & (index.bucket_count - 1);
+        for (uint16_t i = index.buckets[bucket]; i != 0; i = index.chain[i - 1]) {
+            const auto& symbol = symbol_ptr[i - 1];
+            if (symbol.name != nullptr && strcmp(symbol.name, symbol_name) == 0) {
+                *symbol_address = reinterpret_cast<uintptr_t>(symbol.symbol);
+                return true;
+            }
+        }
+        return false;
+    }
+
     while (symbol_ptr->name != nullptr) {
         if (strcmp(symbol_ptr->name, symbol_name) == 0) {
             *symbol_address = reinterpret_cast<uintptr_t>(symbol_ptr->symbol);
@@ -314,6 +397,67 @@ bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* s
         symbol_ptr++;
     }
     return false;
+}
+
+bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
+    mutex_lock(&ledger.mutex);
+    const bool resolved = module_resolve_symbol_locked(module, symbol_name, symbol_address);
+    mutex_unlock(&ledger.mutex);
+    return resolved;
+}
+
+void module_symbol_index_acquire() {
+    mutex_lock(&ledger.mutex);
+    if (ledger.symbol_index_users > 0) {
+        ledger.symbol_index_users++;
+        mutex_unlock(&ledger.mutex);
+        return;
+    }
+    ledger.symbol_index_users = 1;
+
+    size_t total_words = 0;
+    for (auto* module : ledger.modules) {
+        size_t count = 0;
+        size_t bucket_count = 0;
+        if (module->internal != nullptr && module->internal->added
+            && symbol_index_shape(module->symbols, count, bucket_count)) {
+            total_words += bucket_count + count;
+        }
+    }
+
+    auto* arena = total_words > 0 ? new (std::nothrow) uint16_t[total_words] : nullptr;
+    if (arena != nullptr) {
+        ledger.symbol_index_arena = arena;
+        uint16_t* cursor = arena;
+        for (auto* module : ledger.modules) {
+            size_t count = 0;
+            size_t bucket_count = 0;
+            if (module->internal != nullptr && module->internal->added
+                && symbol_index_shape(module->symbols, count, bucket_count)) {
+                build_symbol_index(module->internal->symbol_index, module->symbols, count, bucket_count, cursor);
+            }
+        }
+    }
+    mutex_unlock(&ledger.mutex);
+}
+
+void module_symbol_index_release() {
+    mutex_lock(&ledger.mutex);
+    if (ledger.symbol_index_users == 0) {
+        mutex_unlock(&ledger.mutex);
+        return;
+    }
+    ledger.symbol_index_users--;
+    if (ledger.symbol_index_users == 0) {
+        for (auto* module : ledger.modules) {
+            if (module->internal != nullptr) {
+                module->internal->symbol_index = {};
+            }
+        }
+        delete[] ledger.symbol_index_arena;
+        ledger.symbol_index_arena = nullptr;
+    }
+    mutex_unlock(&ledger.mutex);
 }
 
 enum class RefKind { NONE, USE, CODE };
@@ -329,7 +473,7 @@ static bool resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_add
         if (ref_kind != RefKind::NONE && internal->stopping) {
             continue;
         }
-        if (module_resolve_symbol(module, symbol_name, symbol_address)) {
+        if (module_resolve_symbol_locked(module, symbol_name, symbol_address)) {
             if (ref_kind == RefKind::USE) {
                 internal->use_count++;
             } else if (ref_kind == RefKind::CODE) {
