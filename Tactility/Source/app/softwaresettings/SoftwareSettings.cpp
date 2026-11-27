@@ -226,7 +226,7 @@ void updateFirmwareWidgets(Context* ctx) {
         case firmwareupdate::Status::Installed:
             status = tr("Update installed");
             action = tr("Restart");
-            detail = tr("The update is installed. Restart to use it.");
+            detail = tr("Restart to use update");
             break;
     }
     lv_label_set_text(ctx->statusLabel, status);

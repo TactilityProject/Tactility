@@ -33,8 +33,8 @@ msgstr "Installation de la mise à jour : {} %"
 msgid "The update couldn't be installed."
 msgstr "La mise à jour n'a pas pu être installée."
 
-msgid "The update is installed. Restart to use it."
-msgstr "La mise à jour est installée. Redémarrez pour l'utiliser."
+msgid "Restart to use update"
+msgstr "Redémarrez pour utiliser la mise à jour"
 
 msgid "Install"
 msgstr "Installer"
