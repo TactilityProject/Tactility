@@ -26,6 +26,13 @@ struct FirmwareInfo {
     uint32_t fw_major;
     uint32_t fw_minor;
     uint32_t fw_patch;
+    /** The largest image that begin() accepts, 0 when unknown */
+    size_t max_image_size;
+    /**
+     * Identifies the layout of the target's storage, implementation-defined (e.g. the MD5 of an ESP32 partition table as hex).
+     * An image built for another layout can't be installed with these operations. Empty when unknown.
+     */
+    char layout_id[33];
 };
 
 struct FirmwareUpdateRequest {

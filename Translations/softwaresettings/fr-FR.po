@@ -27,8 +27,8 @@ msgstr "Installez cette mise à jour avec le flasheur web."
 msgid "Couldn't check for updates."
 msgstr "Impossible de rechercher des mises à jour."
 
-msgid "Installing update: {}%"
-msgstr "Installation de la mise à jour : {} %"
+msgid "Downloading update: {}%"
+msgstr "Téléchargement de la mise à jour : {} %"
 
 msgid "The update couldn't be installed."
 msgstr "La mise à jour n'a pas pu être installée."
@@ -89,3 +89,15 @@ msgstr "Mise à jour..."
 
 msgid "Version {}, built on {}"
 msgstr "Version {}, compilée le {}"
+
+msgid "Force update"
+msgstr "Forcer la mise à jour"
+
+msgid "Download and install the latest build of the {} channel, also when it isn't newer? Keep the device powered on until the update is installed."
+msgstr "Télécharger et installer la dernière compilation du canal {}, même si elle n'est pas plus récente ? Laissez l'appareil allumé jusqu'à ce que la mise à jour soit installée."
+
+msgid "Preparing update..."
+msgstr "Préparation de la mise à jour..."
+
+msgid "This update needs a full install with the web flasher."
+msgstr "Cette mise à jour nécessite une installation complète avec le flasheur web."

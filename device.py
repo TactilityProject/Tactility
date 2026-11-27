@@ -137,6 +137,11 @@ def write_partition_table(output_file, device_properties: dict, is_dev: bool):
         if os.path.isfile(dev_partition_filename):
             partition_filename = dev_partition_filename
     print(f"Using partition table: {partition_filename}")
+    with open(partition_filename, "r") as partition_file:
+        has_ota = any(line.startswith("ota_0") for line in partition_file)
+    if has_ota:
+        # A new firmware that doesn't finish booting is replaced by the previous one at the next reset
+        output_file.write("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y\n")
     output_file.write("# Partition Table\n")
     output_file.write("CONFIG_PARTITION_TABLE_CUSTOM=y\n")
     output_file.write(f"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"{partition_filename}\"\n")

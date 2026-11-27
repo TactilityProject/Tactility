@@ -50,8 +50,12 @@ struct Snapshot {
     bool hasRelease;
     /** Percentage of the download while installing */
     uint8_t progress;
+    /** While installing: the download runs. Before it, the connection is made and the flash is erased. */
+    bool downloading;
     /** The device can install an update itself. Without it, an update is installed with the web flasher. */
     bool installSupported;
+    /** The release was built for another partition layout, or doesn't fit, so it is installed with the web flasher */
+    bool fullInstallRequired;
     Channel channel;
 };
 
@@ -65,9 +69,17 @@ void requestCheck(bool force);
  * Queue the installation of the available update, also after an install failed
  * @param[in] gitCommit the commit of the release that the user confirmed
  * @retval ERROR_INVALID_STATE no update is available, or the available one isn't the confirmed release
- * @retval ERROR_NOT_SUPPORTED the device can't install updates itself
+ * @retval ERROR_NOT_SUPPORTED the device can't install updates itself, or the release needs a full install
  */
 error_t requestInstall(const char* gitCommit);
+
+/**
+ * Queue a check that treats the published build of the channel as an update, also when it isn't newer, and installs it.
+ * For testing updates.
+ * @retval ERROR_NOT_SUPPORTED the device can't install updates itself
+ * @retval ERROR_INVALID_STATE an update is installing or waits for a restart
+ */
+error_t requestForcedUpdate();
 
 Snapshot getSnapshot();
 

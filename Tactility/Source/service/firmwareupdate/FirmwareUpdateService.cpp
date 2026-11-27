@@ -66,6 +66,8 @@ struct State {
     bool checkRequested = false;
     bool checkForced = false;
     bool installRequested = false;
+    /** The next check treats the published build as an update and installs it */
+    bool forceUpdateRequested = false;
     bool stopping = false;
     Thread* worker = nullptr;
     bool workerRunning = false;
@@ -118,10 +120,11 @@ void notifySubscribers() {
     }
 }
 
-void setStatus(Status status, uint8_t progress = 0) {
+void setStatus(Status status, uint8_t progress = 0, bool downloading = false) {
     lock();
     state->snapshot.status = status;
     state->snapshot.progress = progress;
+    state->snapshot.downloading = downloading;
     notifySubscribers();
     unlock();
 }
@@ -320,7 +323,8 @@ void copyJsonString(const cJSON* json, const char* key, char* target, size_t tar
     }
 }
 
-bool parseManifest(const char* text, Release& release, char* file, size_t fileSize) {
+/** @param[out] layoutId the partition layout that the release was built for, empty when the manifest doesn't say */
+bool parseManifest(const char* text, Release& release, char* file, size_t fileSize, char* layoutId, size_t layoutIdSize) {
     cJSON* json = cJSON_Parse(text);
     if (json == nullptr) {
         return false;
@@ -328,6 +332,7 @@ bool parseManifest(const char* text, Release& release, char* file, size_t fileSi
     release = {};
     copyJsonString(json, "version", release.version, sizeof(release.version));
     copyJsonString(json, "gitCommit", release.gitCommit, sizeof(release.gitCommit));
+    copyJsonString(json, "layoutId", layoutId, layoutIdSize);
     const cJSON* created = cJSON_GetObjectItemCaseSensitive(json, "created");
     const cJSON* size = cJSON_GetObjectItemCaseSensitive(json, "size");
     const cJSON* fileItem = cJSON_GetObjectItemCaseSensitive(json, "file");
@@ -364,11 +369,38 @@ bool isUpdate(const Release& release, Channel channel) {
     return channel != getBuildChannel() || release.created > tt_build_timestamp;
 }
 
+/**
+ * An OTA update only writes the app partition, so a release for another partition table, or one that doesn't fit the
+ * partition of this device, is installed with the web flasher instead
+ */
+bool requiresFullInstall(const Release& release, const char* layoutId) {
+    const FirmwareOps* ops = nullptr;
+    void* ctx = nullptr;
+    if (firmware_get(FIRMWARE_ID_SYSTEM, &ops, &ctx) != ERROR_NONE) {
+        return false;
+    }
+    FirmwareInfo info {};
+    if (ops->get_info(ctx, &info) != ERROR_NONE) {
+        return false;
+    }
+    if (info.max_image_size > 0 && release.size > info.max_image_size) {
+        LOG_W(TAG, "The update of %lu bytes doesn't fit the partition of %lu bytes", static_cast<unsigned long>(release.size), static_cast<unsigned long>(info.max_image_size));
+        return true;
+    }
+    if (layoutId[0] != '\0' && info.layout_id[0] != '\0' && strcmp(layoutId, info.layout_id) != 0) {
+        LOG_W(TAG, "The update is built for partition table %s, this device has %s", layoutId, info.layout_id);
+        return true;
+    }
+    return false;
+}
+
 void runCheck(bool force) {
     lock();
     const Status status = state->snapshot.status;
     const Channel channel = state->snapshot.channel;
     const uint32_t generation = state->channelGeneration;
+    const bool forceUpdate = state->forceUpdateRequested;
+    state->forceUpdateRequested = false;
     unlock();
     // A restart is needed first
     if (status == Status::Installed || !isCheckDue(force)) {
@@ -400,10 +432,11 @@ void runCheck(bool force) {
 
     Release release {};
     char file[sizeof(State::releaseFile)] = "";
+    char layoutId[sizeof(FirmwareInfo::layout_id)] = "";
     bool parsed = false;
     if (received) {
         text[length] = '\0';
-        parsed = parseManifest(text, release, file, sizeof(file));
+        parsed = parseManifest(text, release, file, sizeof(file), layoutId, sizeof(layoutId));
         if (!parsed) {
             LOG_E(TAG, "Invalid manifest at %s", url.c_str());
         }
@@ -427,7 +460,8 @@ void runCheck(bool force) {
         });
     }
 
-    const bool available = isUpdate(release, channel);
+    const bool available = forceUpdate || isUpdate(release, channel);
+    const bool fullInstallRequired = requiresFullInstall(release, layoutId);
     LOG_I(TAG, "Found %s %s: %s", release.version, release.gitCommit, available ? "update available" : "up to date");
     lock();
     // The channel changed during the check, and a check of the new channel follows
@@ -440,6 +474,12 @@ void runCheck(bool force) {
         state->snapshot.hasRelease = true;
         state->snapshot.status = !available ? Status::UpToDate : (failedBefore ? Status::InstallFailed : Status::Available);
         state->snapshot.progress = 0;
+        state->snapshot.fullInstallRequired = fullInstallRequired;
+        if (forceUpdate && !fullInstallRequired) {
+            // The user confirmed the forced update before the release was known
+            strcpy(state->installCommit, release.gitCommit);
+            state->installRequested = true;
+        }
         notifySubscribers();
     }
     unlock();
@@ -470,6 +510,7 @@ error_t writeUpdate(HttpClient* client, const FirmwareOps* ops, void* ctx, uint3
         ops->abort(handle);
         return ERROR_OUT_OF_MEMORY;
     }
+    setStatus(Status::Installing, 0, true);
     uint32_t written = 0;
     uint8_t lastProgress = 0;
     while (written < size) {
@@ -490,7 +531,7 @@ error_t writeUpdate(HttpClient* client, const FirmwareOps* ops, void* ctx, uint3
         const auto progress = static_cast<uint8_t>(static_cast<uint64_t>(written) * 100 / size);
         if (progress != lastProgress) {
             lastProgress = progress;
-            setStatus(Status::Installing, progress);
+            setStatus(Status::Installing, progress, true);
         }
     }
     free(buffer);
@@ -509,7 +550,7 @@ void runInstall() {
     // Reserved in one step, so a channel change either discards the release first or is rejected while installing
     lock();
     const Status status = state->snapshot.status;
-    const bool installable = (status == Status::Available || status == Status::InstallFailed) &&
+    const bool installable = (status == Status::Available || status == Status::InstallFailed) && !state->snapshot.fullInstallRequired &&
         strcmp(state->snapshot.release.gitCommit, state->installCommit) == 0;
     const Release release = state->snapshot.release;
     const Channel channel = state->snapshot.channel;
@@ -518,6 +559,7 @@ void runInstall() {
     if (installable) {
         state->snapshot.status = Status::Installing;
         state->snapshot.progress = 0;
+        state->snapshot.downloading = false;
         notifySubscribers();
     }
     unlock();
@@ -570,10 +612,12 @@ int32_t workerMain(void* /*context*/) {
             unlock();
             return 0;
         }
-        const bool install = state->installRequested;
+        // A forced update checks first, then installs what the check found
+        const bool install = state->installRequested && !state->forceUpdateRequested;
         const bool force = state->checkForced;
-        state->installRequested = false;
-        if (!install) {
+        if (install) {
+            state->installRequested = false;
+        } else {
             state->checkRequested = false;
             state->checkForced = false;
         }
@@ -702,7 +746,7 @@ error_t requestInstall(const char* gitCommit) {
     }
     error_t error = ERROR_NONE;
     const Status status = state->snapshot.status;
-    if (!state->snapshot.installSupported) {
+    if (!state->snapshot.installSupported || state->snapshot.fullInstallRequired) {
         error = ERROR_NOT_SUPPORTED;
     } else if ((status != Status::Available && status != Status::InstallFailed) || strcmp(state->snapshot.release.gitCommit, gitCommit) != 0) {
         error = ERROR_INVALID_STATE;
@@ -712,6 +756,29 @@ error_t requestInstall(const char* gitCommit) {
         error = ensureWorkerRunning();
         if (error != ERROR_NONE) {
             state->installRequested = false;
+        }
+    }
+    unlock();
+    return error;
+}
+
+error_t requestForcedUpdate() {
+    if (!lockState()) {
+        return ERROR_INVALID_STATE;
+    }
+    error_t error = ERROR_NONE;
+    const Status status = state->snapshot.status;
+    if (!state->snapshot.installSupported) {
+        error = ERROR_NOT_SUPPORTED;
+    } else if (status == Status::Installing || status == Status::Installed) {
+        error = ERROR_INVALID_STATE;
+    } else {
+        state->forceUpdateRequested = true;
+        state->checkRequested = true;
+        state->checkForced = true;
+        error = ensureWorkerRunning();
+        if (error != ERROR_NONE) {
+            state->forceUpdateRequested = false;
         }
     }
     unlock();

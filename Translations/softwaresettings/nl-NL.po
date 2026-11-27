@@ -27,8 +27,8 @@ msgstr "Installeer deze update met de webflasher."
 msgid "Couldn't check for updates."
 msgstr "Controleren op updates is mislukt."
 
-msgid "Installing update: {}%"
-msgstr "Update installeren: {}%"
+msgid "Downloading update: {}%"
+msgstr "Update downloaden: {}%"
 
 msgid "The update couldn't be installed."
 msgstr "De update kon niet worden geïnstalleerd."
@@ -89,3 +89,15 @@ msgstr "Bijwerken..."
 
 msgid "Version {}, built on {}"
 msgstr "Versie {}, gebouwd op {}"
+
+msgid "Force update"
+msgstr "Update forceren"
+
+msgid "Download and install the latest build of the {} channel, also when it isn't newer? Keep the device powered on until the update is installed."
+msgstr "De nieuwste build van het kanaal {} downloaden en installeren, ook als die niet nieuwer is? Laat het apparaat aan totdat de update is geïnstalleerd."
+
+msgid "Preparing update..."
+msgstr "Update voorbereiden..."
+
+msgid "This update needs a full install with the web flasher."
+msgstr "Deze update vereist een volledige installatie met de webflasher."

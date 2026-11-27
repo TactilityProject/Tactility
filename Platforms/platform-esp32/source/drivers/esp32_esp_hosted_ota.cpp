@@ -160,6 +160,8 @@ error_t getInfo(void* /*ctx*/, FirmwareInfo* info) {
     info->fw_major = version.major1;
     info->fw_minor = version.minor1;
     info->fw_patch = version.patch1;
+    info->max_image_size = 0;
+    info->layout_id[0] = '\0';
 
     // Chip identification is best-effort: report the version even if this fails (e.g. a slave
     // firmware old enough to lack the esp_hosted_get_cp_info() RPC).

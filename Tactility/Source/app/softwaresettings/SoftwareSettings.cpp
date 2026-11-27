@@ -25,6 +25,7 @@
 #include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
 #ifdef ESP_PLATFORM
@@ -52,6 +53,7 @@ enum class Request : int32_t {
     Check,
     Install,
     Restart,
+    ForceUpdate,
     ChooseChannel,
     OpenRepositories,
 };
@@ -67,12 +69,18 @@ struct Context {
     /** Signaled by the dialogs, which store their result in dialogResult first */
     uint32_t installDialogBit = 0;
     uint32_t restartDialogBit = 0;
+    uint32_t forceDialogBit = 0;
     uint32_t channelDialogBit = 0;
     std::atomic<int32_t> dialogResult { -1 };
     /** The commit of the release that the install dialog shows, so only that release is installed */
     char confirmCommit[sizeof(firmwareupdate::Release::gitCommit)] {};
     /** The restart is offered once per installed update while the app runs */
     bool restartOffered = false;
+    /** Taps on the status label, which unlock a forced update. Only used with the LVGL lock held. */
+    uint32_t statusTapCount = 0;
+    uint32_t firstStatusTapTick = 0;
+    /** The button offers a forced update instead of a check. Only used with the LVGL lock held. */
+    bool forceUpdateUnlocked = false;
     /** What the widgets show. Written by the app's task with the LVGL lock held. */
     firmwareupdate::Snapshot snapshot {};
     size_t repositoryCount = 0;
@@ -80,6 +88,7 @@ struct Context {
     lv_obj_t* statusLabel = nullptr;
     lv_obj_t* detailLabel = nullptr;
     lv_obj_t* progressBar = nullptr;
+    lv_obj_t* progressSpinner = nullptr;
     lv_obj_t* actionButton = nullptr;
     lv_obj_t* actionLabel = nullptr;
     lv_obj_t* channelLabel = nullptr;
@@ -98,7 +107,19 @@ void signal(Context* ctx, Request request) {
 }
 
 bool canInstall(const firmwareupdate::Snapshot& snapshot) {
-    return snapshot.installSupported && (snapshot.status == firmwareupdate::Status::Available || snapshot.status == firmwareupdate::Status::InstallFailed);
+    return snapshot.installSupported && !snapshot.fullInstallRequired &&
+        (snapshot.status == firmwareupdate::Status::Available || snapshot.status == firmwareupdate::Status::InstallFailed);
+}
+
+/** The button would check for updates, which a forced update can replace */
+bool showsCheck(const firmwareupdate::Snapshot& snapshot) {
+    const auto status = snapshot.status;
+    return status != firmwareupdate::Status::Installed && status != firmwareupdate::Status::Checking &&
+        status != firmwareupdate::Status::Installing && !canInstall(snapshot);
+}
+
+bool isForceUpdateShown(const Context* ctx) {
+    return ctx->forceUpdateUnlocked && ctx->snapshot.installSupported && showsCheck(ctx->snapshot);
 }
 
 /** The button checks for updates, installs the available one, or restarts into the installed one */
@@ -108,8 +129,30 @@ void onActionPressed(lv_event_t* event) {
         signal(ctx, Request::Restart);
     } else if (canInstall(ctx->snapshot)) {
         signal(ctx, Request::Install);
+    } else if (isForceUpdateShown(ctx)) {
+        signal(ctx, Request::ForceUpdate);
     } else {
         signal(ctx, Request::Check);
+    }
+}
+
+void updateFirmwareWidgets(Context* ctx);
+
+constexpr uint32_t FORCE_UPDATE_TAPS = 5;
+constexpr uint32_t FORCE_UPDATE_TAP_PERIOD_MS = 3000;
+
+/** Tapping the status label 5 times within 3 seconds offers to install the published build even when it isn't newer, to test updating */
+void onStatusPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    if (ctx->statusTapCount == 0 || lv_tick_elaps(ctx->firstStatusTapTick) > FORCE_UPDATE_TAP_PERIOD_MS) {
+        ctx->statusTapCount = 0;
+        ctx->firstStatusTapTick = lv_tick_get();
+    }
+    ctx->statusTapCount++;
+    if (ctx->statusTapCount >= FORCE_UPDATE_TAPS) {
+        ctx->statusTapCount = 0;
+        ctx->forceUpdateUnlocked = true;
+        updateFirmwareWidgets(ctx);
     }
 }
 
@@ -214,8 +257,12 @@ void updateFirmwareWidgets(Context* ctx) {
             detail = snapshot.status == firmwareupdate::Status::InstallFailed
                 ? tr("The update couldn't be installed.")
                 : i18n::format(tr("Version {}, built on {}"), { snapshot.release.version, formatDate(snapshot.release.created) });
-            if (snapshot.installSupported) {
+            if (canInstall(snapshot)) {
                 action = tr("Update");
+            } else if (snapshot.installSupported) {
+                // Only a full install writes the partition table and sizes that the release needs
+                detail += "\n";
+                detail += tr("This update needs a full install with the web flasher.");
             } else {
                 detail += "\n";
                 detail += tr("Install this update with the web flasher.");
@@ -225,7 +272,9 @@ void updateFirmwareWidgets(Context* ctx) {
             status = tr("Update available");
             action = tr("Updating...");
             actionEnabled = false;
-            detail = i18n::format(tr("Installing update: {}%"), { std::to_string(snapshot.progress) });
+            detail = snapshot.downloading
+                ? i18n::format(tr("Downloading update: {}%"), { std::to_string(snapshot.progress) })
+                : std::string(tr("Preparing update..."));
             break;
         case firmwareupdate::Status::Installed:
             status = tr("Update installed");
@@ -235,11 +284,16 @@ void updateFirmwareWidgets(Context* ctx) {
     }
     lv_label_set_text(ctx->statusLabel, status);
     lv_label_set_text(ctx->detailLabel, detail.c_str());
+    if (isForceUpdateShown(ctx)) {
+        action = tr("Update");
+    }
     lv_label_set_text(ctx->actionLabel, action);
     lv_obj_set_state(ctx->actionButton, LV_STATE_DISABLED, !actionEnabled);
 
     const bool installing = snapshot.status == firmwareupdate::Status::Installing;
-    lv_obj_set_hidden(ctx->progressBar, !installing);
+    // Erasing the flash gives no progress, so a spinner shows that it runs
+    lv_obj_set_hidden(ctx->progressSpinner, !installing || snapshot.downloading);
+    lv_obj_set_hidden(ctx->progressBar, !installing || !snapshot.downloading);
     if (installing) {
         lv_bar_set_value(ctx->progressBar, snapshot.progress, LV_ANIM_OFF);
     }
@@ -273,6 +327,8 @@ void createFirmwareCard(lv_obj_t* parent, Context* ctx) {
     auto* updateRow = createRow(card);
     auto* updateTexts = createTexts(updateRow);
     ctx->statusLabel = createLabel(updateTexts, false);
+    lv_obj_set_clickable(ctx->statusLabel, true);
+    lv_obj_add_event_cb(ctx->statusLabel, onStatusPressed, LV_EVENT_SHORT_CLICKED, ctx);
     ctx->detailLabel = createLabel(updateTexts, true);
     ctx->actionButton = createTextButton(createButtonGroup(updateRow), "", onActionPressed, ctx);
     ctx->actionLabel = lv_obj_get_child(ctx->actionButton, 0);
@@ -280,6 +336,7 @@ void createFirmwareCard(lv_obj_t* parent, Context* ctx) {
     ctx->progressBar = lv_bar_create(card);
     lv_obj_set_width(ctx->progressBar, LV_PCT(100));
     lv_bar_set_range(ctx->progressBar, 0, 100);
+    ctx->progressSpinner = lvgl_spinner_create(card);
 
     auto* channelRow = createRow(card);
     auto* channelTexts = createTexts(channelRow);
@@ -329,6 +386,7 @@ void destroyWidgets(void* userData) {
     ctx->statusLabel = nullptr;
     ctx->detailLabel = nullptr;
     ctx->progressBar = nullptr;
+    ctx->progressSpinner = nullptr;
     ctx->actionButton = nullptr;
     ctx->actionLabel = nullptr;
     ctx->channelLabel = nullptr;
@@ -367,6 +425,18 @@ void startInstallDialog(Context* ctx) {
         auto* ctx = static_cast<Context*>(userData);
         ctx->dialogResult = button;
         task_event_group_signal(ctx->eventGroup, ctx->installDialogBit);
+    }, ctx);
+}
+
+void startForceDialog(Context* ctx) {
+    const std::string message = i18n::format(
+        tr("Download and install the latest build of the {} channel, also when it isn't newer? Keep the device powered on until the update is installed."),
+        { getChannelName(ctx->snapshot.channel) }
+    );
+    dialog::alert(ctx->appInstanceId, tr("Force update"), message, { tr("Cancel"), tr("Update") }, [](int32_t button, void* userData) {
+        auto* ctx = static_cast<Context*>(userData);
+        ctx->dialogResult = button;
+        task_event_group_signal(ctx->eventGroup, ctx->forceDialogBit);
     }, ctx);
 }
 
@@ -444,6 +514,9 @@ void handleRequest(Context* ctx) {
         case Request::OpenRepositories:
             openRepositories(ctx);
             break;
+        case Request::ForceUpdate:
+            startForceDialog(ctx);
+            break;
         case Request::Restart:
             startRestartDialog(ctx);
             break;
@@ -462,6 +535,7 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.eventGroup = &eventGroup;
     check(task_event_group_claim_bit(&eventGroup, &ctx.requestBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.installDialogBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.forceDialogBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.restartDialogBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.channelDialogBit) == ERROR_NONE);
     const bool firmwareSubscribed = firmwareupdate::subscribe(&eventGroup, &ctx.firmwareBit) == ERROR_NONE;
@@ -505,6 +579,20 @@ int32_t appMain(int argc, char* argv[]) {
                 const error_t error = firmwareupdate::requestInstall(ctx.confirmCommit);
                 if (error != ERROR_NONE) {
                     LOG_E(TAG, "Failed to start the install: %s", error_to_string(error));
+                }
+            }
+        }
+
+        if (flags & ctx.forceDialogBit) {
+            lvgl_lock();
+            ctx.forceUpdateUnlocked = false;
+            updateFirmwareWidgets(&ctx);
+            lvgl_unlock();
+            // The second button updates
+            if (ctx.dialogResult == 1) {
+                const error_t error = firmwareupdate::requestForcedUpdate();
+                if (error != ERROR_NONE) {
+                    LOG_E(TAG, "Failed to start the forced update: %s", error_to_string(error));
                 }
             }
         }
