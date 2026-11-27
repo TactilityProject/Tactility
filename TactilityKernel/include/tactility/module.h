@@ -250,6 +250,22 @@ bool module_resolve_symbol_global_get(const char* symbol_name, uintptr_t* symbol
  */
 bool module_resolve_symbol_global_get_code(const char* symbol_name, uintptr_t* symbol_address, struct Module** out_module);
 
+/**
+ * @brief Build symbol lookup indexes for all added modules.
+ * @details Optional. Resolution works without this, but scans every module's symbol table
+ * linearly. The indexes live in a single allocation and are reference counted; every call must be
+ * paired with module_symbol_index_release(). Intended to wrap ELF relocation, which is the only
+ * phase that resolves many symbols by name. Idle systems keep no index memory. If the allocation
+ * fails, lookups fall back to the linear scan.
+ */
+void module_symbol_index_acquire(void);
+
+/**
+ * @brief Release indexes built by module_symbol_index_acquire().
+ * @details The last release frees them and returns every module to the linear scan.
+ */
+void module_symbol_index_release(void);
+
 #ifdef __cplusplus
 }
 #endif

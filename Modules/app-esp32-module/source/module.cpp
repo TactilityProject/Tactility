@@ -37,11 +37,13 @@ void module_refs_destruct() {
 
 void module_refs_begin(ModuleRefs* refs) {
     mutex_lock(&relocation_mutex);
+    module_symbol_index_acquire();
     current_refs = refs;
 }
 
 void module_refs_end() {
     current_refs = nullptr;
+    module_symbol_index_release();
     mutex_unlock(&relocation_mutex);
 }
 

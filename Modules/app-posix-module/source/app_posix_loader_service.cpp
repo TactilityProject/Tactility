@@ -29,6 +29,8 @@ namespace {
 /** load()-allocated state, passed back through run()/unload(). */
 struct PosixAppRuntime {
     void* handle = nullptr;
+    /** The resolved .so path, used to promote a module's symbols to global scope. */
+    std::string path;
     // Address range of the loaded image, see app_posix_set_current_image()
     uintptr_t image_start = 0;
     uintptr_t image_end = 0;
@@ -156,7 +158,7 @@ error_t api_load(AppLocation location, AppRuntime* out_runtime) {
         return ERROR_NOT_FOUND;
     }
 
-    auto* runtime = new (std::nothrow) PosixAppRuntime { .handle = handle };
+    auto* runtime = new (std::nothrow) PosixAppRuntime { .handle = handle, .path = app_path };
     if (runtime == nullptr) {
         LOG_E(TAG, "Out of memory");
         dlclose(handle);
@@ -209,6 +211,22 @@ error_t api_get_module(AppRuntime runtime_ptr, Module** out_module) {
     if (module == nullptr) {
         return ERROR_NOT_FOUND;
     }
+
+    // Modules provide symbols to apps that are dlopen()ed later (the Lua runtime module
+    // and its runner, for example). The loader keeps handles RTLD_LOCAL so apps cannot
+    // collide with each other, so promote a module to global scope here: api_get_module()
+    // is only called by the module loader.
+    void* global_handle = dlopen(runtime->path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    if (global_handle == nullptr) {
+        const char* error = dlerror();
+        LOG_E(
+            TAG,
+            "Failed to promote module symbols to global scope: %s",
+            error != nullptr ? error : "unknown error"
+        );
+        return ERROR_RESOURCE;
+    }
+    dlclose(global_handle);
 
     *out_module = module;
     return ERROR_NONE;
