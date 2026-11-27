@@ -27,6 +27,7 @@
 extern "C" long long __fixsfdi(float value);
 #endif
 
+#include <tactility/firmware/esp32_system_firmware.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
 
@@ -150,6 +151,11 @@ static esp_err_t initNvsFlashSafely() {
 
 static error_t platform_esp32_start() {
     ESP_ERROR_CHECK(initNvsFlashSafely());
+    // Partition tables without OTA app partitions have no updatable system firmware
+    const error_t firmware_error = esp32_system_firmware_register();
+    if (firmware_error != ERROR_NONE && firmware_error != ERROR_NOT_SUPPORTED) {
+        LOG_W("platform-esp32", "Failed to register system firmware: %s", error_to_string(firmware_error));
+    }
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     // Lets mesh networking run over ESP-NOW
     return esp32_espnow_radio_start();

@@ -349,6 +349,7 @@ typedef struct {
 #endif
     lv_style_t list;
     lv_style_t list_item;
+    lv_style_t list_item_highlight;
     lv_style_t list_subheader;
 #if LV_USE_TABVIEW
     lv_style_t tabview_tabs;
@@ -960,7 +961,6 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_hor(&theme->styles.list, 0);
     lv_style_set_pad_ver(&theme->styles.list, 0);
     lv_style_set_pad_gap(&theme->styles.list, 0);
-    lv_style_set_clip_corner(&theme->styles.list, true);
 
     style_init_reset(&theme->styles.list_item);
     lv_style_set_bg_opa(&theme->styles.list_item, LV_OPA_TRANSP);
@@ -972,6 +972,9 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_hor(&theme->styles.list_item, LIST_ITEM_PAD_HOR);
     lv_style_set_pad_ver(&theme->styles.list_item, LIST_ITEM_PAD_VER);
     lv_style_set_pad_column(&theme->styles.list_item, LIST_ITEM_GAP);
+
+    style_init_reset(&theme->styles.list_item_highlight);
+    lv_style_set_radius(&theme->styles.list_item_highlight, SHAPE_CONTAINER);
 
     style_init_reset(&theme->styles.list_subheader);
     lv_style_set_text_font(&theme->styles.list_subheader, theme->config.font_small);
@@ -1873,6 +1876,9 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_CHECKED);
         return;
     }
 #endif
@@ -1894,6 +1900,9 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.list_item_highlight, LV_STATE_CHECKED);
         return;
     }
 #if LV_USE_TABLE

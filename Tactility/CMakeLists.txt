@@ -6,9 +6,10 @@ get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
-# The Software app only configures online features, so it is left out of devices that disable CONFIG_TT_APP_HUB_ONLINE
+# The Software app and the firmware update service are online features, so they are left out of devices that disable CONFIG_TT_APP_HUB_ONLINE
 if (DEFINED ENV{ESP_IDF_VERSION} AND NOT CONFIG_TT_APP_HUB_ONLINE)
     list(FILTER SOURCE_FILES EXCLUDE REGEX "/Source/app/softwaresettings/")
+    list(FILTER SOURCE_FILES EXCLUDE REGEX "/Source/service/firmwareupdate/")
 endif ()
 
 # Get the project and device id
@@ -267,6 +268,21 @@ set_source_files_properties("${GENERATED_DIR}/generated_assets.c" PROPERTIES GEN
 set_source_files_properties("${GENERATED_DIR}/generated_assets.h" PROPERTIES GENERATED TRUE)
 target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/generated_assets.c")
 add_dependencies(${COMPONENT_LIB} GeneratedAssets)
+
+#
+# Build identity: the git commit and the build time
+#
+
+add_custom_target(GeneratedBuildInfo ALL
+    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-build-info.py"
+        "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/version.txt" "${GENERATED_DIR}" "${CMAKE_BINARY_DIR}/build_info.json"
+    BYPRODUCTS "${GENERATED_DIR}/build_info.c" "${CMAKE_BINARY_DIR}/build_info.json"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Generating build info..."
+)
+set_source_files_properties("${GENERATED_DIR}/build_info.c" PROPERTIES GENERATED TRUE)
+target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/build_info.c")
+add_dependencies(${COMPONENT_LIB} GeneratedBuildInfo)
 
 #
 # Translations: the PO files of Translations/<domain> compiled to catalogs and embedded as C byte arrays

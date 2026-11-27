@@ -58,4 +58,4 @@ runs:
       with:
         name: Simulator-${{ inputs.os_name }}-${{ inputs.architecture }}
         path: release/Simulator-${{ inputs.os_name }}-${{ inputs.architecture }}
-        retention-days: 30
+        retention-days: 7

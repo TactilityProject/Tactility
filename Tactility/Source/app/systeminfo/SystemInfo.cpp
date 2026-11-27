@@ -10,6 +10,7 @@
 #include <tactility/memory.h>
 #include <tactility/paths.h>
 
+#include <Tactility/BuildInfo.h>
 #include <Tactility/Timer.h>
 
 #include <app/event.h>
@@ -17,6 +18,8 @@
 #include <app/scheduler.h>
 
 #include <algorithm>
+#include <cstring>
+#include <ctime>
 #include <strings.h>
 #include <format>
 #include <memory>
@@ -913,8 +916,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(tasks_card, 1);
     lv_obj_set_style_pad_all(tasks_card, 0, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(tasks_card, false);
-    // The rows' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(tasks_card, true, LV_STATE_DEFAULT);
     // The card provides the background
     ctx->tasksContainer = lvgl_list_create(tasks_card);
     lv_obj_set_size(ctx->tasksContainer, LV_PCT(100), LV_PCT(100));
@@ -969,6 +970,18 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     idfVersion += ::std::to_string(ESP_IDF_VERSION_PATCH).c_str();
     addInfoRow(software_card, "ESP-IDF", idfVersion.c_str());
 #endif
+    if (tt_build_git_commit[0] != '\0') {
+        const ::std::string commit(tt_build_git_commit, strnlen(tt_build_git_commit, 7));
+        addInfoRow(software_card, tr("Build"), commit.c_str());
+    }
+    {
+        const time_t buildTime = static_cast<time_t>(tt_build_timestamp);
+        tm local {};
+        char text[24] = "";
+        if (localtime_r(&buildTime, &local) != nullptr && strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &local) > 0) {
+            addInfoRow(software_card, tr("Created"), text);
+        }
+    }
     ctx->uptimeLabel = addInfoRow(software_card, tr("Uptime"), "");
 
     // Initial updates

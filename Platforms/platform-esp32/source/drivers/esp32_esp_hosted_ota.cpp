@@ -243,6 +243,7 @@ const FirmwareOps firmwareOps = {
     .finish = finishUpdate,
     .abort = abortUpdate,
     .activate = activate,
+    .get_layout = nullptr,
 };
 
 } // namespace

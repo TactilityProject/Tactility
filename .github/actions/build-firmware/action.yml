@@ -48,6 +48,21 @@ runs:
           ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-${{ steps.ccache.outputs.scope }}-
           ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-
           ccache-idf-v6.1-${{ inputs.arch }}-
+    # The channel that the build is published to, which is the default update channel of the firmware
+    - name: 'Release channel'
+      id: channel
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+      run: |
+        if [ "$EVENT_NAME" = "push" ] && [[ "$REF" == refs/tags/v* ]]; then
+          echo "name=stable" >> "$GITHUB_OUTPUT"
+        elif [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/main" ]; then
+          echo "name=unstable" >> "$GITHUB_OUTPUT"
+        else
+          echo "name=develop" >> "$GITHUB_OUTPUT"
+        fi
     - name: 'Build'
       uses: espressif/esp-idf-ci-action@v1
       with:
@@ -55,7 +70,7 @@ runs:
         esp_idf_version: v6.1
         target: ${{ inputs.arch }}
         path: './'
-        command: 'export IDF_CCACHE_ENABLE=1 CCACHE_DIR="$(pwd)/.ccache" CCACHE_BASEDIR="$(pwd)" CCACHE_MAXSIZE=300M && ccache -z > /dev/null && idf.py build && (ccache -s || true) && (ccache --print-stats > .ccache-stats.txt || true)'
+        command: 'export TT_BUILD_CHANNEL=${{ steps.channel.outputs.name }} IDF_CCACHE_ENABLE=1 CCACHE_DIR="$(pwd)/.ccache" CCACHE_BASEDIR="$(pwd)" CCACHE_MAXSIZE=300M && ccache -z > /dev/null && idf.py build && (ccache -s || true) && (ccache --print-stats > .ccache-stats.txt || true)'
     - name: 'Compiler cache changes'
       id: ccache-changes
       shell: bash
@@ -91,16 +106,16 @@ runs:
       with:
         name: Tactility-${{ inputs.board_id }}
         path: release/Tactility-${{ inputs.board_id }}
-        retention-days: 30
+        retention-days: 7
     - name: 'Upload Artifact: Release symbols'
       uses: actions/upload-artifact@v4
       with:
         name: Tactility-${{ inputs.board_id }}-symbols
         path: release/Tactility-${{ inputs.board_id }}-symbols
-        retention-days: 30
+        retention-days: 7
     - name: 'Upload Artifact: Merged binary'
       uses: actions/upload-artifact@v4
       with:
         name: Tactility-${{ inputs.board_id }}.bin
         path: release/Tactility-${{ inputs.board_id }}.bin
-        retention-days: 30
+        retention-days: 7

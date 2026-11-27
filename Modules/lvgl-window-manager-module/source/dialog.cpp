@@ -342,7 +342,6 @@ bool build_dialog_locked(Dialog* dialog) {
         lv_obj_set_flex_flow(content_card, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_all(content_card, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_row(content_card, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_clip_corner(content_card, true, LV_STATE_DEFAULT);
         if (compact) {
             lv_obj_set_style_radius(content_card, 0, LV_STATE_DEFAULT);
         }
@@ -414,7 +413,6 @@ bool build_dialog_locked(Dialog* dialog) {
         lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(list, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
         lv_obj_t* first_item = nullptr;
         for (size_t i = 0; i < dialog->buttonLabels.size(); i++) {
             lv_obj_t* item = lvgl_list_add_button(list, nullptr, dialog->buttonLabels[i].c_str());

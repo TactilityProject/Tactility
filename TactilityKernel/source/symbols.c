@@ -54,6 +54,7 @@
 #include <tactility/drivers/usb_msc_device.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/error.h>
+#include <tactility/firmware/firmware.h>
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/file.h>
 #include <tactility/filesystem/file_system.h>
@@ -524,6 +525,11 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(wifi_event_poll),
     DEFINE_MODULE_SYMBOL(wifi_get_firmware_ops),
     DEFINE_MODULE_SYMBOL(WIFI_TYPE),
+    // firmware
+    DEFINE_MODULE_SYMBOL(firmware_register),
+    DEFINE_MODULE_SYMBOL(firmware_unregister),
+    DEFINE_MODULE_SYMBOL(firmware_get),
+    DEFINE_MODULE_SYMBOL(firmware_for_each),
     // network
     DEFINE_MODULE_SYMBOL(network_is_available),
     // wifi_auto_scan

@@ -80,6 +80,10 @@ void http_client_set_timeout(HttpClient* client, uint32_t timeout_ms) {
     client->timeoutMs = timeout_ms;
 }
 
+void http_client_set_certificate(HttpClient* client, const char* certificate_pem) {
+    client->certificatePem = certificate_pem;
+}
+
 void http_client_close(HttpClient* client) {
     client->backend = nullptr;
     client->clearResponseHeaders();

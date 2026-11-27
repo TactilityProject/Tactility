@@ -68,4 +68,4 @@ runs:
       with:
         name: TactilitySDK-${{ steps.arch.outputs.value }}
         path: release/TactilitySDK
-        retention-days: 30
+        retention-days: 7

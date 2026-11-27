@@ -32,12 +32,19 @@ add_custom_target(TestsGeneratedCatalogs
     BYPRODUCTS "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
+add_custom_target(TestsGeneratedBuildInfo
+    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-build-info.py"
+        "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/version.txt" "${GENERATED_DIR}" "${GENERATED_DIR}/build_info.json"
+    BYPRODUCTS "${GENERATED_DIR}/build_info.c" "${GENERATED_DIR}/build_info.json"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 set_source_files_properties("${GENERATED_DIR}/generated_assets.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${GENERATED_DIR}/build_info.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_catalogs.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 
-add_executable(TactilityTests EXCLUDE_FROM_ALL ${TEST_SOURCES} ${TACTILITY_SOURCES} "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_catalogs.c")
-add_dependencies(TactilityTests TestsGeneratedAssets TestsGeneratedFonts TestsGeneratedCatalogs)
+add_executable(TactilityTests EXCLUDE_FROM_ALL ${TEST_SOURCES} ${TACTILITY_SOURCES} "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/build_info.c")
+add_dependencies(TactilityTests TestsGeneratedAssets TestsGeneratedFonts TestsGeneratedCatalogs TestsGeneratedBuildInfo)
 target_include_directories(TactilityTests PRIVATE "${GENERATED_DIR}")
 
 target_include_directories(TactilityTests PRIVATE ${DOCTESTINC})

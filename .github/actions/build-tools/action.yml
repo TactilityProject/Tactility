@@ -13,4 +13,4 @@ runs:
       with:
         name: TactilityTools
         path: ${{ env.TACTILITY_TOOLS_PATH }}
-        retention-days: 30
+        retention-days: 7

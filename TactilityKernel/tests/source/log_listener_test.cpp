@@ -11,15 +11,18 @@
 
 namespace {
 
+constexpr auto* TEST_LINE = "hello\n";
+
+/** The queue is shared, so lines that other tests logged earlier can arrive too. Only the test line is counted. */
 struct Received {
     std::atomic<int> count { 0 };
-    std::string last;
 };
 
 void onLine(const char* line, size_t length, void* context) {
     auto* received = static_cast<Received*>(context);
-    received->last.assign(line, length);
-    received->count++;
+    if (std::string(line, length) == TEST_LINE) {
+        received->count++;
+    }
 }
 
 /** Removes the listener when a failing assertion ends the test early */
@@ -44,14 +47,12 @@ TEST_CASE("log listener receives lines until unsubscribed") {
     REQUIRE(log_subscribe(onLine, &received));
     Subscription subscription { &received };
 
-    const char* line = "hello\n";
-    log_queue_write(line, strlen(line));
+    log_queue_write(TEST_LINE, strlen(TEST_LINE));
     REQUIRE(waitForCount(received, 1));
-    CHECK(received.last == "hello\n");
 
     log_unsubscribe(onLine, &received);
     const int countAfterUnsubscribe = received.count;
-    log_queue_write(line, strlen(line));
+    log_queue_write(TEST_LINE, strlen(TEST_LINE));
     vTaskDelay(pdMS_TO_TICKS(100));
     CHECK(received.count == countAfterUnsubscribe);
 }

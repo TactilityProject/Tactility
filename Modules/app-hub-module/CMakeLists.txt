@@ -8,7 +8,7 @@ tactility_add_module(app-hub-module
     SRCS ${SOURCE_FILES}
     PRIV_INCLUDE_DIRS private/
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel app-module service-module http-module cjson-module
+    REQUIRES TactilityKernel app-module service-module http-module cjson-module lvgl-module lvgl-window-manager-module localisation-module
 )
 
 if (NOT DEFINED ENV{ESP_IDF_VERSION})

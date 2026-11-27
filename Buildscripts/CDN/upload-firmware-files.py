@@ -22,6 +22,12 @@ def exit_with_error(message):
     print_error(message)
     sys.exit(1)
 
+def get_upload_args(file_name: str):
+    """The manifests change with every build and are small, so the CDN only keeps them for a minute"""
+    if file_name.endswith(".json"):
+        return {"CacheControl": "public, max-age=60"}
+    return {}
+
 def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: str, cloudflare_token_value: str, index_only: bool):
     if not os.path.exists(path):
         exit_with_error(f"Path not found: {path}")
@@ -32,7 +38,8 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
         aws_secret_access_key=cloudflare_token_value,
         region_name="auto"
     )
-    files_to_upload = os.listdir(path)
+    # The manifests go last, so a device never finds a manifest that refers to a binary that isn't uploaded yet
+    files_to_upload = sorted(os.listdir(path), key=lambda name: name.endswith(".json"))
     counter = 1
     total = len(files_to_upload)
     for file_name in files_to_upload:
@@ -41,7 +48,7 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
             print(f"[{counter}/{total}] Uploading {file_name} to {object_path}")
             file_path = os.path.join(path, file_name)
             try:
-                s3.upload_file(file_path, "tactility", object_path)
+                s3.upload_file(file_path, "tactility", object_path, ExtraArgs=get_upload_args(file_name))
             except Exception as e:
                 exit_with_error(f"Failed to upload {file_name}: {str(e)}")
             counter += 1

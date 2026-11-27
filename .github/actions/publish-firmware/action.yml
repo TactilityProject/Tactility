@@ -22,3 +22,7 @@ runs:
     - name: 'Upload files'
       shell: bash
       run: python Buildscripts/CDN/upload-firmware-files.py artifacts-cdn ${{ inputs.cdn_version }} ${{ env.CDN_ID }} ${{ env.CDN_TOKEN_NAME }} ${{ env.CDN_TOKEN_VALUE }}
+    # Never fails the job: without the secrets or on an API error, the files refresh when their cache expires
+    - name: 'Purge CDN cache'
+      shell: bash
+      run: python Buildscripts/CDN/purge-firmware-cache.py artifacts-cdn ${{ inputs.cdn_version }} || true

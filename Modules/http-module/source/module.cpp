@@ -67,6 +67,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(http_client_free),
     DEFINE_MODULE_SYMBOL(http_client_set_header),
     DEFINE_MODULE_SYMBOL(http_client_set_timeout),
+    DEFINE_MODULE_SYMBOL(http_client_set_certificate),
     DEFINE_MODULE_SYMBOL(http_client_open),
     DEFINE_MODULE_SYMBOL(http_client_get_status_code),
     DEFINE_MODULE_SYMBOL(http_client_get_content_length),

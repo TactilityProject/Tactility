@@ -14,4 +14,4 @@ runs:
       with:
         name: tt
         path: release/tt
-        retention-days: 30
+        retention-days: 7

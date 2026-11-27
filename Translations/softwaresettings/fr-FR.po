@@ -3,43 +3,116 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: fr-FR\n"
 
-msgid "Add repository"
-msgstr "Ajouter un dépôt"
-
-
-msgid "App repositories"
-msgstr "Dépôts d'applications"
-
-msgid "Apps from a third party repository are not checked by the Tactility project. They can contain harmful software that steals your data or damages your device. Only add a repository that you trust."
-msgstr "Les applications d'un dépôt tiers ne sont pas vérifiées par le projet Tactility. Elles peuvent contenir des logiciels malveillants qui volent vos données ou endommagent votre appareil. N'ajoutez qu'un dépôt de confiance."
-
 msgid "Cancel"
 msgstr "Annuler"
-
-msgid "Continue"
-msgstr "Continuer"
-
-msgid "Error"
-msgstr "Erreur"
-
 
 msgid "Software"
 msgstr "Logiciel"
 
-msgid "The address must start with https://"
-msgstr "L'adresse doit commencer par https://"
+msgid "App Hub Repositories"
+msgstr "Dépôts App Hub"
 
-msgid "The address of the repository, starting with https://"
-msgstr "L'adresse du dépôt, commençant par https://"
+msgid "{} repository"
+msgstr "{} dépôt"
 
-msgid "The change could not be saved."
-msgstr "La modification n'a pas pu être enregistrée."
+msgid "{} repositories"
+msgstr "{} dépôts"
 
-msgid "There is no room for more repositories."
-msgstr "Il n'y a plus de place pour d'autres dépôts."
+msgid "{} from {}"
+msgstr "{} du {}"
 
-msgid "Third party apps"
-msgstr "Applications tierces"
+msgid "Install this update with the web flasher."
+msgstr "Installez cette mise à jour avec le flasheur web."
 
-msgid "This repository is in the list already."
-msgstr "Ce dépôt est déjà dans la liste."
+msgid "Couldn't check for updates."
+msgstr "Impossible de rechercher des mises à jour."
+
+msgid "Installing: {}%"
+msgstr "Installation : {} %"
+
+msgid "The update couldn't be installed."
+msgstr "La mise à jour n'a pas pu être installée."
+
+msgid "Restart to use update"
+msgstr "Redémarrez pour utiliser la mise à jour"
+
+msgid "Install"
+msgstr "Installer"
+
+msgid "Update channel"
+msgstr "Canal de mise à jour"
+
+msgid "Main"
+msgstr "Principal"
+
+msgid "Beta"
+msgstr "Bêta"
+
+msgid "Download and install version {}? Keep the device powered on until the update is installed."
+msgstr "Télécharger et installer la version {} ? Laissez l'appareil allumé jusqu'à ce que la mise à jour soit installée."
+
+msgid "Install update"
+msgstr "Installer la mise à jour"
+
+msgid "Update installed"
+msgstr "Mise à jour installée"
+
+msgid "Restart now to use the new version?"
+msgstr "Redémarrer maintenant pour utiliser la nouvelle version ?"
+
+msgid "Later"
+msgstr "Plus tard"
+
+msgid "Restart"
+msgstr "Redémarrer"
+
+msgid "Develop"
+msgstr "Développement"
+
+msgid "Up to date"
+msgstr "À jour"
+
+msgid "Update available"
+msgstr "Mise à jour disponible"
+
+msgid "Check"
+msgstr "Vérifier"
+
+msgid "Update"
+msgstr "Mettre à jour"
+
+msgid "Checking..."
+msgstr "Vérification..."
+
+msgid "Updating..."
+msgstr "Mise à jour..."
+
+msgid "Version {}, built on {}"
+msgstr "Version {}, compilée le {}"
+
+msgid "Force update"
+msgstr "Forcer la mise à jour"
+
+msgid "Download and install the latest build of the {} channel, also when it isn't newer? Keep the device powered on until the update is installed."
+msgstr "Télécharger et installer la dernière compilation du canal {}, même si elle n'est pas plus récente ? Laissez l'appareil allumé jusqu'à ce que la mise à jour soit installée."
+
+msgid "Preparing update..."
+msgstr "Préparation de la mise à jour..."
+
+msgid "This update needs a full install with the web flasher."
+msgstr "Cette mise à jour nécessite une installation complète avec le flasheur web."
+
+msgid "Develop channel"
+msgstr "Canal de développement"
+
+msgid "Builds of the develop channel are made from pull requests that aren't finished or tested. They can be unstable or lose your data. Switch to the develop channel?"
+msgstr "Les compilations du canal de développement proviennent de pull requests non terminées ni testées. Elles peuvent être instables ou effacer vos données. Passer au canal de développement ?"
+
+msgid "Switch"
+msgstr "Changer"
+
+msgid "Incompatible update"
+msgstr "Mise à jour incompatible"
+
+msgid "Install this update from install.tactilityproject.org"
+msgstr "Installez cette mise à jour depuis install.tactilityproject.org"

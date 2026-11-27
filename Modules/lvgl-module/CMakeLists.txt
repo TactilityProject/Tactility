@@ -69,3 +69,16 @@ target_compile_definitions(${MODULE_NAME} PUBLIC
     # Default theme mode: 1 for dark, 0 for light
     "-DTT_LVGL_THEME_DARK=${theme_dark}"
 )
+
+# Calls to the style setters that make LVGL render into layers go through the warnings of source/costly_styles.c.
+# Apple's linker has no --wrap.
+if (NOT APPLE)
+    foreach (setter clip_corner transform_rotation transform_scale_x transform_scale_y)
+        set(wrap_option "-Wl,--wrap=lv_obj_set_style_${setter}")
+        if (DEFINED ENV{ESP_IDF_VERSION})
+            target_link_options(${MODULE_NAME} INTERFACE ${wrap_option})
+        else ()
+            target_link_options(${MODULE_NAME} PUBLIC ${wrap_option})
+        endif ()
+    endforeach ()
+endif ()

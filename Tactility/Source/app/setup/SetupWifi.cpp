@@ -100,8 +100,6 @@ void renderWifi(Context* ctx) {
     auto* card = lvgl_card_create(container);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
-    // The list items' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
     auto* list = lvgl_list_create(card);
     lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
@@ -120,7 +118,7 @@ void renderWifi(Context* ctx) {
         lv_obj_add_event_cb(button, onWifiNetworkClicked, LV_EVENT_SHORT_CLICKED, ctx);
         ctx->wifiSsids.push_back(::std::move(ssid));
     }
-    lvgl_list_hide_last_divider(card);
+    lvgl_list_hide_last_divider(list);
 }
 
 static void updateWifiState(Context* ctx) {

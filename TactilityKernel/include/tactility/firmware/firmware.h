@@ -12,14 +12,13 @@ extern "C" {
 #endif
 
 /**
- * @brief Generic co-processor/companion-radio firmware info & update interface.
+ * @brief Generic firmware info & update interface.
  *
- * Not tied to any particular driver: some devices are backed by a separate co-processor with its
- * own updatable firmware (e.g. esp-hosted-mcu's P4+C6/C5 pairing, reachable via
- * WifiApi::get_firmware_ops() in tactility/drivers/wifi.h); most aren't. A driver with no such
- * co-processor returns ERROR_NOT_SUPPORTED from whatever function exposes this interface
- * (leaving its output params untouched) - callers must check the result before using any
- * FirmwareOps function.
+ * Used for the system firmware (FIRMWARE_ID_SYSTEM, the OS image that this device runs) and for the firmware of
+ * co-processors (e.g. esp-hosted-mcu's P4+C6/C5 pairing, also reachable via WifiApi::get_firmware_ops() in
+ * tactility/drivers/wifi.h). Platforms and devices make their firmware available with firmware_register().
+ * A driver with no such co-processor returns ERROR_NOT_SUPPORTED from whatever function exposes this interface
+ * (leaving its output params untouched) - callers must check the result before using any FirmwareOps function.
  */
 struct FirmwareInfo {
     char name[32]; // human-readable target name, e.g. "esp32c6" - empty if unavailable
@@ -27,6 +26,17 @@ struct FirmwareInfo {
     uint32_t fw_major;
     uint32_t fw_minor;
     uint32_t fw_patch;
+};
+
+/** Where an image is installed. Separate from FirmwareInfo, which keeps its layout for existing binaries. */
+struct FirmwareLayout {
+    /** The largest image that begin() accepts, 0 when unknown */
+    size_t max_image_size;
+    /**
+     * Identifies the layout of the target's storage, implementation-defined (e.g. the MD5 of an ESP32 partition table as hex).
+     * An image built for another layout can't be installed with these operations. Empty when unknown.
+     */
+    char layout_id[33];
 };
 
 struct FirmwareUpdateRequest {
@@ -73,7 +83,49 @@ struct FirmwareOps {
      * this, and fall back to treating the update as complete after finish() otherwise.
      */
     error_t (*activate)(void* ctx);
+
+    /**
+     * Get where an image is installed. Optional: NULL when the firmware doesn't know.
+     * Added after the other operations, so code that was built before it never calls it.
+     * @return ERROR_NONE on success, or an error code
+     */
+    error_t (*get_layout)(void* ctx, struct FirmwareLayout* layout);
 };
+
+/** The id of the firmware that the device runs: writing it updates the operating system */
+#define FIRMWARE_ID_SYSTEM "system"
+
+/**
+ * Make a firmware available by id.
+ * @param[in] id the id, which must stay valid until unregistered (e.g. FIRMWARE_ID_SYSTEM)
+ * @param[in] ops the operations, which must stay valid until unregistered
+ * @param[in] ctx passed to the operations
+ * @retval ERROR_ALREADY_EXISTS a firmware with this id is registered
+ * @retval ERROR_OUT_OF_MEMORY the registry could not be created
+ * @warning Like the other tt::std containers, the registry aborts when it can't grow for lack of memory
+ */
+error_t firmware_register(const char* id, const struct FirmwareOps* ops, void* ctx);
+
+/** @retval ERROR_NOT_FOUND no firmware with this id is registered */
+error_t firmware_unregister(const char* id);
+
+/**
+ * @param[in] id the id of the firmware
+ * @param[out] ops the operations
+ * @param[out] ctx the context to pass to the operations
+ * @retval ERROR_NOT_FOUND no firmware with this id is registered
+ */
+error_t firmware_get(const char* id, const struct FirmwareOps** ops, void** ctx);
+
+/** @return true to continue, false to stop */
+typedef bool (*FirmwareVisitorFn)(const char* id, const struct FirmwareOps* ops, void* ctx, void* user_data);
+
+/**
+ * Visit the registered firmwares.
+ * @warning The visitor runs with the registry's lock held: it must not call any firmware_*() function, including
+ * firmware_get() and firmware_for_each().
+ */
+void firmware_for_each(FirmwareVisitorFn visitor, void* user_data);
 
 #ifdef __cplusplus
 }
