@@ -193,8 +193,8 @@ bool isChannelListed(firmwareupdate::Channel channel, firmwareupdate::Channel cu
 
 const char* getChannelName(firmwareupdate::Channel channel) {
     switch (channel) {
-        case firmwareupdate::Channel::Stable: return tr("Stable");
-        case firmwareupdate::Channel::Unstable: return tr("Unstable");
+        case firmwareupdate::Channel::Stable: return tr("Main");
+        case firmwareupdate::Channel::Unstable: return tr("Beta");
         case firmwareupdate::Channel::Develop: return tr("Develop");
     }
     return "";

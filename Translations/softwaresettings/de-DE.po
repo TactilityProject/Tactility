@@ -42,11 +42,11 @@ msgstr "Installieren"
 msgid "Update channel"
 msgstr "Update-Kanal"
 
-msgid "Stable"
-msgstr "Stabil"
+msgid "Main"
+msgstr "Main"
 
-msgid "Unstable"
-msgstr "Instabil"
+msgid "Beta"
+msgstr "Beta"
 
 msgid "Download and install version {}? Keep the device powered on until the update is installed."
 msgstr "Version {} herunterladen und installieren? Lass das Gerät eingeschaltet, bis das Update installiert ist."
