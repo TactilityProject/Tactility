@@ -74,12 +74,18 @@ def clean_up(s3, path: str, version: str, keep: int):
             with open(os.path.join(path, file_name)) as manifest_file:
                 current_file = json.load(manifest_file)["file"]
             obsolete.extend(select_obsolete(objects, file_name.removesuffix("-ota.json"), current_file, keep))
+        deleted = 0
         for start in range(0, len(obsolete), 1000):
             batch = obsolete[start:start + 1000]
             for key in batch:
                 print(f"Deleting {folder}{key}")
-            s3.delete_objects(Bucket=BUCKET, Delete={"Objects": [{"Key": f"{folder}{key}"} for key in batch], "Quiet": True})
-        print(f"Deleted {len(obsolete)} app images of older builds")
+            response = s3.delete_objects(Bucket=BUCKET, Delete={"Objects": [{"Key": f"{folder}{key}"} for key in batch], "Quiet": True})
+            # A failed object is reported in the response, not raised
+            errors = response.get("Errors", [])
+            for error in errors:
+                print_warning(f"Failed to delete {error.get('Key')}: {error.get('Code')} {error.get('Message')}")
+            deleted += len(batch) - len(errors)
+        print(f"Deleted {deleted}/{len(obsolete)} app images of older builds")
     except Exception as e:
         print_warning(f"Failed to delete the app images of older builds: {str(e)}")
 
