@@ -102,11 +102,12 @@ struct ModuleLedger {
 
 static ModuleLedger ledger;
 
-// The index is a relocation-time optimization: keep it out of internal RAM by preferring
+// The index is a relocation-time optimization: keep it out of internal RAM by requiring
 // external memory, and skip it on ESP devices that don't have external memory at all.
+// If the allocation fails, the linear scan remains.
 static constexpr MemoryPolicy SYMBOL_INDEX_POLICY = {
-    .required = 0,
-    .desired = MEMORY_CAPABILITY_EXTERNAL,
+    .required = MEMORY_CAPABILITY_EXTERNAL,
+    .desired = 0,
     .alignment = 0,
 };
 
