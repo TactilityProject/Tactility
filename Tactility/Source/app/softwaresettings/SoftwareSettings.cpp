@@ -299,7 +299,7 @@ void updateFirmwareWidgets(Context* ctx) {
             action = tr("Updating...");
             actionEnabled = false;
             detail = snapshot.downloading
-                ? i18n::format(tr("Downloading update: {}%"), { std::to_string(snapshot.progress) })
+                ? i18n::format(tr("Installing: {}%"), { std::to_string(snapshot.progress) })
                 : std::string(tr("Preparing update..."));
             break;
         case firmwareupdate::Status::Installed:

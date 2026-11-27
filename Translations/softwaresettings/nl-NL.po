@@ -27,8 +27,8 @@ msgstr "Installeer deze update met de webflasher."
 msgid "Couldn't check for updates."
 msgstr "Controleren op updates is mislukt."
 
-msgid "Downloading update: {}%"
-msgstr "Update downloaden: {}%"
+msgid "Installing: {}%"
+msgstr "Installeren: {}%"
 
 msgid "The update couldn't be installed."
 msgstr "De update kon niet worden geïnstalleerd."

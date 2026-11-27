@@ -27,8 +27,8 @@ msgstr "Instala esta actualización con el flasher web."
 msgid "Couldn't check for updates."
 msgstr "No se pudieron buscar actualizaciones."
 
-msgid "Downloading update: {}%"
-msgstr "Descargando actualización: {} %"
+msgid "Installing: {}%"
+msgstr "Instalando: {} %"
 
 msgid "The update couldn't be installed."
 msgstr "No se pudo instalar la actualización."
