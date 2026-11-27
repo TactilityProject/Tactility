@@ -61,6 +61,35 @@ TEST_CASE("Module registration") {
 static int indexed_symbol_one = 1;
 static int indexed_symbol_two = 2;
 
+namespace {
+
+/** Releases the index when a failed REQUIRE unwinds the test. */
+class IndexSession {
+public:
+    IndexSession() { module_symbol_index_acquire(); }
+    ~IndexSession() { module_symbol_index_release(); }
+    IndexSession(const IndexSession&) = delete;
+    IndexSession& operator=(const IndexSession&) = delete;
+};
+
+/** Destructs the module when a failed REQUIRE unwinds the test. */
+class ModuleRegistration {
+public:
+    explicit ModuleRegistration(Module* module) : module(module) {}
+    ~ModuleRegistration() {
+        if (module->internal != nullptr) {
+            (void)module_ensure_destructed(module);
+        }
+    }
+    ModuleRegistration(const ModuleRegistration&) = delete;
+    ModuleRegistration& operator=(const ModuleRegistration&) = delete;
+
+private:
+    Module* module;
+};
+
+} // namespace
+
 static const struct ModuleSymbol indexed_symbols[] = {
     DEFINE_MODULE_SYMBOL(indexed_symbol_one),
     {"duplicate_symbol", &indexed_symbol_one},
@@ -78,6 +107,7 @@ TEST_CASE("Module symbol indexes are built on demand and keep the first duplicat
         .internal = nullptr
     };
 
+    ModuleRegistration registration(&module);
     REQUIRE_EQ(module_construct(&module), ERROR_NONE);
     REQUIRE_EQ(module_add(&module), ERROR_NONE);
 
@@ -86,38 +116,40 @@ TEST_CASE("Module symbol indexes are built on demand and keep the first duplicat
     REQUIRE(module_resolve_symbol(&module, "indexed_symbol_one", &address));
     CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_one));
 
-    module_symbol_index_acquire();
+    {
+        IndexSession index;
 
-    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
-    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
+        REQUIRE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
+        CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
 
-    // A name exported twice keeps the first table entry, like the linear scan does.
-    REQUIRE(module_resolve_symbol(&module, "duplicate_symbol", &address));
-    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_one));
+        // A name exported twice keeps the first table entry, like the linear scan does.
+        REQUIRE(module_resolve_symbol(&module, "duplicate_symbol", &address));
+        CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_one));
 
-    CHECK_FALSE(module_resolve_symbol(&module, "missing_symbol", &address));
+        CHECK_FALSE(module_resolve_symbol(&module, "missing_symbol", &address));
 
-    // The global lookup goes through the same index.
-    REQUIRE(module_resolve_symbol_global("indexed_symbol_two", &address));
-    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
+        // The global lookup goes through the same index.
+        REQUIRE(module_resolve_symbol_global("indexed_symbol_two", &address));
+        CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
 
-    // Reference counted: a nested acquire/release leaves the index in place.
-    module_symbol_index_acquire();
-    module_symbol_index_release();
-    REQUIRE(module_resolve_symbol(&module, "indexed_symbol_one", &address));
-
-    module_symbol_index_release();
+        // Reference counted: a nested acquire/release leaves the index in place.
+        {
+            IndexSession nested;
+        }
+        REQUIRE(module_resolve_symbol(&module, "indexed_symbol_one", &address));
+    }
 
     // Back on the linear scan, resolution still works.
     REQUIRE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
     CHECK_EQ(address, reinterpret_cast<uintptr_t>(&indexed_symbol_two));
 
     // Removing a module while the index is active clears its entry.
-    module_symbol_index_acquire();
-    REQUIRE_EQ(module_remove(&module), ERROR_NONE);
-    CHECK_FALSE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
-    CHECK_FALSE(module_resolve_symbol_global("indexed_symbol_two", &address));
-    module_symbol_index_release();
+    {
+        IndexSession index;
+        REQUIRE_EQ(module_remove(&module), ERROR_NONE);
+        CHECK_FALSE(module_resolve_symbol(&module, "indexed_symbol_two", &address));
+        CHECK_FALSE(module_resolve_symbol_global("indexed_symbol_two", &address));
+    }
 
     CHECK_EQ(module_destruct(&module), ERROR_NONE);
 }
@@ -137,21 +169,25 @@ TEST_CASE("A module added while indexes are active falls back to the scan") {
         .internal = nullptr
     };
 
-    module_symbol_index_acquire();
-    REQUIRE_EQ(module_construct(&module), ERROR_NONE);
-    REQUIRE_EQ(module_add(&module), ERROR_NONE);
+    ModuleRegistration registration(&module);
+    {
+        IndexSession index;
+        REQUIRE_EQ(module_construct(&module), ERROR_NONE);
+        REQUIRE_EQ(module_add(&module), ERROR_NONE);
 
-    // No room was reserved for it, so this goes through the linear scan.
-    uintptr_t address = 0;
-    REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
-    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
-    module_symbol_index_release();
+        // No room was reserved for it, so this goes through the linear scan.
+        uintptr_t address = 0;
+        REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
+        CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
+    }
 
     // The next acquire covers it.
-    module_symbol_index_acquire();
-    REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
-    CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
-    module_symbol_index_release();
+    {
+        IndexSession index;
+        uintptr_t address = 0;
+        REQUIRE(module_resolve_symbol(&module, "late_symbol", &address));
+        CHECK_EQ(address, reinterpret_cast<uintptr_t>(&late_symbol_target));
+    }
 
     REQUIRE_EQ(module_remove(&module), ERROR_NONE);
     CHECK_EQ(module_destruct(&module), ERROR_NONE);

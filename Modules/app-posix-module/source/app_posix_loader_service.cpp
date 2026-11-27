@@ -217,9 +217,16 @@ error_t api_get_module(AppRuntime runtime_ptr, Module** out_module) {
     // collide with each other, so promote a module to global scope here: api_get_module()
     // is only called by the module loader.
     void* global_handle = dlopen(runtime->path.c_str(), RTLD_NOW | RTLD_GLOBAL);
-    if (global_handle != nullptr) {
-        dlclose(global_handle);
+    if (global_handle == nullptr) {
+        const char* error = dlerror();
+        LOG_E(
+            TAG,
+            "Failed to promote module symbols to global scope: %s",
+            error != nullptr ? error : "unknown error"
+        );
+        return ERROR_RESOURCE;
     }
+    dlclose(global_handle);
 
     *out_module = module;
     return ERROR_NONE;

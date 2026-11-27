@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <new>
 #include <tactility/concurrent/mutex.h>
+#include <tactility/memory.h>
 #include <tactility/module.h>
 
 #include "tactility/driver.h"
@@ -100,6 +101,14 @@ struct ModuleLedger {
 };
 
 static ModuleLedger ledger;
+
+// The index is a relocation-time optimization: keep it out of internal RAM by preferring
+// external memory, and skip it on ESP devices that don't have external memory at all.
+static constexpr MemoryPolicy SYMBOL_INDEX_POLICY = {
+    .required = 0,
+    .desired = MEMORY_CAPABILITY_EXTERNAL,
+    .alignment = 0,
+};
 
 extern "C" {
 
@@ -415,6 +424,14 @@ void module_symbol_index_acquire() {
     }
     ledger.symbol_index_users = 1;
 
+#ifdef ESP_PLATFORM
+    if (memory_external_total() == 0) {
+        // No PSRAM: the linear scan is good enough and internal RAM is too precious for the index.
+        mutex_unlock(&ledger.mutex);
+        return;
+    }
+#endif
+
     size_t total_words = 0;
     for (auto* module : ledger.modules) {
         size_t count = 0;
@@ -425,7 +442,12 @@ void module_symbol_index_acquire() {
         }
     }
 
-    auto* arena = total_words > 0 ? new (std::nothrow) uint16_t[total_words] : nullptr;
+    auto* arena = total_words > 0
+        ? static_cast<uint16_t*>(memory_alloc_with_policy(
+              total_words * sizeof(uint16_t),
+              &SYMBOL_INDEX_POLICY
+          ))
+        : nullptr;
     if (arena != nullptr) {
         ledger.symbol_index_arena = arena;
         uint16_t* cursor = arena;
@@ -454,7 +476,7 @@ void module_symbol_index_release() {
                 module->internal->symbol_index = {};
             }
         }
-        delete[] ledger.symbol_index_arena;
+        memory_free(ledger.symbol_index_arena);
         ledger.symbol_index_arena = nullptr;
     }
     mutex_unlock(&ledger.mutex);
