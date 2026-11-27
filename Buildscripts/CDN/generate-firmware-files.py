@@ -143,9 +143,11 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
     flasher_args_path = os.path.join(in_device_binaries_path, "flasher_args.json")
     if not os.path.isfile(flasher_args_path):
         exit_with_error(f"Could not find flasher arguments path {flasher_args_path}")
+    build_info = read_build_info(in_device_binaries_path)
     with open(flasher_args_path) as json_data:
         flasher_args = json.load(json_data)
         flash_files = flasher_args["flash_files"]
+        app_file = flasher_args["app"]["file"]
         device_vendor = get_property_or_exit(device_properties, "general", "vendor")
         device_name = get_property_or_exit(device_properties, "general", "name")
         manifest = Manifest(
@@ -164,7 +166,7 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
             flash_file_entry = flash_files[offset]
             flash_file_entry_name = os.path.basename(flash_file_entry)
             in_flash_file_path = os.path.join(in_device_binaries_path, flash_file_entry)
-            out_flash_file_name = f"{device_id}-{flash_file_entry_name}"
+            out_flash_file_name = get_app_file_name(device_id, build_info, app_file) if flash_file_entry == app_file else f"{device_id}-{flash_file_entry_name}"
             out_flash_file_path = os.path.join(out_path, out_flash_file_name)
             if VERBOSE:
                 print(f"Copying {in_flash_file_path} -> {out_flash_file_path}")
@@ -178,7 +180,7 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
         json_manifest_path = os.path.join(out_path, f"{device_id}.json")
         with open(json_manifest_path, 'w') as json_manifest_file:
             json.dump(asdict(manifest), json_manifest_file, indent=2)
-        write_ota_manifest(in_device_binaries_path, out_path, device_id, flasher_args, version)
+        write_ota_manifest(in_device_binaries_path, out_path, device_id, flasher_args, build_info, version)
 
 
 def read_partition_table_md5(partition_table_path: str) -> str:
@@ -194,20 +196,27 @@ def read_partition_table_md5(partition_table_path: str) -> str:
     exit_with_error(f"The partition table has no MD5: {partition_table_path}")
     return ""
 
-def write_ota_manifest(in_device_binaries_path: str, out_path: str, device_id: str, flasher_args: dict, version: str):
-    """The OTA manifest tells a device which app image of this build it can download to update itself"""
+def read_build_info(in_device_binaries_path: str) -> dict:
     build_info_path = os.path.join(in_device_binaries_path, "build_info.json")
     if not os.path.isfile(build_info_path):
         exit_with_error(f"Could not find build info {build_info_path}")
     with open(build_info_path) as build_info_file:
-        build_info = json.load(build_info_file)
+        return json.load(build_info_file)
+
+def get_app_file_name(device_id: str, build_info: dict, app_file: str) -> str:
+    """Every build has an app image name of its own, so a manifest that a device read before the next publish still refers to its own image"""
+    build_id = build_info["gitCommit"][:12] or str(build_info["created"])
+    return f"{device_id}-{build_id}-{os.path.basename(app_file)}"
+
+def write_ota_manifest(in_device_binaries_path: str, out_path: str, device_id: str, flasher_args: dict, build_info: dict, version: str):
+    """The OTA manifest tells a device which app image of this build it can download to update itself"""
     app_file = flasher_args["app"]["file"]
     app_file_path = os.path.join(in_device_binaries_path, app_file)
     ota_manifest = OtaManifest(
         version=version,
         gitCommit=build_info["gitCommit"],
         created=build_info["created"],
-        file=f"{device_id}-{os.path.basename(app_file)}",
+        file=get_app_file_name(device_id, build_info, app_file),
         size=os.path.getsize(app_file_path),
         layoutId=read_partition_table_md5(os.path.join(in_device_binaries_path, flasher_args["partition-table"]["file"]))
     )
