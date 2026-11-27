@@ -10,13 +10,15 @@
 
 ## Medium Priority
 
+- When Wi-Fi connects, check for app updates, create notification if there are updates. Also create this notification if the user opens app hub app, and app hub app checked for updates.
 - Drop support for LilyGO T-Display
+- Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.
+- Do system update check in Setup to see if OTA firmware update is available. Ask user if they want to update if available.
 - Delete fileselection app
 - Apps should be able to register compatible file extensions that they can open.
 - Power management API to expose suspend/(deep)sleep(and auto-wake with timer)/power off.
 - Check if main mesh task stack (8kB) can move to external RAM when available. Shift file IO to file_ops?
 - SystemInfo is causing stack overflow when clicking on task to see its details
-- Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.
 - Sound settings: need API and UI for default playback and recording device selection
 - saveBacklightDuty() and similar settings should be bound to a device
 - "data" and "/data": Rename to "internal"? Find and get rid of hard-coding these names?
@@ -58,7 +60,6 @@
 - Auto-generate simulator profiles
 - BlueTooth as radio backend for MeshCore/Meshtastic?
 - Show device name clearly in on-device web server landing page (to identify tabs of multiple devices easier)
-- When Wi-Fi connects, check for app updates
 - lvgl-module has a keyboard.cpp that creates a `keyboard_group`. This group is set as the default group, so it can also work with trackball(= LVGL "encoder").
   Make a separate group that is the default group. The keyboard can then use it (or use its own).
   The basic idea is to invert the ownership: now the keyboard group is made the default group, but it's probably more logical to have the default group used by the keyboard.
