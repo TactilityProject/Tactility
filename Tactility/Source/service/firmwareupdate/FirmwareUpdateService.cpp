@@ -290,8 +290,12 @@ const char* getChannelSetting(Channel channel) {
     return ::std::string(BASE_URL) + "/" + getChannelPath(channel) + "/" + fileName;
 }
 
-/** Opens @a url with the client of the state, which is created when needed. @return the client, or nullptr on failure. */
-HttpClient* openUrl(const ::std::string& url) {
+/**
+ * Opens @a url with the client of the state, which is created when needed.
+ * @param[out] statusCode the HTTP status, 0 when there was no response (optional)
+ * @return the client, or nullptr on failure
+ */
+HttpClient* openUrl(const ::std::string& url, int* statusCode = nullptr) {
     lock();
     if (state->client == nullptr) {
         state->client = http_client_alloc();
@@ -310,9 +314,12 @@ HttpClient* openUrl(const ::std::string& url) {
         LOG_E(TAG, "Request for %s failed (failure %d)", url.c_str(), static_cast<int>(http_client_get_failure(client)));
         return nullptr;
     }
-    const int statusCode = http_client_get_status_code(client);
-    if (statusCode != 200) {
-        LOG_E(TAG, "Request for %s failed with status %d", url.c_str(), statusCode);
+    const int status = http_client_get_status_code(client);
+    if (statusCode != nullptr) {
+        *statusCode = status;
+    }
+    if (status != 200) {
+        LOG_E(TAG, "Request for %s failed with status %d", url.c_str(), status);
         http_client_close(client);
         return nullptr;
     }
@@ -416,7 +423,8 @@ void runCheck(bool force) {
 
     setStatus(Status::Checking);
     const ::std::string url = getUrl(channel, CONFIG_TT_DEVICE_ID "-ota.json");
-    HttpClient* client = openUrl(url);
+    int statusCode = 0;
+    HttpClient* client = openUrl(url, &statusCode);
     char* text = static_cast<char*>(malloc(MANIFEST_MAX_SIZE + 1));
     size_t length = 0;
     bool received = client != nullptr && text != nullptr;
@@ -454,6 +462,7 @@ void runCheck(bool force) {
         lock();
         if (state->channelGeneration == generation) {
             state->snapshot.status = Status::CheckFailed;
+            state->snapshot.notPublished = statusCode == 404;
             notifySubscribers();
         }
         unlock();

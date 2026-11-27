@@ -1,6 +1,7 @@
 # TODOs
 
 ## Before release
+- Enable "Main" channel for OTA
 
 ## Higher Priority
 

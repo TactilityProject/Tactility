@@ -80,6 +80,8 @@ struct Context {
     bool restartOffered = false;
     /** An incompatible update is explained once per failed install */
     bool incompatibleExplained = false;
+    /** A channel without builds is explained once per failed check */
+    bool notPublishedExplained = false;
     /** Counts taps within a period. Only used with the LVGL lock held. */
     struct TapCounter {
         uint32_t count = 0;
@@ -186,11 +188,11 @@ void onChannelPressed(lv_event_t* event) {
     signal(static_cast<Context*>(lv_event_get_user_data(event)), Request::ChooseChannel);
 }
 
-/** The channels that can be chosen, in order. Stable and Develop are only listed for a device that follows them already. */
+/** The channels that can be chosen, in order. Develop is only listed for a device that follows it already. */
 constexpr firmwareupdate::Channel SELECTABLE_CHANNELS[] = { firmwareupdate::Channel::Stable, firmwareupdate::Channel::Unstable, firmwareupdate::Channel::Develop };
 
 bool isChannelListed(firmwareupdate::Channel channel, firmwareupdate::Channel current) {
-    return channel == firmwareupdate::Channel::Unstable || channel == current;
+    return channel != firmwareupdate::Channel::Develop || channel == current;
 }
 
 const char* getChannelName(firmwareupdate::Channel channel) {
@@ -324,7 +326,12 @@ void updateFirmwareWidgets(Context* ctx) {
         lv_bar_set_value(ctx->progressBar, snapshot.progress, LV_ANIM_OFF);
     }
     lv_label_set_text(ctx->channelLabel, getChannelName(snapshot.channel));
-    lv_obj_set_state(ctx->channelButton, LV_STATE_DISABLED, installing);
+    size_t listedChannels = 0;
+    for (const auto channel : SELECTABLE_CHANNELS) {
+        listedChannels += isChannelListed(channel, snapshot.channel) ? 1 : 0;
+    }
+    // Nothing to choose from with one channel, until the develop channel is unlocked
+    lv_obj_set_state(ctx->channelButton, LV_STATE_DISABLED, installing || listedChannels < 2);
 }
 
 /** Requires the LVGL lock */
@@ -548,6 +555,18 @@ void explainIncompatible(Context* ctx) {
     }
 }
 
+/** The Main channel has no builds before the first release that publishes them */
+void explainNotPublished(Context* ctx) {
+    const bool notPublished = ctx->snapshot.status == firmwareupdate::Status::CheckFailed && ctx->snapshot.notPublished &&
+        ctx->snapshot.channel == firmwareupdate::Channel::Stable;
+    if (!notPublished) {
+        ctx->notPublishedExplained = false;
+    } else if (!ctx->notPublishedExplained) {
+        ctx->notPublishedExplained = true;
+        dialog::alert(ctx->appInstanceId, tr("Not available yet"), tr("Main builds arrive with the next official release. Use Beta until then."));
+    }
+}
+
 void openRepositories(Context* ctx) {
     AppStartContext context;
     if (app_start_context_from_id(APP_HUB_REPOSITORIES_APP_ID, &context) != ERROR_NONE) {
@@ -623,6 +642,7 @@ int32_t appMain(int argc, char* argv[]) {
     firmwareupdate::requestCheck(false);
     offerRestart(&ctx);
     explainIncompatible(&ctx);
+    explainNotPublished(&ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
@@ -683,6 +703,7 @@ int32_t appMain(int argc, char* argv[]) {
 
         offerRestart(&ctx);
         explainIncompatible(&ctx);
+        explainNotPublished(&ctx);
 
         AppEvent event {};
         while (app_event_poll(&appEvents, &event) == ERROR_NONE) {
