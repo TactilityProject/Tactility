@@ -8,6 +8,8 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/event_group.h>
 #include <tactility/delay.h>
+#include <tactility/device.h>
+#include <tactility/drivers/antenna_switch.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/log.h>
 
@@ -369,6 +371,22 @@ error_t Sx1262Radio::setEnabled(bool enabled) {
 enum RadioState Sx1262Radio::getState() const {
     lock();
     const auto result = state;
+    unlock();
+    return result;
+}
+
+error_t Sx1262Radio::setAntenna(uint32_t antenna) {
+    lock();
+
+    error_t result = ERROR_NONE;
+    if (settings.antenna_switch == nullptr) {
+        result = ERROR_NOT_SUPPORTED;
+    } else if (!device_is_ready(settings.antenna_switch) || state != RADIO_STATE_OFF) {
+        result = ERROR_INVALID_STATE;
+    } else {
+        result = antenna_switch_set_antenna(settings.antenna_switch, antenna);
+    }
+
     unlock();
     return result;
 }

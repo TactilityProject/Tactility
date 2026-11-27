@@ -8,6 +8,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/adc_controller.h>
+#include <tactility/drivers/antenna_switch.h>
 #include <tactility/drivers/audio_codec.h>
 #include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/backlight.h>
@@ -252,6 +253,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_controller_deinit_descriptors),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_controller_context),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_level),
+    // drivers/antenna_switch
+    DEFINE_MODULE_SYMBOL(antenna_switch_set_antenna),
+    DEFINE_MODULE_SYMBOL(antenna_switch_get_antenna),
+    DEFINE_MODULE_SYMBOL(ANTENNA_SWITCH_TYPE),
     DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
     // drivers/grove
     DEFINE_MODULE_SYMBOL(grove_set_mode),
@@ -535,6 +540,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(radio_transmit),
     DEFINE_MODULE_SYMBOL(radio_get_rssi),
     DEFINE_MODULE_SYMBOL(radio_is_receiving),
+    DEFINE_MODULE_SYMBOL(radio_set_antenna),
+    DEFINE_MODULE_SYMBOL(radio_get_antenna),
     DEFINE_MODULE_SYMBOL(radio_acquire),
     DEFINE_MODULE_SYMBOL(radio_release),
     DEFINE_MODULE_SYMBOL(radio_get_owner),

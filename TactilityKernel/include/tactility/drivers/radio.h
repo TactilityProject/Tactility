@@ -252,6 +252,20 @@ struct RadioApi {
      * @retval ERROR_INVALID_STATE when the radio is not on
      */
     error_t (*is_receiving)(struct Device* device, bool* receiving);
+
+    /**
+     * Optional: select an antenna while the radio is off.
+     * @param[in] device the radio device
+     * @param[in] antenna zero-based antenna index
+     * @return ERROR_NONE on success
+     * @retval ERROR_INVALID_STATE when the radio is on or turning on
+     * @retval ERROR_NOT_SUPPORTED when no switch is configured
+     * @retval ERROR_OUT_OF_RANGE when the antenna index is invalid
+     */
+    error_t (*set_antenna)(struct Device* device, uint32_t antenna);
+
+    /** Optional: get the currently selected antenna index. */
+    error_t (*get_antenna)(struct Device* device, uint32_t* antenna);
 };
 
 // region State events
@@ -541,6 +555,12 @@ error_t radio_get_rssi(struct Device* device, float* rssi);
 
 /** @retval ERROR_NOT_SUPPORTED when the driver doesn't implement it */
 error_t radio_is_receiving(struct Device* device, bool* receiving);
+
+/** @retval ERROR_NOT_SUPPORTED when the driver has no antenna switch */
+error_t radio_set_antenna(struct Device* device, uint32_t antenna);
+
+/** @retval ERROR_NOT_SUPPORTED when the driver has no antenna switch */
+error_t radio_get_antenna(struct Device* device, uint32_t* antenna);
 
 // region Ownership
 

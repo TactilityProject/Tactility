@@ -16,6 +16,7 @@ extern Driver root_driver;
 extern Driver battery_sense_driver;
 extern Driver battery_sense_power_supply_driver;
 extern Driver gpio_hog_driver;
+extern Driver gpio_antenna_switch_driver;
 extern Driver pwm_backlight_driver;
 extern Driver gpio_backlight_driver;
 extern Driver pulse_count_backlight_driver;
@@ -32,6 +33,7 @@ static Driver* const KERNEL_DRIVERS[] = {
     &battery_sense_driver,
     &battery_sense_power_supply_driver,
     &gpio_hog_driver,
+    &gpio_antenna_switch_driver,
     &pwm_backlight_driver,
     &gpio_backlight_driver,
     &pulse_count_backlight_driver,

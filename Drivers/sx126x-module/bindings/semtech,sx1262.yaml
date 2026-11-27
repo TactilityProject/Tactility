@@ -32,7 +32,11 @@ properties:
   pin-antenna-select:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
-    description: Optional antenna select, driven active while the device is started (any GPIO controller)
+    description: Legacy optional antenna select, driven active while the device is started
+  antenna-switch:
+    type: phandle
+    default: "NULL"
+    description: Optional antenna-switch device for runtime antenna selection
   tcxo-millivolts:
     type: int
     default: 0
