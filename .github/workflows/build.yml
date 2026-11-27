@@ -164,11 +164,13 @@ jobs:
         uses: ./.github/actions/publish-firmware
         with:
           cdn_version: snapshot
-  # Every commit of a pull request is published to the develop channel. Pull requests from forks don't get the CDN secrets.
+  # A commit of a pull request is published to the develop channel when a reviewer of the cdn-develop environment approves it.
+  # The job isn't a required check, so a pull request can be merged while it waits. Pull requests from forks don't get the CDN secrets.
   PublishFirmwareDevelop:
     runs-on: ubuntu-latest
     needs: [ BundleArtifacts, CheckCdnSecrets ]
     if: (github.event_name == 'pull_request' && needs.CheckCdnSecrets.outputs.available == 'true')
+    environment: cdn-develop
     # One upload at a time, so the files of two pull requests don't mix
     concurrency:
       group: publish-firmware-develop
