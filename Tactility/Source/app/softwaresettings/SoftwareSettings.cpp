@@ -54,6 +54,7 @@ enum class Request : int32_t {
     Install,
     Restart,
     ForceUpdate,
+    EnableDevelop,
     ChooseChannel,
     OpenRepositories,
 };
@@ -70,15 +71,22 @@ struct Context {
     uint32_t installDialogBit = 0;
     uint32_t restartDialogBit = 0;
     uint32_t forceDialogBit = 0;
+    uint32_t developDialogBit = 0;
     uint32_t channelDialogBit = 0;
     std::atomic<int32_t> dialogResult { -1 };
     /** The commit of the release that the install dialog shows, so only that release is installed */
     char confirmCommit[sizeof(firmwareupdate::Release::gitCommit)] {};
     /** The restart is offered once per installed update while the app runs */
     bool restartOffered = false;
-    /** Taps on the status label, which unlock a forced update. Only used with the LVGL lock held. */
-    uint32_t statusTapCount = 0;
-    uint32_t firstStatusTapTick = 0;
+    /** Counts taps within a period. Only used with the LVGL lock held. */
+    struct TapCounter {
+        uint32_t count = 0;
+        uint32_t firstTick = 0;
+    };
+    /** Taps on the status label, which unlock a forced update */
+    TapCounter statusTaps;
+    /** Taps on the channel label, which offer the develop channel */
+    TapCounter channelTaps;
     /** The button offers a forced update instead of a check. Only used with the LVGL lock held. */
     bool forceUpdateUnlocked = false;
     /** What the widgets show. Written by the app's task with the LVGL lock held. */
@@ -138,21 +146,37 @@ void onActionPressed(lv_event_t* event) {
 
 void updateFirmwareWidgets(Context* ctx);
 
-constexpr uint32_t FORCE_UPDATE_TAPS = 5;
-constexpr uint32_t FORCE_UPDATE_TAP_PERIOD_MS = 3000;
+constexpr uint32_t UNLOCK_TAPS = 5;
+constexpr uint32_t UNLOCK_TAP_PERIOD_MS = 3000;
+
+/** @return true at the 5th tap within 3 seconds */
+bool countTap(Context::TapCounter& counter) {
+    if (counter.count == 0 || lv_tick_elaps(counter.firstTick) > UNLOCK_TAP_PERIOD_MS) {
+        counter.count = 0;
+        counter.firstTick = lv_tick_get();
+    }
+    counter.count++;
+    if (counter.count < UNLOCK_TAPS) {
+        return false;
+    }
+    counter.count = 0;
+    return true;
+}
 
 /** Tapping the status label 5 times within 3 seconds offers to install the published build even when it isn't newer, to test updating */
 void onStatusPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    if (ctx->statusTapCount == 0 || lv_tick_elaps(ctx->firstStatusTapTick) > FORCE_UPDATE_TAP_PERIOD_MS) {
-        ctx->statusTapCount = 0;
-        ctx->firstStatusTapTick = lv_tick_get();
-    }
-    ctx->statusTapCount++;
-    if (ctx->statusTapCount >= FORCE_UPDATE_TAPS) {
-        ctx->statusTapCount = 0;
+    if (countTap(ctx->statusTaps)) {
         ctx->forceUpdateUnlocked = true;
         updateFirmwareWidgets(ctx);
+    }
+}
+
+/** Tapping the channel label 5 times within 3 seconds offers the develop channel, which isn't listed otherwise */
+void onChannelLabelPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    if (countTap(ctx->channelTaps) && ctx->snapshot.channel != firmwareupdate::Channel::Develop) {
+        signal(ctx, Request::EnableDevelop);
     }
 }
 
@@ -160,11 +184,11 @@ void onChannelPressed(lv_event_t* event) {
     signal(static_cast<Context*>(lv_event_get_user_data(event)), Request::ChooseChannel);
 }
 
-/** The channels that can be chosen, in order. Stable is only listed for a device that follows it already. */
+/** The channels that can be chosen, in order. Stable and Develop are only listed for a device that follows them already. */
 constexpr firmwareupdate::Channel SELECTABLE_CHANNELS[] = { firmwareupdate::Channel::Stable, firmwareupdate::Channel::Unstable, firmwareupdate::Channel::Develop };
 
 bool isChannelListed(firmwareupdate::Channel channel, firmwareupdate::Channel current) {
-    return channel != firmwareupdate::Channel::Stable || current == firmwareupdate::Channel::Stable;
+    return channel == firmwareupdate::Channel::Unstable || channel == current;
 }
 
 const char* getChannelName(firmwareupdate::Channel channel) {
@@ -342,6 +366,8 @@ void createFirmwareCard(lv_obj_t* parent, Context* ctx) {
     auto* channelTexts = createTexts(channelRow);
     lv_label_set_text(createLabel(channelTexts, false), tr("Update channel"));
     ctx->channelLabel = createLabel(channelTexts, true);
+    lv_obj_set_clickable(channelTexts, true);
+    lv_obj_add_event_cb(channelTexts, onChannelLabelPressed, LV_EVENT_SHORT_CLICKED, ctx);
     ctx->channelButton = createTextButton(createButtonGroup(channelRow), LV_SYMBOL_LIST, onChannelPressed, ctx);
 
     updateFirmwareWidgets(ctx);
@@ -440,6 +466,21 @@ void startForceDialog(Context* ctx) {
     }, ctx);
 }
 
+void startDevelopDialog(Context* ctx) {
+    dialog::alert(
+        ctx->appInstanceId,
+        tr("Develop channel"),
+        tr("Builds of the develop channel are made from pull requests that aren't finished or tested. They can be unstable or lose your data. Switch to the develop channel?"),
+        { tr("Cancel"), tr("Switch") },
+        [](int32_t button, void* userData) {
+            auto* ctx = static_cast<Context*>(userData);
+            ctx->dialogResult = button;
+            task_event_group_signal(ctx->eventGroup, ctx->developDialogBit);
+        },
+        ctx
+    );
+}
+
 void startRestartDialog(Context* ctx) {
     dialog::alert(ctx->appInstanceId, tr("Update installed"), tr("Restart now to use the new version?"), { tr("Later"), tr("Restart") }, [](int32_t button, void* userData) {
         auto* ctx = static_cast<Context*>(userData);
@@ -517,6 +558,9 @@ void handleRequest(Context* ctx) {
         case Request::ForceUpdate:
             startForceDialog(ctx);
             break;
+        case Request::EnableDevelop:
+            startDevelopDialog(ctx);
+            break;
         case Request::Restart:
             startRestartDialog(ctx);
             break;
@@ -536,6 +580,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&eventGroup, &ctx.requestBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.installDialogBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.forceDialogBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.developDialogBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.restartDialogBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.channelDialogBit) == ERROR_NONE);
     const bool firmwareSubscribed = firmwareupdate::subscribe(&eventGroup, &ctx.firmwareBit) == ERROR_NONE;
@@ -594,6 +639,13 @@ int32_t appMain(int argc, char* argv[]) {
                 if (error != ERROR_NONE) {
                     LOG_E(TAG, "Failed to start the forced update: %s", error_to_string(error));
                 }
+            }
+        }
+
+        if (flags & ctx.developDialogBit) {
+            // The second button switches
+            if (ctx.dialogResult == 1) {
+                firmwareupdate::setChannel(firmwareupdate::Channel::Develop);
             }
         }
 

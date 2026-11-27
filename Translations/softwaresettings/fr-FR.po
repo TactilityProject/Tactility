@@ -101,3 +101,12 @@ msgstr "Préparation de la mise à jour..."
 
 msgid "This update needs a full install with the web flasher."
 msgstr "Cette mise à jour nécessite une installation complète avec le flasheur web."
+
+msgid "Develop channel"
+msgstr "Canal de développement"
+
+msgid "Builds of the develop channel are made from pull requests that aren't finished or tested. They can be unstable or lose your data. Switch to the develop channel?"
+msgstr "Les compilations du canal de développement proviennent de pull requests non terminées ni testées. Elles peuvent être instables ou effacer vos données. Passer au canal de développement ?"
+
+msgid "Switch"
+msgstr "Changer"
