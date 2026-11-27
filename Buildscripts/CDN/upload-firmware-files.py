@@ -40,7 +40,7 @@ def select_obsolete(objects: list, device_id: str, current_file: str, keep: int)
     The app images of a device that can be deleted. Every build has an image named <device>-<build id>-<name>.
     @param objects (key, last modified) of the files in the channel's folder, keys without the folder
     @param current_file the image that the new manifest refers to, which is always kept
-    @return the keys to delete: images beyond the newest `keep` builds, and the image with the name that builds had before they had their own
+    @return the keys to delete: images beyond the newest `keep` builds. The image named <device>-<name>, without a build id, counts as a build too.
     """
     prefix = f"{device_id}-"
     if not current_file.startswith(prefix):
@@ -51,12 +51,14 @@ def select_obsolete(objects: list, device_id: str, current_file: str, keep: int)
     image_name = parts[1]
     # A build id is a commit hash or a timestamp, so the images of a device whose id starts with this device's id don't match
     pattern = re.compile(f"^{re.escape(prefix)}([0-9a-f]{{12}}|[0-9]+)-{re.escape(image_name)}$")
-    images = sorted((item for item in objects if pattern.match(item[0]) and item[0] != current_file), key=lambda item: item[1], reverse=True)
-    obsolete = [key for key, _ in images[max(keep - 1, 0):]]
+    # A manifest that a device read before this publish can still refer to it, so it is kept like any other previous build
     legacy = f"{prefix}{image_name}"
-    if any(key == legacy for key, _ in objects):
-        obsolete.append(legacy)
-    return obsolete
+    images = sorted(
+        (item for item in objects if (pattern.match(item[0]) or item[0] == legacy) and item[0] != current_file),
+        key=lambda item: item[1],
+        reverse=True
+    )
+    return [key for key, _ in images[max(keep - 1, 0):]]
 
 def clean_up(s3, path: str, version: str, keep: int):
     """Deletes the app images of older builds. A failure is only reported, as the upload succeeded already."""
