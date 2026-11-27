@@ -116,3 +116,6 @@ msgstr "{} · {} núcleos"
 
 msgid "Build"
 msgstr "Compilación"
+
+msgid "Created"
+msgstr "Creado"

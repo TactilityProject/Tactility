@@ -18,8 +18,8 @@ msgstr "{} repositorio"
 msgid "{} repositories"
 msgstr "{} repositorios"
 
-msgid "Installed version: {}"
-msgstr "Versión instalada: {}"
+msgid "{} from {}"
+msgstr "{} del {}"
 
 msgid "Install this update with the web flasher."
 msgstr "Instala esta actualización con el flasher web."

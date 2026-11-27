@@ -2,6 +2,7 @@
 #define L10N_APP "softwaresettings"
 #include <Tactility/i18n/AppDomain.h>
 
+#include <Tactility/BuildInfo.h>
 #include <Tactility/app/dialog/Dialog.h>
 #include <Tactility/service/firmwareupdate/FirmwareUpdate.h>
 
@@ -192,7 +193,7 @@ void updateFirmwareWidgets(Context* ctx) {
     const char* status = tr("No updates");
     const char* action = tr("Check");
     bool actionEnabled = true;
-    std::string detail = i18n::format(tr("Installed version: {}"), { TT_VERSION });
+    std::string detail = i18n::format(tr("{} from {}"), { TT_VERSION, formatDate(tt_build_timestamp) });
     switch (snapshot.status) {
         case firmwareupdate::Status::Unknown:
         case firmwareupdate::Status::UpToDate:

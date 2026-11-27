@@ -116,3 +116,6 @@ msgstr "{} · {} Kerne"
 
 msgid "Build"
 msgstr "Build"
+
+msgid "Created"
+msgstr "Erstellt"

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 #include <strings.h>
 #include <format>
 #include <memory>
@@ -972,6 +973,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (tt_build_git_commit[0] != '\0') {
         const ::std::string commit(tt_build_git_commit, strnlen(tt_build_git_commit, 7));
         addInfoRow(software_card, tr("Build"), commit.c_str());
+    }
+    {
+        const time_t buildTime = static_cast<time_t>(tt_build_timestamp);
+        tm local {};
+        char text[24] = "";
+        if (localtime_r(&buildTime, &local) != nullptr && strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &local) > 0) {
+            addInfoRow(software_card, tr("Created"), text);
+        }
     }
     ctx->uptimeLabel = addInfoRow(software_card, tr("Uptime"), "");
 

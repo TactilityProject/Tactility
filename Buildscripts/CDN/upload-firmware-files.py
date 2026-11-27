@@ -22,6 +22,12 @@ def exit_with_error(message):
     print_error(message)
     sys.exit(1)
 
+def get_upload_args(file_name: str):
+    """The manifests change with every build and are small, so the CDN only keeps them for a minute"""
+    if file_name.endswith(".json"):
+        return {"CacheControl": "public, max-age=60"}
+    return {}
+
 def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: str, cloudflare_token_value: str, index_only: bool):
     if not os.path.exists(path):
         exit_with_error(f"Path not found: {path}")
@@ -42,7 +48,7 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
             print(f"[{counter}/{total}] Uploading {file_name} to {object_path}")
             file_path = os.path.join(path, file_name)
             try:
-                s3.upload_file(file_path, "tactility", object_path)
+                s3.upload_file(file_path, "tactility", object_path, ExtraArgs=get_upload_args(file_name))
             except Exception as e:
                 exit_with_error(f"Failed to upload {file_name}: {str(e)}")
             counter += 1

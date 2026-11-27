@@ -116,3 +116,6 @@ msgstr "{} · {} kernen"
 
 msgid "Build"
 msgstr "Build"
+
+msgid "Created"
+msgstr "Aangemaakt"

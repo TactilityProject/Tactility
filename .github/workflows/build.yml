@@ -159,6 +159,8 @@ jobs:
           CDN_ID: ${{ secrets.CDN_ID }}
           CDN_TOKEN_NAME: ${{ secrets.CDN_TOKEN_NAME }}
           CDN_TOKEN_VALUE: ${{ secrets.CDN_TOKEN_VALUE }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_PURGE_CACHE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_CACHE_TOKEN }}
         uses: ./.github/actions/publish-firmware
         with:
           cdn_version: snapshot
@@ -178,6 +180,8 @@ jobs:
           CDN_ID: ${{ secrets.CDN_ID }}
           CDN_TOKEN_NAME: ${{ secrets.CDN_TOKEN_NAME }}
           CDN_TOKEN_VALUE: ${{ secrets.CDN_TOKEN_VALUE }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_PURGE_CACHE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_CACHE_TOKEN }}
         uses: ./.github/actions/publish-firmware
         with:
           cdn_version: develop
@@ -192,6 +196,8 @@ jobs:
           CDN_ID: ${{ secrets.CDN_ID }}
           CDN_TOKEN_NAME: ${{ secrets.CDN_TOKEN_NAME }}
           CDN_TOKEN_VALUE: ${{ secrets.CDN_TOKEN_VALUE }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_PURGE_CACHE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_CACHE_TOKEN }}
         uses: ./.github/actions/publish-firmware
         with:
           cdn_version: stable

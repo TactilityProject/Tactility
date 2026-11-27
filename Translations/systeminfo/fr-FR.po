@@ -116,3 +116,6 @@ msgstr "{} · {} cœurs"
 
 msgid "Build"
 msgstr "Build"
+
+msgid "Created"
+msgstr "Créé"
