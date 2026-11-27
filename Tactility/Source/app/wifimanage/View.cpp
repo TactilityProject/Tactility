@@ -111,8 +111,6 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     auto* card = lvgl_card_create(parent);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
-    // The list items' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
     // The card provides the background
     auto* list = lvgl_list_create(card);
@@ -172,7 +170,9 @@ void View::updateNetworkList() {
                 for (int i = 0; i < ap_records.size(); ++i) {
                     auto& record = ap_records[i];
                     if (record.ssid == connection_target) {
-                        createSsidListItem(createSection(networks_list, tr("Connected")), record, false, i);
+                        auto* connected_section = createSection(networks_list, tr("Connected"));
+                        createSsidListItem(connected_section, record, false, i);
+                        lvgl_list_hide_last_divider(connected_section);
                         added_connected = true;
                         break;
                     }
@@ -204,6 +204,8 @@ void View::updateNetworkList() {
                 lv_obj_set_hidden(networks_list, false);
                 lvgl_list_add_text(networks_section, tr("No networks found."));
             }
+
+            lvgl_list_hide_last_divider(networks_section);
 
             connect_to_hidden = lv_button_create(networks_list);
             lv_obj_set_width(connect_to_hidden, LV_PCT(100));

@@ -913,8 +913,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(tasks_card, 1);
     lv_obj_set_style_pad_all(tasks_card, 0, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(tasks_card, false);
-    // The rows' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(tasks_card, true, LV_STATE_DEFAULT);
     // The card provides the background
     ctx->tasksContainer = lvgl_list_create(tasks_card);
     lv_obj_set_size(ctx->tasksContainer, LV_PCT(100), LV_PCT(100));

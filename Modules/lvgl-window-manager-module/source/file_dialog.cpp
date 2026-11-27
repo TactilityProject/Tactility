@@ -413,6 +413,8 @@ public:
 
         // The path bar takes the place of the title, and the select button is at its right
         lv_obj_t* toolbar = lvgl_toolbar_create(card, "");
+        // The card doesn't clip its corners, as that takes much LVGL stack. A transparent toolbar keeps them round.
+        lv_obj_set_style_bg_opa(toolbar, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, this);
         selectButton = lvgl_toolbar_add_text_button_action(toolbar, LVGL_ICON_SHARED_CHECK, onSelectPressed, this);
         lv_obj_set_style_text_font(selectButton, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);

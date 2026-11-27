@@ -113,8 +113,6 @@ lv_obj_t* createCard(lv_obj_t* parent) {
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(card, 0, LV_STATE_DEFAULT);
-    // The items' backgrounds and dividers follow the card's rounded corners
-    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
     return card;
 }
 

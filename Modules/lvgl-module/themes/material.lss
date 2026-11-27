@@ -1104,7 +1104,6 @@ list {
     padHor: 0;
     padVer: 0;
     padGap: 0;
-    clipCorner: true;
 }
 
 list_item {
@@ -1130,6 +1129,12 @@ list_item_selected {
     bgColor: @list-item-selected-color;
     bgOpa: cover;
     textColor: @list-item-selected-text-color;
+}
+
+// A highlighted item has round corners, so it stays inside a rounded card without the card clipping its corners,
+// which would take much LVGL stack. Only in these states, as it would bend the ends of the dividers.
+list_item_highlight {
+    radius: @shape-container;
 }
 
 list_subheader {
@@ -1863,6 +1868,9 @@ apply(list_button) {
     transition_enter: state.pressed;
     list_item_focused: state.focusKey;
     disabled: state.disabled;
+    list_item_highlight: state.pressed;
+    list_item_highlight: state.focusKey;
+    list_item_highlight: state.checked;
 }
 
 apply(flex_list) {
@@ -1883,6 +1891,9 @@ apply(flex_list_button) {
     transition_enter: state.pressed;
     list_item_focused: state.focusKey;
     disabled: state.disabled;
+    list_item_highlight: state.pressed;
+    list_item_highlight: state.focusKey;
+    list_item_highlight: state.checked;
 }
 
 apply(table) {

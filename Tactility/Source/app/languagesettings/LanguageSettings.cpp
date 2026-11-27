@@ -13,6 +13,7 @@
 #include <tactility/concurrent/task_event_group.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -68,9 +69,21 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* toolbar = lvgl_toolbar_create(parent, tr("Language"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
-    ctx->list = lvgl_list_create(parent);
-    lv_obj_set_width(ctx->list, LV_PCT(100));
-    lv_obj_set_flex_grow(ctx->list, 1);
+    // Scrolls the card when the languages don't fit
+    auto* wrapper = lv_obj_create(parent);
+    lv_obj_set_width(wrapper, LV_PCT(100));
+    lv_obj_set_flex_grow(wrapper, 1);
+    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
+
+    auto* card = lvgl_card_create(wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+
+    // The card provides the background
+    ctx->list = lvgl_list_create(card);
+    lv_obj_set_size(ctx->list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(ctx->list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ctx->list, 0, LV_STATE_DEFAULT);
     populateList(ctx);
 }
 

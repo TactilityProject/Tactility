@@ -93,8 +93,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* card = lvgl_card_create(wrapper);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
-    // The list items' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
     // The card provides the background
     auto* list = lvgl_list_create(card);
@@ -112,6 +110,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         for (int32_t index = 0; index < itemCount; index++) {
             createChoiceItem(ctx, list, argv[1 + index], index);
         }
+        lvgl_list_hide_last_divider(list);
     }
 }
 

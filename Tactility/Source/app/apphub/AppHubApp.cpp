@@ -596,8 +596,6 @@ void showApps(Context* ctx) {
     if (!apps.empty()) {
         auto* card = createCard(ctx->contentWrapper);
         lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
-        // The list items' pressed and focused backgrounds follow the card's rounded corners
-        lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
         // The card provides the background
         auto* list = lvgl_list_create(card);

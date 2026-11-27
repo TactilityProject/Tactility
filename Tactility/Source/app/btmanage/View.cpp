@@ -89,8 +89,6 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     auto* card = lvgl_card_create(parent);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
-    // The list items' pressed and focused backgrounds follow the card's rounded corners
-    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
     // The card provides the background
     auto* list = lvgl_list_create(card);
@@ -158,6 +156,7 @@ void View::updatePeerList() {
             for (size_t i = 0; i < paired.size(); ++i) {
                 createPeerListItem(paired_section, paired[i], true, i);
             }
+            lvgl_list_hide_last_divider(paired_section);
         }
 
         // Scan results section
@@ -174,6 +173,7 @@ void View::updatePeerList() {
         if (!hasNamedResults && !state->isScanning()) {
             lvgl_list_add_text(available_section, tr("No devices found."));
         }
+        lvgl_list_hide_last_divider(available_section);
         // Never hide peers_list: it always contains the "Enable on boot" row.
         // While scanning with no results the spinner in the toolbar provides feedback.
 
