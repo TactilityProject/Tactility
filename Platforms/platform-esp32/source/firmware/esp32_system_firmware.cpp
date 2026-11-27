@@ -83,9 +83,14 @@ error_t getInfo(void* /*ctx*/, FirmwareInfo* info) {
     info->fw_major = major;
     info->fw_minor = minor;
     info->fw_patch = patch;
+    return ERROR_NONE;
+}
+
+error_t getLayout(void* /*ctx*/, FirmwareLayout* layout) {
+    *layout = {};
     const esp_partition_t* partition = esp_ota_get_next_update_partition(nullptr);
-    info->max_image_size = partition != nullptr ? partition->size : 0;
-    strcpy(info->layout_id, layoutId);
+    layout->max_image_size = partition != nullptr ? partition->size : 0;
+    strcpy(layout->layout_id, layoutId);
     return ERROR_NONE;
 }
 
@@ -168,6 +173,7 @@ const FirmwareOps systemFirmwareOps = {
     .finish = finishUpdate,
     .abort = abortUpdate,
     .activate = activate,
+    .get_layout = getLayout,
 };
 
 } // namespace

@@ -379,16 +379,16 @@ bool requiresFullInstall(const Release& release, const char* layoutId) {
     if (firmware_get(FIRMWARE_ID_SYSTEM, &ops, &ctx) != ERROR_NONE) {
         return false;
     }
-    FirmwareInfo info {};
-    if (ops->get_info(ctx, &info) != ERROR_NONE) {
+    FirmwareLayout layout {};
+    if (ops->get_layout == nullptr || ops->get_layout(ctx, &layout) != ERROR_NONE) {
         return false;
     }
-    if (info.max_image_size > 0 && release.size > info.max_image_size) {
-        LOG_W(TAG, "The update of %lu bytes doesn't fit the partition of %lu bytes", static_cast<unsigned long>(release.size), static_cast<unsigned long>(info.max_image_size));
+    if (layout.max_image_size > 0 && release.size > layout.max_image_size) {
+        LOG_W(TAG, "The update of %lu bytes doesn't fit the partition of %lu bytes", static_cast<unsigned long>(release.size), static_cast<unsigned long>(layout.max_image_size));
         return true;
     }
-    if (layoutId[0] != '\0' && info.layout_id[0] != '\0' && strcmp(layoutId, info.layout_id) != 0) {
-        LOG_W(TAG, "The update is built for partition table %s, this device has %s", layoutId, info.layout_id);
+    if (layoutId[0] != '\0' && layout.layout_id[0] != '\0' && strcmp(layoutId, layout.layout_id) != 0) {
+        LOG_W(TAG, "The update is built for partition table %s, this device has %s", layoutId, layout.layout_id);
         return true;
     }
     return false;
@@ -432,7 +432,7 @@ void runCheck(bool force) {
 
     Release release {};
     char file[sizeof(State::releaseFile)] = "";
-    char layoutId[sizeof(FirmwareInfo::layout_id)] = "";
+    char layoutId[sizeof(FirmwareLayout::layout_id)] = "";
     bool parsed = false;
     if (received) {
         text[length] = '\0';

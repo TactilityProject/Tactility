@@ -26,6 +26,10 @@ struct FirmwareInfo {
     uint32_t fw_major;
     uint32_t fw_minor;
     uint32_t fw_patch;
+};
+
+/** Where an image is installed. Separate from FirmwareInfo, which keeps its layout for existing binaries. */
+struct FirmwareLayout {
     /** The largest image that begin() accepts, 0 when unknown */
     size_t max_image_size;
     /**
@@ -79,6 +83,13 @@ struct FirmwareOps {
      * this, and fall back to treating the update as complete after finish() otherwise.
      */
     error_t (*activate)(void* ctx);
+
+    /**
+     * Get where an image is installed. Optional: NULL when the firmware doesn't know.
+     * Added after the other operations, so code that was built before it never calls it.
+     * @return ERROR_NONE on success, or an error code
+     */
+    error_t (*get_layout)(void* ctx, struct FirmwareLayout* layout);
 };
 
 /** The id of the firmware that the device runs: writing it updates the operating system */
