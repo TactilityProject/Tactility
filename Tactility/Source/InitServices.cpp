@@ -75,6 +75,7 @@ namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
     namespace buttonactions { extern const ::ServiceManifest manifest; }
+    namespace firmwareupdate { extern const ::ServiceManifest manifest; }
     namespace gpstime { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace rtctime { extern const ServiceManifest manifest; }
@@ -97,6 +98,9 @@ void registerAndStartServices() {
     app_hub_configure_certificate(reinterpret_cast<const char*>(asset_certificates_GTS_Root_R4_pem));
     check(module_ensure_started(&location_module) == ERROR_NONE);
     check(module_ensure_started(&app_hub_module) == ERROR_NONE);
+#if !defined(ESP_PLATFORM) || defined(CONFIG_TT_APP_HUB_ONLINE)
+    check(service_manager_add(&service::firmwareupdate::manifest, true) == ERROR_NONE);
+#endif
     // Before the mesh service starts, as it needs the region to turn on the radio
     settings::radio::applyRegion();
     check(module_ensure_started(&mesh_module) == ERROR_NONE);

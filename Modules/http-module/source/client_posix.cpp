@@ -68,7 +68,7 @@ public:
         if (!http_parse_url(url, parsed)) {
             return HTTP_CLIENT_FAILURE_URL;
         }
-        if (parsed.secure && !connection.loadCertificate("")) {
+        if (parsed.secure && !connection.loadCertificate(client.certificatePem != nullptr ? client.certificatePem : "")) {
             return HTTP_CLIENT_FAILURE_CERTIFICATE;
         }
         if (!connection.connectSocket(parsed, client.timeoutMs)) {

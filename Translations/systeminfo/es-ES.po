@@ -113,3 +113,6 @@ msgstr "{} min"
 
 msgid "{} · {} cores"
 msgstr "{} · {} núcleos"
+
+msgid "Build"
+msgstr "Compilación"

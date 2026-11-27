@@ -1,6 +1,6 @@
 # Name,   Type, SubType, Offset,   Size,   Flags
 # Offsets are left blank so the build auto-places partitions relative to CONFIG_PARTITION_TABLE_OFFSET (see device.py), including on targets where that offset is bumped to fit a larger bootloader.
-nvs,      data, nvs,            ,   0x6000,
-phy_init, data, phy,            ,   0x1000,
-factory,  app,  factory,        ,  6M,
-data,     data, fat,            ,  9800k,
+nvs,      data, nvs,            , 0x6000,
+phy_init, data, phy,            , 0x1000,
+factory,  app,  factory,        , 6M,
+data,     data, fat,            , 9800k,

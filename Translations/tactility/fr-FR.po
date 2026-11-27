@@ -132,3 +132,39 @@ msgstr "Impossible de sélectionner ceci"
 
 msgid "Failed to open the folder"
 msgstr "Impossible d'ouvrir le dossier"
+
+msgid "Add repository"
+msgstr "Ajouter un dépôt"
+
+msgid "Apps from a third party repository are not checked by the Tactility project. They can contain harmful software that steals your data or damages your device. Only add a repository that you trust."
+msgstr "Les applications d'un dépôt tiers ne sont pas vérifiées par le projet Tactility. Elles peuvent contenir des logiciels malveillants qui volent vos données ou endommagent votre appareil. N'ajoutez qu'un dépôt de confiance."
+
+msgid "Continue"
+msgstr "Continuer"
+
+msgid "The address must start with https://"
+msgstr "L'adresse doit commencer par https://"
+
+msgid "The address of the repository, starting with https://"
+msgstr "L'adresse du dépôt, commençant par https://"
+
+msgid "The change could not be saved."
+msgstr "La modification n'a pas pu être enregistrée."
+
+msgid "There is no room for more repositories."
+msgstr "Il n'y a plus de place pour d'autres dépôts."
+
+msgid "Third party apps"
+msgstr "Applications tierces"
+
+msgid "This repository is in the list already."
+msgstr "Ce dépôt est déjà dans la liste."
+
+msgid "App Hub Repositories"
+msgstr "Dépôts App Hub"
+
+msgid "Tactility update available"
+msgstr "Mise à jour de Tactility disponible"
+
+msgid "Version {} is ready to install"
+msgstr "La version {} est prête à être installée"

@@ -35,6 +35,7 @@ release() {
     cp build/partition_table/*.bin $bin_path/partition_table/
     cp build/flash_args $bin_path/
     cp build/flasher_args.json $bin_path/
+    cp build/build_info.json $bin_path/
 
     cp Buildscripts/Flashing/* $target_path
 }

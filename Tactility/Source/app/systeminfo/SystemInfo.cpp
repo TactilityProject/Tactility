@@ -10,6 +10,7 @@
 #include <tactility/memory.h>
 #include <tactility/paths.h>
 
+#include <Tactility/BuildInfo.h>
 #include <Tactility/Timer.h>
 
 #include <app/event.h>
@@ -17,6 +18,7 @@
 #include <app/scheduler.h>
 
 #include <algorithm>
+#include <cstring>
 #include <strings.h>
 #include <format>
 #include <memory>
@@ -967,6 +969,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     idfVersion += ::std::to_string(ESP_IDF_VERSION_PATCH).c_str();
     addInfoRow(software_card, "ESP-IDF", idfVersion.c_str());
 #endif
+    if (tt_build_git_commit[0] != '\0') {
+        const ::std::string commit(tt_build_git_commit, strnlen(tt_build_git_commit, 7));
+        addInfoRow(software_card, tr("Build"), commit.c_str());
+    }
     ctx->uptimeLabel = addInfoRow(software_card, tr("Uptime"), "");
 
     // Initial updates

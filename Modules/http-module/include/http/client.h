@@ -6,7 +6,7 @@
  *
  * All calls block and belong on one task, except http_client_cancel().
  * HTTPS servers are verified against the trusted root certificates of the platform: the certificate bundle on ESP32,
- * the system certificates on the simulator.
+ * the system certificates on the simulator. http_client_set_certificate() replaces them with one root certificate.
  * Redirects are not followed: read the "location" header and call http_client_open() again.
  */
 
@@ -49,6 +49,12 @@ error_t http_client_set_header(struct HttpClient* client, const char* name, cons
 
 /** The time to wait for the server per step (connect, read, write). The default is 10 seconds. */
 void http_client_set_timeout(struct HttpClient* client, uint32_t timeout_ms);
+
+/**
+ * Verifies the servers of the requests that follow with one root certificate instead of the trusted roots of the platform.
+ * @param[in] certificate_pem PEM text that must stay valid while the client is used, or NULL for the trusted roots of the platform
+ */
+void http_client_set_certificate(struct HttpClient* client, const char* certificate_pem);
 
 /**
  * Sends a GET request and waits for the status and headers of the response. Closes any response that was open.

@@ -10,6 +10,7 @@
 
 ## Medium Priority
 
+- Drop support for LilyGO T-Display
 - Delete fileselection app
 - Apps should be able to register compatible file extensions that they can open.
 - Power management API to expose suspend/(deep)sleep(and auto-wake with timer)/power off.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app_hub/app_hub.h>
+#include <app_hub/app_hub_repositories_app.h>
 #include <app_hub/app_hub_service.h>
 #include <app_hub/module.h>
 
@@ -16,8 +17,14 @@ static error_t start() {
     if (error != ERROR_NONE) {
         return error;
     }
+    error = app_manager_add(&app_hub_repositories_manifest);
+    if (error != ERROR_NONE) {
+        app_manager_remove(app_hub_command_manifest.id);
+        return error;
+    }
     error = service_manager_add(&app_hub_service_manifest, /*auto_start=*/true);
     if (error != ERROR_NONE) {
+        app_manager_remove(app_hub_repositories_manifest.id);
         app_manager_remove(app_hub_command_manifest.id);
     }
     return error;
@@ -29,6 +36,10 @@ static error_t stop() {
         return error;
     }
     error = service_manager_remove(app_hub_service_manifest.id);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = app_manager_remove(app_hub_repositories_manifest.id);
     if (error != ERROR_NONE) {
         return error;
     }

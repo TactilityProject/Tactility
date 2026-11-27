@@ -50,7 +50,11 @@ public:
         esp_http_client_config_t config {};
         config.url = url.c_str();
         config.auth_type = HTTP_AUTH_TYPE_NONE;
-        config.crt_bundle_attach = esp_crt_bundle_attach;
+        if (client.certificatePem != nullptr) {
+            config.cert_pem = client.certificatePem;
+        } else {
+            config.crt_bundle_attach = esp_crt_bundle_attach;
+        }
         config.tls_version = ESP_HTTP_CLIENT_TLS_VER_ANY;
         config.method = HTTP_METHOD_GET;
         config.timeout_ms = static_cast<int>(client.timeoutMs);

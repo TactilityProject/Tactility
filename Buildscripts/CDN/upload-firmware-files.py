@@ -32,7 +32,8 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
         aws_secret_access_key=cloudflare_token_value,
         region_name="auto"
     )
-    files_to_upload = os.listdir(path)
+    # The manifests go last, so a device never finds a manifest that refers to a binary that isn't uploaded yet
+    files_to_upload = sorted(os.listdir(path), key=lambda name: name.endswith(".json"))
     counter = 1
     total = len(files_to_upload)
     for file_name in files_to_upload:

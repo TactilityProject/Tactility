@@ -3,43 +3,89 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: es-ES\n"
 
-msgid "Add repository"
-msgstr "Añadir repositorio"
-
-
-msgid "App repositories"
-msgstr "Repositorios de aplicaciones"
-
-msgid "Apps from a third party repository are not checked by the Tactility project. They can contain harmful software that steals your data or damages your device. Only add a repository that you trust."
-msgstr "El proyecto Tactility no comprueba las aplicaciones de un repositorio de terceros. Pueden contener software dañino que robe tus datos o dañe tu dispositivo. Añade solo un repositorio de confianza."
-
 msgid "Cancel"
 msgstr "Cancelar"
-
-msgid "Continue"
-msgstr "Continuar"
-
-msgid "Error"
-msgstr "Error"
-
 
 msgid "Software"
 msgstr "Software"
 
-msgid "The address must start with https://"
-msgstr "La dirección debe empezar por https://"
+msgid "App Hub Repositories"
+msgstr "Repositorios de App Hub"
 
-msgid "The address of the repository, starting with https://"
-msgstr "La dirección del repositorio, que empieza por https://"
+msgid "{} repository"
+msgstr "{} repositorio"
 
-msgid "The change could not be saved."
-msgstr "No se pudo guardar el cambio."
+msgid "{} repositories"
+msgstr "{} repositorios"
 
-msgid "There is no room for more repositories."
-msgstr "No hay espacio para más repositorios."
+msgid "Installed version: {}"
+msgstr "Versión instalada: {}"
 
-msgid "Third party apps"
-msgstr "Aplicaciones de terceros"
+msgid "Install this update with the web flasher."
+msgstr "Instala esta actualización con el flasher web."
 
-msgid "This repository is in the list already."
-msgstr "Este repositorio ya está en la lista."
+msgid "Couldn't check for updates."
+msgstr "No se pudieron buscar actualizaciones."
+
+msgid "Installing update: {}%"
+msgstr "Instalando actualización: {} %"
+
+msgid "The update couldn't be installed."
+msgstr "No se pudo instalar la actualización."
+
+msgid "The update is installed. Restart to use it."
+msgstr "La actualización está instalada. Reinicia para usarla."
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Update channel"
+msgstr "Canal de actualización"
+
+msgid "Stable"
+msgstr "Estable"
+
+msgid "Unstable"
+msgstr "Inestable"
+
+msgid "Download and install version {}? Keep the device powered on until the update is installed."
+msgstr "¿Descargar e instalar la versión {}? Mantén el dispositivo encendido hasta que se instale la actualización."
+
+msgid "Install update"
+msgstr "Instalar actualización"
+
+msgid "Update installed"
+msgstr "Actualización instalada"
+
+msgid "Restart now to use the new version?"
+msgstr "¿Reiniciar ahora para usar la nueva versión?"
+
+msgid "Later"
+msgstr "Más tarde"
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Develop"
+msgstr "Desarrollo"
+
+msgid "No updates"
+msgstr "No hay actualizaciones"
+
+msgid "Update available"
+msgstr "Actualización disponible"
+
+msgid "Check"
+msgstr "Comprobar"
+
+msgid "Update"
+msgstr "Actualizar"
+
+msgid "Checking..."
+msgstr "Comprobando..."
+
+msgid "Updating..."
+msgstr "Actualizando..."
+
+msgid "Version {}, built on {}"
+msgstr "Versión {}, compilada el {}"

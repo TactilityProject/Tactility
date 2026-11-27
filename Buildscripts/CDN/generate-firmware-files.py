@@ -37,6 +37,14 @@ class ManifestBuildPart:
     offset: int
 
 @dataclass
+class OtaManifest:
+    version: str
+    gitCommit: str
+    created: int
+    file: str
+    size: int
+
+@dataclass
 class DeviceIndex:
     version: str
     created: str
@@ -169,6 +177,27 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
         json_manifest_path = os.path.join(out_path, f"{device_id}.json")
         with open(json_manifest_path, 'w') as json_manifest_file:
             json.dump(asdict(manifest), json_manifest_file, indent=2)
+        write_ota_manifest(in_device_binaries_path, out_path, device_id, flasher_args, version)
+
+
+def write_ota_manifest(in_device_binaries_path: str, out_path: str, device_id: str, flasher_args: dict, version: str):
+    """The OTA manifest tells a device which app image of this build it can download to update itself"""
+    build_info_path = os.path.join(in_device_binaries_path, "build_info.json")
+    if not os.path.isfile(build_info_path):
+        exit_with_error(f"Could not find build info {build_info_path}")
+    with open(build_info_path) as build_info_file:
+        build_info = json.load(build_info_file)
+    app_file = flasher_args["app"]["file"]
+    app_file_path = os.path.join(in_device_binaries_path, app_file)
+    ota_manifest = OtaManifest(
+        version=version,
+        gitCommit=build_info["gitCommit"],
+        created=build_info["created"],
+        file=f"{device_id}-{os.path.basename(app_file)}",
+        size=os.path.getsize(app_file_path)
+    )
+    with open(os.path.join(out_path, f"{device_id}-ota.json"), 'w') as ota_manifest_file:
+        json.dump(asdict(ota_manifest), ota_manifest_file, indent=2)
 
 
 def get_git_commit_hash():

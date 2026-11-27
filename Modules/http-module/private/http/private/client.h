@@ -37,6 +37,8 @@ struct HttpClient {
     int statusCode = 0;
     int64_t contentLength = -1;
     uint32_t timeoutMs = 10000;
+    /** NULL for the trusted roots of the platform */
+    const char* certificatePem = nullptr;
     HttpClientFailure failure = HTTP_CLIENT_FAILURE_NONE;
     std::atomic<bool> cancelled = false;
 
