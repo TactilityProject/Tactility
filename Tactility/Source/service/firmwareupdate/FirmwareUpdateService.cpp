@@ -68,6 +68,10 @@ struct State {
     bool installRequested = false;
     /** The next check treats the published build as an update and installs it */
     bool forceUpdateRequested = false;
+    /** The download didn't match the manifest, so the next check installs again if the release is still available */
+    bool retryAfterCheck = false;
+    /** The retry after a mismatch was made for the current install request, which allows one */
+    bool retriedAfterMismatch = false;
     bool stopping = false;
     Thread* worker = nullptr;
     bool workerRunning = false;
@@ -402,6 +406,8 @@ void runCheck(bool force) {
     const uint32_t generation = state->channelGeneration;
     const bool forceUpdate = state->forceUpdateRequested;
     state->forceUpdateRequested = false;
+    const bool retryInstall = state->retryAfterCheck;
+    state->retryAfterCheck = false;
     unlock();
     // A restart is needed first
     if (status == Status::Installed || !isCheckDue(force)) {
@@ -476,7 +482,7 @@ void runCheck(bool force) {
         state->snapshot.status = !available ? Status::UpToDate : (failedBefore ? Status::InstallFailed : Status::Available);
         state->snapshot.progress = 0;
         state->snapshot.fullInstallRequired = fullInstallRequired;
-        if (forceUpdate && !fullInstallRequired) {
+        if ((forceUpdate || retryInstall) && available && !fullInstallRequired) {
             // The user confirmed the forced update before the release was known
             strcpy(state->installCommit, release.gitCommit);
             state->installRequested = true;
@@ -521,7 +527,7 @@ error_t writeUpdate(HttpClient* client, const FirmwareOps* ops, void* ctx, uint3
             break;
         }
         if (written + read > size) {
-            error = ERROR_OUT_OF_RANGE;
+            error = ERROR_BUFFER_OVERFLOW;
             break;
         }
         error = ops->write(handle, buffer, read);
@@ -578,14 +584,14 @@ void runInstall() {
 
     LOG_I(TAG, "Installing %s", file);
     error_t error = ERROR_RESOURCE;
-    bool incompatible = false;
+    bool sizeMismatch = false;
     HttpClient* client = openUrl(getUrl(channel, file));
     if (client != nullptr) {
         const int64_t length = http_client_get_content_length(client);
         if (length >= 0 && length != release.size) {
             LOG_E(TAG, "The download has %lld bytes instead of %lu", static_cast<long long>(length), static_cast<unsigned long>(release.size));
             error = ERROR_INVALID_STATE;
-            incompatible = true;
+            sizeMismatch = true;
         } else {
             error = writeUpdate(client, ops, ctx, release.size);
         }
@@ -594,13 +600,20 @@ void runInstall() {
 
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Install failed: %s", error_to_string(error));
-        // A download of another size than the manifest says, or an image that doesn't fit, isn't for this device
-        incompatible |= error == ERROR_OUT_OF_RANGE;
+        // An image that doesn't fit the partition can't be installed on this device
+        const bool incompatible = error == ERROR_OUT_OF_RANGE;
+        // A download that differs from the manifest is usually of a build that was published after the check
+        const bool mismatch = sizeMismatch || error == ERROR_BUFFER_OVERFLOW;
         lock();
         state->snapshot.installError = incompatible ? InstallError::Incompatible : InstallError::Other;
+        // One retry per install request, so a server that keeps sending another image isn't downloaded from in a loop
+        if (mismatch && !state->retriedAfterMismatch) {
+            state->retriedAfterMismatch = true;
+            state->retryAfterCheck = true;
+            LOG_I(TAG, "Checking the manifest again to retry the install");
+        }
         unlock();
         setStatus(Status::InstallFailed);
-        // The image can be of a build that was published after the last check, so a retry needs the current manifest
         requestCheck(true);
         return;
     }
@@ -762,6 +775,7 @@ error_t requestInstall(const char* gitCommit) {
     } else {
         strcpy(state->installCommit, state->snapshot.release.gitCommit);
         state->installRequested = true;
+        state->retriedAfterMismatch = false;
         error = ensureWorkerRunning();
         if (error != ERROR_NONE) {
             state->installRequested = false;
@@ -783,6 +797,7 @@ error_t requestForcedUpdate() {
         error = ERROR_INVALID_STATE;
     } else {
         state->forceUpdateRequested = true;
+        state->retriedAfterMismatch = false;
         state->checkRequested = true;
         state->checkForced = true;
         error = ensureWorkerRunning();
@@ -810,6 +825,7 @@ void setChannel(Channel channel) {
     const bool changed = state->snapshot.channel != channel && state->snapshot.status != Status::Installing;
     if (changed) {
         state->channelGeneration++;
+        state->retryAfterCheck = false;
         state->snapshot.channel = channel;
         state->snapshot.hasRelease = false;
         state->snapshot.status = Status::Unknown;
