@@ -116,3 +116,9 @@ msgstr "Incompatibele update"
 
 msgid "Install this update from install.tactilityproject.org"
 msgstr "Installeer deze update via install.tactilityproject.org"
+
+msgid "Not available yet"
+msgstr "Nog niet beschikbaar"
+
+msgid "Main builds arrive with the next official release. Use Beta until then."
+msgstr "Main-builds komen met de volgende officiële release. Gebruik tot die tijd Bèta."

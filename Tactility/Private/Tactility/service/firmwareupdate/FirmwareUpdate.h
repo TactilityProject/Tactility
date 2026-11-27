@@ -66,6 +66,8 @@ struct Snapshot {
     bool fullInstallRequired;
     /** Why the last install failed, valid while the status is InstallFailed */
     InstallError installError;
+    /** The channel has no build for this device on the CDN, valid while the status is CheckFailed */
+    bool notPublished;
     Channel channel;
 };
 
