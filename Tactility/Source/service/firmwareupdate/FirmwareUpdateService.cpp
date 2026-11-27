@@ -227,7 +227,8 @@ void onNotificationAction(uint32_t /*id*/, void* /*data*/) {
 
 void showNotification(const Release& release) {
     const ::std::string message = i18n::format(tr("Version {} is ready to install"), { release.version });
-    NotificationContext context = notification_context_for_service(SERVICE_ID, message.c_str());
+    // The Software app is the source, so the notification and its setting show the name of the app
+    NotificationContext context = notification_context_for_app(SOFTWARE_APP_ID, message.c_str());
     notification_context_set_title(&context, tr("Tactility update available"));
     notification_context_set_action(&context, onNotificationAction, nullptr);
     notification_context_set_sticky(&context, true);
