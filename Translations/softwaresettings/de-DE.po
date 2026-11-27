@@ -110,3 +110,9 @@ msgstr "Builds des Entwicklungskanals stammen aus Pull Requests, die nicht ferti
 
 msgid "Switch"
 msgstr "Wechseln"
+
+msgid "Incompatible update"
+msgstr "Inkompatibles Update"
+
+msgid "Install this update from install.tactilityproject.org"
+msgstr "Installiere dieses Update über install.tactilityproject.org"

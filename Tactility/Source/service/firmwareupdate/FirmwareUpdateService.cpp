@@ -560,6 +560,7 @@ void runInstall() {
         state->snapshot.status = Status::Installing;
         state->snapshot.progress = 0;
         state->snapshot.downloading = false;
+        state->snapshot.installError = InstallError::None;
         notifySubscribers();
     }
     unlock();
@@ -576,12 +577,14 @@ void runInstall() {
 
     LOG_I(TAG, "Installing %s", file);
     error_t error = ERROR_RESOURCE;
+    bool incompatible = false;
     HttpClient* client = openUrl(getUrl(channel, file));
     if (client != nullptr) {
         const int64_t length = http_client_get_content_length(client);
         if (length >= 0 && length != release.size) {
             LOG_E(TAG, "The download has %lld bytes instead of %lu", static_cast<long long>(length), static_cast<unsigned long>(release.size));
             error = ERROR_INVALID_STATE;
+            incompatible = true;
         } else {
             error = writeUpdate(client, ops, ctx, release.size);
         }
@@ -590,6 +593,11 @@ void runInstall() {
 
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Install failed: %s", error_to_string(error));
+        // A download of another size than the manifest says, or an image that doesn't fit, isn't for this device
+        incompatible |= error == ERROR_OUT_OF_RANGE;
+        lock();
+        state->snapshot.installError = incompatible ? InstallError::Incompatible : InstallError::Other;
+        unlock();
         setStatus(Status::InstallFailed);
         // The image can be of a build that was published after the last check, so a retry needs the current manifest
         requestCheck(true);

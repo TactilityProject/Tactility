@@ -78,6 +78,8 @@ struct Context {
     char confirmCommit[sizeof(firmwareupdate::Release::gitCommit)] {};
     /** The restart is offered once per installed update while the app runs */
     bool restartOffered = false;
+    /** An incompatible update is explained once per failed install */
+    bool incompatibleExplained = false;
     /** Counts taps within a period. Only used with the LVGL lock held. */
     struct TapCounter {
         uint32_t count = 0;
@@ -530,6 +532,22 @@ void offerRestart(Context* ctx) {
     }
 }
 
+/** An update that doesn't match this device can only be installed with the web installer */
+void explainIncompatible(Context* ctx) {
+    const bool incompatible = ctx->snapshot.status == firmwareupdate::Status::InstallFailed &&
+        ctx->snapshot.installError == firmwareupdate::InstallError::Incompatible;
+    if (!incompatible) {
+        ctx->incompatibleExplained = false;
+    } else if (!ctx->incompatibleExplained) {
+        ctx->incompatibleExplained = true;
+        dialog::alert(
+            ctx->appInstanceId,
+            tr("Incompatible update"),
+            tr("Install this update from install.tactilityproject.org")
+        );
+    }
+}
+
 void openRepositories(Context* ctx) {
     AppStartContext context;
     if (app_start_context_from_id(APP_HUB_REPOSITORIES_APP_ID, &context) != ERROR_NONE) {
@@ -604,6 +622,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     firmwareupdate::requestCheck(false);
     offerRestart(&ctx);
+    explainIncompatible(&ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
@@ -663,6 +682,7 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         offerRestart(&ctx);
+        explainIncompatible(&ctx);
 
         AppEvent event {};
         while (app_event_poll(&appEvents, &event) == ERROR_NONE) {

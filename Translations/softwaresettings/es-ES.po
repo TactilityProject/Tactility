@@ -110,3 +110,9 @@ msgstr "Las compilaciones del canal de desarrollo se crean a partir de pull requ
 
 msgid "Switch"
 msgstr "Cambiar"
+
+msgid "Incompatible update"
+msgstr "Actualización incompatible"
+
+msgid "Install this update from install.tactilityproject.org"
+msgstr "Instala esta actualización desde install.tactilityproject.org"

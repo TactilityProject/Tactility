@@ -10,6 +10,7 @@
 
 ## Medium Priority
 
+- Support for screenshots for apps. Ideally automated screenshot taking when apps update.
 - When Wi-Fi connects, check for app updates, create notification if there are updates. Also create this notification if the user opens app hub app, and app hub app checked for updates.
 - Drop support for LilyGO T-Display
 - Build P4 firmware flasher into main OS. Support firmware updates from Software app. Offer several versions/variants of the Wi-Fi firmware.

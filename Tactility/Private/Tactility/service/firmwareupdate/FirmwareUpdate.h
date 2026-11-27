@@ -35,6 +35,14 @@ enum class Channel {
     Develop,
 };
 
+enum class InstallError {
+    None,
+    /** The image doesn't match what this device can install, so it is installed with the web installer */
+    Incompatible,
+    /** E.g. a failed download or flash write */
+    Other,
+};
+
 struct Release {
     char version[32];
     char gitCommit[48];
@@ -56,6 +64,8 @@ struct Snapshot {
     bool installSupported;
     /** The release was built for another partition layout, or doesn't fit, so it is installed with the web flasher */
     bool fullInstallRequired;
+    /** Why the last install failed, valid while the status is InstallFailed */
+    InstallError installError;
     Channel channel;
 };
 

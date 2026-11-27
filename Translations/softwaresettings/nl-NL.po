@@ -110,3 +110,9 @@ msgstr "Builds van het ontwikkelkanaal komen uit pull requests die niet af of ge
 
 msgid "Switch"
 msgstr "Overschakelen"
+
+msgid "Incompatible update"
+msgstr "Incompatibele update"
+
+msgid "Install this update from install.tactilityproject.org"
+msgstr "Installeer deze update via install.tactilityproject.org"
