@@ -69,8 +69,8 @@ msgstr "Herstarten"
 msgid "Develop"
 msgstr "Ontwikkeling"
 
-msgid "No updates"
-msgstr "Geen updates"
+msgid "Up to date"
+msgstr "Up-to-date"
 
 msgid "Update available"
 msgstr "Update beschikbaar"

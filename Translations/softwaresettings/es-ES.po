@@ -69,8 +69,8 @@ msgstr "Reiniciar"
 msgid "Develop"
 msgstr "Desarrollo"
 
-msgid "No updates"
-msgstr "No hay actualizaciones"
+msgid "Up to date"
+msgstr "Actualizado"
 
 msgid "Update available"
 msgstr "Actualización disponible"

@@ -14,6 +14,7 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
+#include <tactility/std/deque.hpp>
 #include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
@@ -23,7 +24,6 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
-#include <atomic>
 #include <cstring>
 
 namespace {
@@ -35,6 +35,13 @@ enum class Request : int32_t {
     SetEnabled,
     Remove,
     Add,
+};
+
+/** What a widget asked for, with the repository that its row showed */
+struct Action {
+    Request request;
+    tt::std::string url;
+    bool enabled;
 };
 
 struct RepositoryItem {
@@ -49,10 +56,8 @@ struct Context {
     uint32_t requestBit = 0;
     /** What the widgets show. Filled by the app's task, with the LVGL lock held while the widgets use it. */
     tt::std::vector<RepositoryItem> repositories;
-    /** Set by the widgets, handled by the app's task because the repositories are stored in files */
-    std::atomic<Request> request { Request::None };
-    std::atomic<size_t> requestIndex { 0 };
-    std::atomic<bool> requestEnabled { false };
+    /** Queued by the widgets with the LVGL lock held, handled by the app's task because the repositories are stored in files */
+    tt::std::deque<Action> actions;
     /** Signaled by the address dialog, which stores its result in addressConfirmed and addressText first */
     uint32_t addressBit = 0;
     bool addressConfirmed = false;
@@ -66,10 +71,16 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
+/** Requires the LVGL lock, which widget callbacks hold. The URL is taken now, while the row matches the list. */
 void signal(Context* ctx, Request request, size_t index, bool enabled) {
-    ctx->requestIndex = index;
-    ctx->requestEnabled = enabled;
-    ctx->request = request;
+    tt::std::string url;
+    if (request != Request::Add) {
+        if (index >= ctx->repositories.size()) {
+            return;
+        }
+        url = ctx->repositories[index].url;
+    }
+    ctx->actions.push_back({ request, std::move(url), enabled });
     task_event_group_signal(ctx->eventGroup, ctx->requestBit);
 }
 
@@ -266,10 +277,8 @@ void onAddressResult(Context* ctx) {
     }
 }
 
-void handleRequest(Context* ctx) {
-    const Request request = ctx->request.exchange(Request::None);
-    const size_t index = ctx->requestIndex;
-    switch (request) {
+void handleAction(Context* ctx, const Action& action) {
+    switch (action.request) {
         case Request::None:
             return;
         case Request::Add:
@@ -277,16 +286,22 @@ void handleRequest(Context* ctx) {
             return;
         case Request::SetEnabled:
         case Request::Remove: {
-            if (index >= ctx->repositories.size()) {
-                return;
-            }
-            const tt::std::string url = ctx->repositories[index].url;
-            const error_t error = request == Request::Remove ? app_hub_repository_remove(url.c_str()) : app_hub_repository_set_enabled(url.c_str(), ctx->requestEnabled);
+            const error_t error = action.request == Request::Remove ? app_hub_repository_remove(action.url.c_str()) : app_hub_repository_set_enabled(action.url.c_str(), action.enabled);
             if (error != ERROR_NONE) {
-                LOG_E(TAG, "Failed to change %s: %s", url.c_str(), error_to_string(error));
+                LOG_E(TAG, "Failed to change %s: %s", action.url.c_str(), error_to_string(error));
             }
             break;
         }
+    }
+}
+
+void handleRequests(Context* ctx) {
+    lvgl_lock();
+    tt::std::deque<Action> actions = std::move(ctx->actions);
+    ctx->actions.clear();
+    lvgl_unlock();
+    for (const auto& action : actions) {
+        handleAction(ctx, action);
     }
 }
 
@@ -320,7 +335,7 @@ int32_t appMain(int /*argc*/, char* /*argv*/[]) {
 
         bool changed = false;
         if (flags & ctx.requestBit) {
-            handleRequest(&ctx);
+            handleRequests(&ctx);
             changed = true;
         }
 

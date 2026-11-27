@@ -83,7 +83,8 @@ struct FirmwareOps {
  * @param[in] ops the operations, which must stay valid until unregistered
  * @param[in] ctx passed to the operations
  * @retval ERROR_ALREADY_EXISTS a firmware with this id is registered
- * @retval ERROR_OUT_OF_MEMORY the registry could not grow
+ * @retval ERROR_OUT_OF_MEMORY the registry could not be created
+ * @warning Like the other tt::std containers, the registry aborts when it can't grow for lack of memory
  */
 error_t firmware_register(const char* id, const struct FirmwareOps* ops, void* ctx);
 
@@ -103,7 +104,8 @@ typedef bool (*FirmwareVisitorFn)(const char* id, const struct FirmwareOps* ops,
 
 /**
  * Visit the registered firmwares.
- * @warning The visitor runs with the registry's lock held: it must not call firmware_register() or firmware_unregister().
+ * @warning The visitor runs with the registry's lock held: it must not call any firmware_*() function, including
+ * firmware_get() and firmware_for_each().
  */
 void firmware_for_each(FirmwareVisitorFn visitor, void* user_data);
 

@@ -74,6 +74,10 @@ struct State {
     uint32_t notificationId = 0;
     /** The file of the release that was found by the last check, relative to the channel's folder */
     char releaseFile[128] {};
+    /** Changes with the channel, so the result of a check or install that started before a change is discarded */
+    uint32_t channelGeneration = 0;
+    /** The commit of the release that the user confirmed, which is the only one that an install request installs */
+    char installCommit[sizeof(Release::gitCommit)] {};
     Subscription subscriptions[SUBSCRIPTION_CAPACITY] {};
 };
 
@@ -89,6 +93,9 @@ GlobalMutex globalMutex;
 
 void lock() { mutex_lock(&globalMutex.handle); }
 void unlock() { mutex_unlock(&globalMutex.handle); }
+
+/** Serializes the reads and writes of the settings file, which is rewritten as a whole. Never taken together with the global lock. */
+GlobalMutex settingsMutex;
 
 /** Exists while the service does, guarded by the global lock */
 State* state = nullptr;
@@ -150,13 +157,14 @@ Channel loadChannel() {
     if (!getSettingsPath(path, sizeof(path))) {
         return getBuildChannel();
     }
+    mutex_lock(&settingsMutex.handle);
     Preferences* preferences = preferences_open(path);
-    if (preferences == nullptr) {
-        return getBuildChannel();
-    }
     char value[16] = "";
-    preferences_opt_string(preferences, SETTING_CHANNEL, value, sizeof(value));
-    preferences_close(preferences);
+    if (preferences != nullptr) {
+        preferences_opt_string(preferences, SETTING_CHANNEL, value, sizeof(value));
+        preferences_close(preferences);
+    }
+    mutex_unlock(&settingsMutex.handle);
     return parseChannel(value, getBuildChannel());
 }
 
@@ -166,13 +174,14 @@ int64_t loadLastCheck() {
     if (!getSettingsPath(path, sizeof(path))) {
         return 0;
     }
+    mutex_lock(&settingsMutex.handle);
     Preferences* preferences = preferences_open(path);
-    if (preferences == nullptr) {
-        return 0;
-    }
     int64_t lastCheck = 0;
-    preferences_opt_int64(preferences, SETTING_LAST_CHECK, &lastCheck);
-    preferences_close(preferences);
+    if (preferences != nullptr) {
+        preferences_opt_int64(preferences, SETTING_LAST_CHECK, &lastCheck);
+        preferences_close(preferences);
+    }
+    mutex_unlock(&settingsMutex.handle);
     return lastCheck;
 }
 
@@ -182,13 +191,15 @@ void writeSettings(Write write) {
     if (!getSettingsPath(path, sizeof(path))) {
         return;
     }
+    mutex_lock(&settingsMutex.handle);
     Preferences* preferences = preferences_open(path);
-    if (preferences == nullptr) {
+    if (preferences != nullptr) {
+        write(preferences);
+        preferences_close(preferences);
+    } else {
         LOG_E(TAG, "Failed to open %s", path);
-        return;
     }
-    write(preferences);
-    preferences_close(preferences);
+    mutex_unlock(&settingsMutex.handle);
 }
 
 // endregion
@@ -357,6 +368,7 @@ void runCheck(bool force) {
     lock();
     const Status status = state->snapshot.status;
     const Channel channel = state->snapshot.channel;
+    const uint32_t generation = state->channelGeneration;
     unlock();
     // A restart is needed first
     if (status == Status::Installed || !isCheckDue(force)) {
@@ -399,7 +411,12 @@ void runCheck(bool force) {
     free(text);
 
     if (!parsed) {
-        setStatus(Status::CheckFailed);
+        lock();
+        if (state->channelGeneration == generation) {
+            state->snapshot.status = Status::CheckFailed;
+            notifySubscribers();
+        }
+        unlock();
         return;
     }
 
@@ -413,11 +430,22 @@ void runCheck(bool force) {
     const bool available = isUpdate(release, channel);
     LOG_I(TAG, "Found %s %s: %s", release.version, release.gitCommit, available ? "update available" : "up to date");
     lock();
-    strcpy(state->releaseFile, file);
-    state->snapshot.release = release;
-    state->snapshot.hasRelease = true;
+    // The channel changed during the check, and a check of the new channel follows
+    const bool current = state->channelGeneration == generation;
+    if (current) {
+        // The failure stays visible when the check after a failed install finds the same release
+        const bool failedBefore = status == Status::InstallFailed && strcmp(state->snapshot.release.gitCommit, release.gitCommit) == 0;
+        strcpy(state->releaseFile, file);
+        state->snapshot.release = release;
+        state->snapshot.hasRelease = true;
+        state->snapshot.status = !available ? Status::UpToDate : (failedBefore ? Status::InstallFailed : Status::Available);
+        state->snapshot.progress = 0;
+        notifySubscribers();
+    }
     unlock();
-    setStatus(available ? Status::Available : Status::UpToDate);
+    if (!current) {
+        return;
+    }
     if (available) {
         showNotification(release);
     } else {
@@ -478,14 +506,22 @@ error_t writeUpdate(HttpClient* client, const FirmwareOps* ops, void* ctx, uint3
 }
 
 void runInstall() {
+    // Reserved in one step, so a channel change either discards the release first or is rejected while installing
     lock();
     const Status status = state->snapshot.status;
+    const bool installable = (status == Status::Available || status == Status::InstallFailed) &&
+        strcmp(state->snapshot.release.gitCommit, state->installCommit) == 0;
     const Release release = state->snapshot.release;
     const Channel channel = state->snapshot.channel;
     char file[sizeof(State::releaseFile)];
     strcpy(file, state->releaseFile);
+    if (installable) {
+        state->snapshot.status = Status::Installing;
+        state->snapshot.progress = 0;
+        notifySubscribers();
+    }
     unlock();
-    if (status != Status::Available && status != Status::InstallFailed) {
+    if (!installable) {
         return;
     }
 
@@ -496,7 +532,6 @@ void runInstall() {
         return;
     }
 
-    setStatus(Status::Installing);
     LOG_I(TAG, "Installing %s", file);
     error_t error = ERROR_RESOURCE;
     HttpClient* client = openUrl(getUrl(channel, file));
@@ -514,6 +549,8 @@ void runInstall() {
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Install failed: %s", error_to_string(error));
         setStatus(Status::InstallFailed);
+        // The image can be of a build that was published after the last check, so a retry needs the current manifest
+        requestCheck(true);
         return;
     }
     LOG_I(TAG, "Installed, the update runs after a restart");
@@ -551,9 +588,12 @@ int32_t workerMain(void* /*context*/) {
 }
 
 /** Requires the global lock */
-void ensureWorkerRunning() {
-    if (state->workerRunning || state->stopping) {
-        return;
+error_t ensureWorkerRunning() {
+    if (state->stopping) {
+        return ERROR_INVALID_STATE;
+    }
+    if (state->workerRunning) {
+        return ERROR_NONE;
     }
     if (state->worker != nullptr) {
         // The previous worker cleared workerRunning and exits without taking the lock
@@ -563,14 +603,15 @@ void ensureWorkerRunning() {
     state->worker = thread_alloc_full("fwupdate", WORKER_STACK_SIZE, workerMain, nullptr, -1);
     if (state->worker == nullptr) {
         LOG_E(TAG, "Failed to create the worker");
-        return;
+        return ERROR_OUT_OF_MEMORY;
     }
     if (thread_start(state->worker) != ERROR_NONE) {
         thread_free(state->worker);
         state->worker = nullptr;
-        return;
+        return ERROR_RESOURCE;
     }
     state->workerRunning = true;
+    return ERROR_NONE;
 }
 
 void onNetworkConnected(SystemEvent* /*event*/, void* /*context*/) {
@@ -655,18 +696,23 @@ void requestCheck(bool force) {
     unlock();
 }
 
-error_t requestInstall() {
+error_t requestInstall(const char* gitCommit) {
     if (!lockState()) {
         return ERROR_INVALID_STATE;
     }
     error_t error = ERROR_NONE;
+    const Status status = state->snapshot.status;
     if (!state->snapshot.installSupported) {
         error = ERROR_NOT_SUPPORTED;
-    } else if (state->snapshot.status != Status::Available && state->snapshot.status != Status::InstallFailed) {
+    } else if ((status != Status::Available && status != Status::InstallFailed) || strcmp(state->snapshot.release.gitCommit, gitCommit) != 0) {
         error = ERROR_INVALID_STATE;
     } else {
+        strcpy(state->installCommit, state->snapshot.release.gitCommit);
         state->installRequested = true;
-        ensureWorkerRunning();
+        error = ensureWorkerRunning();
+        if (error != ERROR_NONE) {
+            state->installRequested = false;
+        }
     }
     unlock();
     return error;
@@ -687,6 +733,7 @@ void setChannel(Channel channel) {
     }
     const bool changed = state->snapshot.channel != channel && state->snapshot.status != Status::Installing;
     if (changed) {
+        state->channelGeneration++;
         state->snapshot.channel = channel;
         state->snapshot.hasRelease = false;
         state->snapshot.status = Status::Unknown;

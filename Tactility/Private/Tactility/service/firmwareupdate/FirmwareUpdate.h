@@ -63,10 +63,11 @@ void requestCheck(bool force);
 
 /**
  * Queue the installation of the available update, also after an install failed
- * @retval ERROR_INVALID_STATE no update is available
+ * @param[in] gitCommit the commit of the release that the user confirmed
+ * @retval ERROR_INVALID_STATE no update is available, or the available one isn't the confirmed release
  * @retval ERROR_NOT_SUPPORTED the device can't install updates itself
  */
-error_t requestInstall();
+error_t requestInstall(const char* gitCommit);
 
 Snapshot getSnapshot();
 

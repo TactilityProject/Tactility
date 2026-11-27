@@ -66,6 +66,10 @@ error_t beginUpdate(void* /*ctx*/, const FirmwareUpdateRequest* request, Firmwar
     const esp_err_t result = esp_ota_begin(partition, size, &otaHandle);
     if (result != ESP_OK) {
         LOG_E(TAG, "esp_ota_begin failed: %s", esp_err_to_name(result));
+        // A failed erase can leave the handle registered, which blocks the next begin until a reboot
+        if (otaHandle != 0) {
+            esp_ota_abort(otaHandle);
+        }
         sessionActive = false;
         return esp_err_to_error(result);
     }

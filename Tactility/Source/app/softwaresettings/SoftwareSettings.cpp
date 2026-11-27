@@ -32,6 +32,7 @@
 #endif
 
 #include <atomic>
+#include <cstring>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -68,6 +69,8 @@ struct Context {
     uint32_t restartDialogBit = 0;
     uint32_t channelDialogBit = 0;
     std::atomic<int32_t> dialogResult { -1 };
+    /** The commit of the release that the install dialog shows, so only that release is installed */
+    char confirmCommit[sizeof(firmwareupdate::Release::gitCommit)] {};
     /** The restart is offered once per installed update while the app runs */
     bool restartOffered = false;
     /** What the widgets show. Written by the app's task with the LVGL lock held. */
@@ -190,7 +193,7 @@ void updateFirmwareWidgets(Context* ctx) {
         return;
     }
     const auto& snapshot = ctx->snapshot;
-    const char* status = tr("No updates");
+    const char* status = tr("Up to date");
     const char* action = tr("Check");
     bool actionEnabled = true;
     std::string detail = i18n::format(tr("{} from {}"), { TT_VERSION, formatDate(tt_build_timestamp) });
@@ -355,6 +358,7 @@ void loadSnapshot(Context* ctx) {
 }
 
 void startInstallDialog(Context* ctx) {
+    strcpy(ctx->confirmCommit, ctx->snapshot.release.gitCommit);
     const std::string message = i18n::format(
         tr("Download and install version {}? Keep the device powered on until the update is installed."),
         { ctx->snapshot.release.version }
@@ -498,7 +502,7 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.installDialogBit) {
             // The second button installs
             if (ctx.dialogResult == 1) {
-                const error_t error = firmwareupdate::requestInstall();
+                const error_t error = firmwareupdate::requestInstall(ctx.confirmCommit);
                 if (error != ERROR_NONE) {
                     LOG_E(TAG, "Failed to start the install: %s", error_to_string(error));
                 }

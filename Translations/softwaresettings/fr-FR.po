@@ -69,8 +69,8 @@ msgstr "Redémarrer"
 msgid "Develop"
 msgstr "Développement"
 
-msgid "No updates"
-msgstr "Aucune mise à jour"
+msgid "Up to date"
+msgstr "À jour"
 
 msgid "Update available"
 msgstr "Mise à jour disponible"

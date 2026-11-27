@@ -69,8 +69,8 @@ msgstr "Neu starten"
 msgid "Develop"
 msgstr "Entwicklung"
 
-msgid "No updates"
-msgstr "Keine Updates"
+msgid "Up to date"
+msgstr "Auf dem neuesten Stand"
 
 msgid "Update available"
 msgstr "Update verfügbar"
